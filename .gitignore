@@ -1,0 +1,46 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets — never commit
+.env
+.env.*
+*.pem
+credentials.json
+
+# Experiment artifacts (regenerate on GPU/CPU runs)
+experiments/**
+!experiments/README.md
+!experiments/**/
+!experiments/**/.gitkeep
+
+# Analysis outputs (regenerable); keep frozen study manifests
+analysis/*
+!analysis/.gitkeep
+!analysis/splits.json
+!analysis/dataset_shortlist.json
+!analysis/selected_feature.json
+
+# LaTeX build
+paper/**/*.aux
+paper/**/*.log
+paper/**/*.out
+paper/**/*.bbl
+paper/**/*.blg
+paper/**/*.synctex.gz
+paper/**/*.pdf
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

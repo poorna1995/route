@@ -1,0 +1,31 @@
+[project]
+name = "llm-routing"
+version = "0.1.0"
+description = "Unsupervised pre-inference signal characterization for LLM routing (research pilot)"
+readme = "research/README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.5",
+    "transformers>=5.0",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "huggingface_hub>=0.26",
+    "numpy>=2.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+analysis = [
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
+
+[tool.uv]
+dev-dependencies = []
+
+# Default PyPI torch is CPU on macOS / varies by platform.
+# On a CUDA Linux machine, install GPU torch once, then sync the rest:
+#   uv pip install torch --index-url https://download.pytorch.org/whl/cu124
+#   uv sync --extra analysis

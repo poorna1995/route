@@ -1,0 +1,127 @@
+% §5 Studies I--III: characterization and prediction
+
+This section addresses our research question (\S\ref{sec:intro}) on ARC-Challenge test ($n{=}1{,}172$).
+We proceed in three stages: \textbf{characterize} each pre-hoc signal family (Studies I--II), then \textbf{predict} routing opportunity from their combination (Study III).
+\textbf{Decision} utility (Study IV) is deferred to \S\ref{sec:routing} until predictive information is established.
+All test metrics are evaluation-only; calibration data support $c(q)$ selection and nested model fitting (\S\ref{sec:setup:nested}).
+Weak or null association is a valid scientific finding \citep{plaut2024chat}.
+
+\subsection{Outcome mix}
+\label{sec:char:buckets}
+
+Table~\ref{tab:buckets} summarizes oracle outcome buckets on the test set (\S\ref{sec:setup:oracle}).
+A non-degenerate routing opportunity rate is required for meaningful AUROC; pilot screening ($n{\approx}50$) showed $\sim$24\% opportunity, motivating the locked configuration.
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Bucket} & \textbf{Count} & \textbf{Rate} \\
+    \midrule
+    Easy & TBD & TBD \\
+    Opportunity & TBD & TBD \\
+    Weak-only & TBD & TBD \\
+    Too-hard & TBD & TBD \\
+    \midrule
+    \textbf{Total} & \textbf{1{,}172} & \textbf{100\%} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Oracle bucket distribution on ARC test.}
+  \label{tab:buckets}
+\end{table}
+
+\subsection{Study I: Model-independent signal family (RH1)}
+\label{sec:char:study1}
+
+\textbf{Question.} Does the model-independent signal family encode routing need before any LLM forward pass?
+
+We report Spearman $\rho$, opportunity AUROC/AUPRC with bootstrap CIs, and bucket-stratified distributions (Figure~\ref{fig:signal-dist}).
+Headline signal: frozen $c(q)$ = \textbf{[TBD: calibration winner]}.
+\input{tables/T2_correlation.tex}
+
+\textbf{[TBD: 2--3 sentences interpreting $\rho$/AUROC.]}
+Partial correlation $\rho(c, y^{\text{opp}} \mid \text{length})$: \textbf{[TBD]} (length confound diagnostic).
+
+\subsection{Study II: Model-dependent signal family (RH2)}
+\label{sec:char:study2}
+
+\textbf{Question.} Does the model-dependent signal family---prefill entropy $H_w$ and log-probability margin $m_w$---encode routing need at prefill cost rather than generation cost \citep{guha2024smoothie,mu2025ragrouting}?
+
+We evaluate weak probes $H_w$, $m_w$ as primaries; strong probes and derived gaps appear in the appendix.
+See Table~\ref{tab:study2} for headline informativeness.
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox{0.92\linewidth}{\centering\vspace{1.2cm}
+    \textbf{[F1]} Distributions of $c(q)$, $H_w$, $m_w$ by bucket\vspace{1.2cm}}}
+  \caption{Pre-hoc signal distributions across oracle buckets. \textbf{[TBD]}}
+  \label{fig:signal-dist}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox{0.92\linewidth}{\centering\vspace{1.2cm}
+    \textbf{[F2]} ROC curves vs.\ opportunity\vspace{1.2cm}}}
+  \caption{ROC curves for headline signals. \textbf{[TBD]}}
+  \label{fig:roc}
+\end{figure}
+
+\textbf{[TBD: 2--3 sentences on $H_w$/$m_w$ ranking opportunity \citep{plaut2024chat,he2023uncertainty}.]}
+
+\subsection{Study III: Complementary predictive information (RH3)}
+\label{sec:char:study3}
+
+\textbf{Question.} Do the model-independent and model-dependent signal families provide \textbf{complementary predictive information} about routing opportunity?
+
+This study evaluates \textbf{prediction} quality---not routing deployment.
+\textbf{Primary endpoint:} $\Delta$AUROC from $c(q)$ alone to joint features $c(q){+}H_w{+}m_w$ on the test set, with DeLong test and bootstrap CI.
+Positive $\Delta$AUROC indicates that the model-dependent family adds predictive information beyond the model-independent family; near-zero $\Delta$ suggests one family suffices.
+\input{tables/T3_complementarity.tex}
+
+\textbf{[TBD: interpret $\Delta$AUROC and DeLong $p$.]}
+
+\subsection{Out-of-distribution generalization}
+\label{sec:char:transfer}
+
+\textbf{Question.} Does the ARC predictive pattern transfer when the reasoning domain changes?
+
+We apply the frozen protocol, pool, and $c(q)$ to three MMLU subjects \citep{hendrycks2021measuring} without re-calibrating $c(q)$.
+One summary table reports opportunity rate and headline $\rho$/$\Delta$AUROC.
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Subject} & Opp.\ \% & $\rho(c)$ & $\rho(H_w)$ & $\rho(m_w)$ & $\Delta$AUROC \\
+    \midrule
+    \textbf{[TBD]} & TBD & TBD & TBD & TBD & TBD \\
+    \textbf{[TBD]} & TBD & TBD & TBD & TBD & TBD \\
+    \textbf{[TBD]} & TBD & TBD & TBD & TBD & TBD \\
+    \bottomrule
+  \end{tabular}
+  \caption{MMLU out-of-distribution transfer (frozen $c(q)$). \textbf{[TBD]}}
+  \label{tab:mmlu}
+\end{table}
+
+\subsection{Probe cost}
+\label{sec:char:cost}
+
+Table~\ref{tab:probe-cost} situates pre-hoc probes in the cost--quality trade-off relative to static routing and post-generation methods \citep{guha2024smoothie,kotte2026ucci,hu2024routerbench}.
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Strategy} & \textbf{Relative cost per query} ($m{=}2$) \\
+    \midrule
+    Always weak (1 generation) & 1 \\
+    Always strong (1 generation) & 3 \\
+    Prefill probes ($m$ forwards) & \textbf{[TBD]} \\
+    Post-gen routing (Smoothie-style; $m$ gens) & 2 generations \\
+    Oracle labeling (offline; $m$ gens) & 2 generations \\
+    \bottomrule
+  \end{tabular}
+  \caption{Probe cost vs.\ generation cost. \textbf{[TBD timings]}}
+  \label{tab:probe-cost}
+\end{table}

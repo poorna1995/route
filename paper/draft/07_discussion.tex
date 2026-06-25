@@ -1,0 +1,51 @@
+% §7 Discussion
+
+\subsection{Synthesis}
+\label{sec:disc:synthesis}
+
+We characterized pre-hoc unsupervised routing signals for multi-LLM selection: what information the model-independent and model-dependent signal families carry, whether they provide complementary predictive information (Study III), and whether that prediction supports lightweight routing (Study IV).
+Our scientific contribution is \textbf{characterization and prediction from lightweight signals}---not a learned pre-hoc estimator \citep{cao2026scope} or deployable routing product \citep{ong2024routellm,guha2024smoothie}.
+
+\textbf{[TBD: per-family informativeness; $\Delta$AUROC; routing utility across $\lambda$.]}
+
+\subsection{Prediction then decision}
+\label{sec:disc:pipeline}
+
+Separating \textbf{prediction} (Studies I--III) from \textbf{decision} (Study IV) clarifies what the signals afford.
+Study III asks whether families jointly estimate routing opportunity; Study IV asks whether that estimate improves assignment under controllable cost preferences.
+Negative prediction does not invalidate the paper; it bounds what unsupervised pre-hoc probes can support.
+
+\subsection{Where signals fail}
+\label{sec:disc:failures}
+
+\textbf{[TBD: error analysis by oracle bucket.]}
+We distinguish false escalation, missed opportunity, and queries where routing is unnecessary (easy) or unhelpful (too-hard).
+Failures may reflect insufficient weak--strong tier gap, not only weak probes \citep{hu2024routerbench}.
+
+\subsection{Timing and probe cost}
+\label{sec:disc:timing}
+
+Post-generation unsupervised routers \citep{guha2024smoothie,niu2026cascal,mu2025ragrouting} and learned pre-hoc estimators \citep{cao2026scope} operate with different information and training budgets than pre-hoc logprob statistics (\S\ref{sec:char:cost}).
+\textbf{[TBD: measured timings.]}
+
+\subsection{Informativeness vs.\ calibration}
+\label{sec:disc:calibration}
+
+Instruction-tuned models are often miscalibrated on MCQ prompts \citep{he2023uncertainty,plaut2024chat}, yet logits may still rank routing need.
+We report $\rho$ and AUROC as primary metrics; deployment would require separate calibration \citep{kotte2026ucci}.
+
+\subsection{Limitations}
+\label{sec:disc:limits}
+
+\begin{itemize}
+  \item Fixed binary pool in one model family.
+  \item First-token prefill probes only; broader $\mathcal{S}$ deferred.
+  \item Offline oracle labels for evaluation; no human preference annotations.
+  \item MMLU subjects chosen by feasibility \citep{hu2024routerbench}.
+\end{itemize}
+
+\subsection{Future work}
+\label{sec:disc:future}
+
+Additional signal families; larger pools; conformal routing \citep{su2025cprouter}; RouterBench-scale comparisons \citep{hu2024routerbench}; contrast with supervised activation probes \citep{lugoloobi2026failures}.
+Retrieval-augmented calibration and learned pre-hoc estimators \citep{cao2026scope} are orthogonal system directions, not extensions of this characterization study.

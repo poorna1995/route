@@ -1,0 +1,94 @@
+% §2 Related Work
+
+\section{Related Work}
+\label{sec:related}
+
+Prior query-routing research has focused on learning deployable routers---supervised predictors or unsupervised post-generation selectors---rather than on characterizing what unsupervised information exists before full model generation.
+We organize related work by what information is used for routing and when it becomes available, following the cost--quality framing of \citet{hu2024routerbench} and the timing distinction emphasized by \citet{ong2024routellm}.
+Table~\ref{tab:landscape} summarizes the landscape; paragraphs below develop each cluster and position our measurement framework.
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{p{0.20\linewidth}p{0.26\linewidth}p{0.18\linewidth}p{0.26\linewidth}}
+    \toprule
+    \textbf{Category} & \textbf{Routing information} & \textbf{Timing} & \textbf{Representative work} \\
+    \midrule
+    Supervised routers &
+      Annotated preferences, labels, histories &
+      Query / post-gen &
+      RouteLLM, Hybrid LLM, GraphRouter, FrugalGPT \\
+    Unsupervised post-gen &
+      Full pool responses &
+      After $m$ generations &
+      Smoothie, CASCAL, Mu et al. \\
+    Pre-hoc estimation &
+      Anchor fingerprints; predicted correctness/cost &
+      Before target inference &
+      SCOPE \\
+    Unsupervised pre-gen (ours) &
+      Query text; prefill logprobs &
+      Before full generation &
+      This work \\
+    Router evaluation &
+      Precomputed outcomes &
+      --- &
+      RouterBench \\
+    \bottomrule
+  \end{tabular}
+  \caption{Related work organized by routing information and timing.}
+  \label{tab:landscape}
+\end{table}
+
+\paragraph{Query routing with supervised annotation.}
+RouteLLM learns $P(\text{strong wins} \mid q)$ from human preference data and augmented labels, routing at inference from query text without live prefill probes on each candidate LLM \citep{ong2024routellm}.
+The system reduces cost between model classes but requires supervised preference construction and does not characterize unsupervised per-model logprob statistics.
+
+Hybrid LLM trains a DeBERTa encoder on when a small model matches large-model quality, using BARTScore on offline generations as supervision \citep{ding2024hybrid}.
+Routing reads the query string only; the authors note query-only routing as a limitation and call for richer pre-query signals---motivating our study, though their method remains supervised on quality proxies.
+
+GraphRouter learns over query--LLM edges with PLM embeddings and historical performance and cost \citep{feng2025graphrouter}.
+Inference relies on past interaction data, not unsupervised live probes on every candidate.
+
+FrugalGPT optimizes API cascades using a scorer $g(q,\text{answer})$ after each generation step \citep{chen2023frugalgpt}.
+Our primary signals are computed before expensive full inference; calibrated margin cascades \citep{kotte2026ucci} provide a complementary production contrast.
+
+RouterBench precomputes outcomes for eleven LLMs across eight datasets and compares router families \citep{hu2024routerbench}.
+It formalizes oracle and zero routers and shows that simple predictive routers do not consistently beat the zero router on all tasks---setting a high bar for probe-based policies.
+RouterBench does not study unsupervised prefill logprob probes as routing inputs.
+
+\paragraph{Unsupervised query routing without manual annotation.}
+Smoothie routes an unlabeled test set by estimating per-model generation quality from post-generation output embeddings via a weak-supervision graphical model \citep{guha2024smoothie}.
+In contrast to our setting, Smoothie requires $m$ full generations per query; we study $m$ prefill probes and cost--quality selection within a tiered pool.
+
+CASCAL trains routers without in-domain ground truth using synthetic queries and confidence-weighted consensus across pool responses---again post-generation \citep{niu2026cascal}.
+
+Mu et al.\ propose unsupervised query routing for retrieval-augmented generation: they construct a multi-source upper-bound response to evaluate single-source retrieval quality and thereby assign queries to search engines without manual annotation \citep{mu2025ragrouting}.
+Their framework eliminates labeling cost and improves scalability and out-of-distribution generalization, but requires generated responses from every retriever rather than prefill logprobs from every LLM.
+Our work asks what can be inferred before any pool member completes an answer.
+
+\paragraph{Pre-hoc performance estimation.}
+SCOPE trains a reasoning estimator on anchor-set correctness and cost to predict outcomes before target-query inference \citep{cao2026scope}.
+It addresses a \emph{routing-system} question---which model to assign under a budget---whereas we address a \emph{characterization} question---whether lightweight unsupervised signals in $\mathcal{S}$ encode routing need without such an estimator.
+We cite SCOPE for shared pre-hoc timing and utility-based evaluation reporting, not as a methodological template.
+
+\paragraph{Partial pre-generation routing.}
+UniRoute clusters prompts unsupervisedly but uses supervised per-cluster validation errors per model for routing among changing pools \citep{jitkrittum2025uniroute}.
+New models require labeled validation runs and are not fully label-free at deployment.
+
+CP-Router routes between one LLM and one large reasoning model using conformal-prediction set size from MCQ logits \citep{su2025cprouter}---closest in timing to our setting.
+It studies a binary LLM$\leftrightarrow$LRM choice, not entropy and margin across a multi-LLM pool under a unified unsupervised protocol.
+
+\paragraph{Uncertainty, calibration, and correctness prediction.}
+Kadavath et al.\ study whether LMs know what they know, including MCQ self-evaluation from pre-answer logits \citep{kadavath2022language}.
+He et al.\ show instruction-tuned chat models become overconfident on MCQ-style prompts, conflating answer and format uncertainty \citep{he2023uncertainty}.
+Plaut et al.\ find chat LLM probabilities miscalibrated on ARC and MMLU yet predict correctness (AUROC); margin and entropy appear in supplementary analysis \citep{plaut2024chat}.
+Kuhn et al.\ use multi-sample semantic entropy \citep{kuhn2023semantic}---requiring multi-generation budgets, unlike our single-pass prefill constraint.
+Kotte \citep{kotte2026ucci} shows calibrated token-margin cascades outperform raw entropy thresholding in production---a contrast to our uncalibrated prefill probes.
+Lugoloobi et al.\ route with supervised linear probes on pre-generation hidden states \citep{lugoloobi2026failures}; timing is similar but the signal class differs from unsupervised logprob statistics in $\mathcal{S}$.
+
+\paragraph{Positioning.}
+We do not propose another supervised router, a pre-hoc reasoning estimator \citep{cao2026scope}, nor an unsupervised method that requires $m$ full generations per query before selection \citep{guha2024smoothie,niu2026cascal,mu2025ragrouting}.
+Given a fixed pool and frozen prompt protocol, we characterize how informative pre-hoc unsupervised routing signals are---organized by the model-independent and model-dependent signal families---not whether a learned estimator can replace them \citep{cao2026scope}.
+Weak or null predictive association is a valid finding \citep{plaut2024chat,hu2024routerbench}.
+Study IV (\S\ref{sec:routing}) evaluates decision utility only after Studies I--III establish predictive information.

@@ -1,0 +1,70 @@
+% acl.tex — main draft (ACL anthology format)
+% Requires: acl.sty from https://github.com/acl-org/acl-style-files
+% Build: pdflatex acl && bibtex acl && pdflatex acl && pdflatex acl
+
+\documentclass[11pt]{article}
+
+% Switch to \usepackage[review]{acl} when acl.sty is installed
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{natbib}
+
+\title{Characterizing Unsupervised Routing Signals for Multi-LLM Selection}
+
+\author{
+  Anonymous Author(s) \\
+  Anonymous Institution \\
+  \texttt{anonymous@domain.edu}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Multi-LLM systems must trade off response quality against inference cost, yet most routing methods rely on supervised routers, learned pre-hoc estimators, or information available only after full answer generation.
+We study \textbf{routing based on unsupervised pre-inference signals}: inexpensive model-independent features and model-dependent probe statistics extracted before complete generation.
+Our primary contribution is \textbf{signal extraction and characterization}---how much routing-relevant information these signals carry (Studies~I--II), whether the families complement each other (Study~III), and whether a simple calibrated policy can exploit whatever information exists (Study~IV).
+Signal computation is unsupervised; oracle labels from offline full generation are used only to evaluate informativeness and to calibrate the demonstration policy on a validation split---never to extract signals.
+On ARC-Challenge ($n{=}299$ calibration, $n{=}1{,}172$ test), we report per-family informativeness, $\Delta$AUROC across families, and cost--quality utility against static baselines.
+We do not present a deployable routing product; negative or uniformly null signal findings are reported as empirical limits under our protocol.
+\textbf{[TBD: one-sentence headline finding---positive/mixed vs.\ limits outcome.]}
+\end{abstract}
+
+\input{draft/01_introduction.tex}
+
+\input{draft/02_related_work.tex}
+
+\input{draft/03_method.tex}
+
+\input{draft/04_experimental_setup.tex}
+
+\section{Signal Characterization and Prediction}
+\label{sec:characterization}
+\input{draft/05_results_characterization.tex}
+
+\section{Routing Decision Evaluation}
+\label{sec:routing}
+\input{draft/06_results_routing.tex}
+
+\section{Discussion}
+\label{sec:discussion}
+\input{draft/07_discussion.tex}
+
+\section{Conclusion}
+\label{sec:conclusion}
+\input{draft/08_conclusion.tex}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\section{Validation Runs During Configuration Search}
+\label{app:validation}
+% Qwen screening failures; Llama ARC preliminary n=10 — appendix only until configuration lock
+
+\end{document}

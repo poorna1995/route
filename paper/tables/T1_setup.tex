@@ -1,0 +1,21 @@
+% T1: Locked experimental configuration
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Component} & \textbf{Locked value} \\
+    \midrule
+    Weak model ($M_w$)   & Llama-3.2-1B-Instruct \\
+    Strong model ($M_s$) & Llama-3.2-3B-Instruct \\
+    Primary dataset      & ARC-Challenge \citep{clark2018think} \\
+    CALIB split          & Official validation ($n{=}299$) \\
+    TEST split           & Official test ($n{=}1{,}172$) \\
+    Prompt protocol      & v1 (\texttt{prompt\_protocol.py}) \\
+    Random seed          & 42 \\
+    $c(q)$ selection     & Pre-study calibration on CALIB --- \textbf{[TBD]} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Locked experimental configuration. Screening exclusions in appendix.}
+  \label{tab:setup}
+\end{table}
