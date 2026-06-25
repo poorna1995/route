@@ -31,7 +31,7 @@ def extract_gsm8k_number(text: str) -> str | None:
 
 def extract_arc_letter(text: str) -> str | None:
     upper = text.upper()
-    matches = re.findall(r"\b([ABCD])\b", upper)
+    matches = re.findall(r"\b([ABCDE])\b", upper)
     return matches[-1] if matches else None
 
 

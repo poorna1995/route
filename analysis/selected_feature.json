@@ -1,0 +1,10 @@
+{
+  "schema": "complexity_selection_v1",
+  "screen_version": "D46-v2",
+  "selected_feature": "piece_count",
+  "calib_locked": true,
+  "n": 299,
+  "screen_report": "/Users/poorna/Desktop/llm_routing/analysis/d46_signal_screen_arc.json",
+  "features_csv": "/Users/poorna/Desktop/llm_routing/experiments/M5/arc_validation_features.csv",
+  "oracle": "/Users/poorna/Desktop/llm_routing/experiments/M4/routing_opportunity/arc_validation_oracle.json"
+}

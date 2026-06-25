@@ -10,31 +10,46 @@ GSM8K_SUFFIX = (
     "Do not include units, commas, or explanations."
 )
 LETTER_SUFFIX = (
-    "Reply with exactly one uppercase letter: A, B, C, or D.\n"
+    "Reply with exactly one uppercase letter: A, B, C, D, or E.\n"
     "Do not provide any explanation."
 )
 BOOLQ_SUFFIX = "Reply with exactly one word: yes or no."
 
 PROTOCOL_VERSION = "v1"
-ARC_CHOICE_LETTERS = ("A", "B", "C", "D")
+ARC_CHOICE_LETTERS = ("A", "B", "C", "D", "E")
 
 
 def normalize_arc_choice_labels(labels: list) -> list[str]:
-    """Map ARC numeric choice labels (1–4) to A–D for protocol v1 letter scoring."""
+    """Map ARC numeric choice labels (1–5) to A–E for protocol v1 letter scoring."""
     raw = [str(lab).strip().upper() for lab in labels]
-    if len(raw) == 4 and all(lab in "1234" for lab in raw):
+    if len(raw) == 5 and all(lab in "12345" for lab in raw):
         return list(ARC_CHOICE_LETTERS)
+    if len(raw) == 4 and all(lab in "1234" for lab in raw):
+        return list(ARC_CHOICE_LETTERS[:4])
     return raw
 
 
 def arc_gold_letter(row: dict) -> str:
-    """Canonical A–D gold for ARC letter-match scoring."""
-    key = str(row["answerKey"]).strip().upper()
+    """Canonical A–E gold for ARC letter-match scoring."""
+    key = str(row.get("answerKey")).strip().upper()
     if key in ARC_CHOICE_LETTERS:
         return key
-    if key in "1234":
-        return ARC_CHOICE_LETTERS[int(key) - 1]
-    raise ValueError(f"Unexpected ARC answerKey: {row['answerKey']!r}")
+    try:
+        n = int(float(key))
+        if 1 <= n <= len(ARC_CHOICE_LETTERS):
+            return ARC_CHOICE_LETTERS[n - 1]
+    except (TypeError, ValueError):
+        pass
+    labels = normalize_arc_choice_labels(row["choices"]["label"])
+    labels_norm = [str(lab).strip().upper() for lab in labels]
+    if key in labels_norm:
+        idx = labels_norm.index(key)
+        if idx < len(ARC_CHOICE_LETTERS):
+            return ARC_CHOICE_LETTERS[idx]
+    raise ValueError(
+        f"Unexpected ARC answerKey: {row.get('answerKey')!r}; "
+        f"id={row.get('id')!r}; labels={row.get('choices', {}).get('label')!r}"
+    )
 
 
 class ChatPromptResult(TypedDict):
