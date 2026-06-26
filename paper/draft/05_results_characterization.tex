@@ -1,16 +1,27 @@
-% §5 Studies I--III: characterization and prediction
+% §5 Empirical evidence (dimension-wise characterization)
 
-This section addresses our research question (\S\ref{sec:intro}) on ARC-Challenge test ($n{=}1{,}172$).
-We proceed in three stages: \textbf{characterize} each pre-hoc signal family (Studies I--II), then \textbf{predict} routing opportunity from their combination (Study III).
-\textbf{Decision} utility (Study IV) is deferred to \S\ref{sec:routing} until predictive information is established.
-All test metrics are evaluation-only; calibration data support $c(q)$ selection and nested model fitting (\S\ref{sec:setup:nested}).
-Weak or null association is a valid scientific finding \citep{plaut2024chat}.
+We present \textbf{empirical evidence} for the routing question on ARC-Challenge test ($n{=}1{,}172$).
+The analytic question throughout is dimensional: \textbf{which latent routing dimension predicts routing opportunity?}---not which statistic ranks highest in isolation.
 
-\subsection{Outcome mix}
-\label{sec:char:buckets}
+\subsection{Overview}
+\label{sec:char:conceptual}
 
-Table~\ref{tab:buckets} summarizes oracle outcome buckets on the test set (\S\ref{sec:setup:oracle}).
-A non-degenerate routing opportunity rate is required for meaningful AUROC; pilot screening ($n{\approx}50$) showed $\sim$24\% opportunity, motivating the locked configuration.
+Figure~\ref{fig:conceptual} summarizes the paper: routing problem $\rightarrow$ operationalized dimensions $\rightarrow$ appropriate model selection.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/F0_conceptual_model.png}
+  \caption{Unsupervised pre-inference routing via \textbf{latent routing dimensions}. Each dimension is operationalized by a prefill statistic; the scientific unit is the dimension, not the statistic.}
+  \label{fig:conceptual}
+\end{figure}
+
+\subsection{Finding 1: Latent dimensions predict routing opportunity}
+\label{sec:char:finding1}
+
+\paragraph{Oracle landscape.}
+Table~\ref{tab:buckets} summarizes offline oracle buckets (\S\ref{sec:setup:oracle}).
+Routing opportunity occurs on 43.3\% of test queries---the label each dimension is tested against.
+
 \begin{table}[t]
   \centering
   \small
@@ -18,10 +29,10 @@ A non-degenerate routing opportunity rate is required for meaningful AUROC; pilo
     \toprule
     \textbf{Bucket} & \textbf{Count} & \textbf{Rate} \\
     \midrule
-    Easy & TBD & TBD \\
-    Opportunity & TBD & TBD \\
-    Weak-only & TBD & TBD \\
-    Too-hard & TBD & TBD \\
+    Easy & 304 & 25.9\% \\
+    Opportunity & 507 & 43.3\% \\
+    Weak-only & 61 & 5.2\% \\
+    Too-hard & 300 & 25.6\% \\
     \midrule
     \textbf{Total} & \textbf{1{,}172} & \textbf{100\%} \\
     \bottomrule
@@ -30,98 +41,84 @@ A non-degenerate routing opportunity rate is required for meaningful AUROC; pilo
   \label{tab:buckets}
 \end{table}
 
-\subsection{Study I: Model-independent signal family (RH1)}
-\label{sec:char:study1}
+\paragraph{Dimension-wise predictiveness (Studies I--II).}
+Table~\ref{tab:study2} reports, for each operationalized dimension, association with $y^{\text{opp}}$.
+\textbf{Escalation potential} ($\Delta m_{\mathrm{gain}}$) and \textbf{model disagreement} ($\Delta H$) are the strongest predictors (AUROC ${\sim}0.60$--$0.61$); \textbf{task difficulty} is weaker (AUROC $0.541$).
+\textbf{Multiple dimensions carry predictive content}, but none approaches perfect opportunity detection.
 
-\textbf{Question.} Does the model-independent signal family encode routing need before any LLM forward pass?
-
-We report Spearman $\rho$, opportunity AUROC/AUPRC with bootstrap CIs, and bucket-stratified distributions (Figure~\ref{fig:signal-dist}).
-Headline signal: frozen $c(q)$ = \textbf{[TBD: calibration winner]}.
 \input{tables/T2_correlation.tex}
-
-\textbf{[TBD: 2--3 sentences interpreting $\rho$/AUROC.]}
-Partial correlation $\rho(c, y^{\text{opp}} \mid \text{length})$: \textbf{[TBD]} (length confound diagnostic).
-
-\subsection{Study II: Model-dependent signal family (RH2)}
-\label{sec:char:study2}
-
-\textbf{Question.} Does the model-dependent signal family---prefill entropy $H_w$ and log-probability margin $m_w$---encode routing need at prefill cost rather than generation cost \citep{guha2024smoothie,mu2025ragrouting}?
-
-We evaluate weak probes $H_w$, $m_w$ as primaries; strong probes and derived gaps appear in the appendix.
-See Table~\ref{tab:study2} for headline informativeness.
 
 \begin{figure}[t]
   \centering
-  \fbox{\parbox{0.92\linewidth}{\centering\vspace{1.2cm}
-    \textbf{[F1]} Distributions of $c(q)$, $H_w$, $m_w$ by bucket\vspace{1.2cm}}}
-  \caption{Pre-hoc signal distributions across oracle buckets. \textbf{[TBD]}}
+  \includegraphics[width=\linewidth]{figures/F1_bucket_distributions.png}
+  \caption{Operationalized dimensions by oracle bucket on ARC test.}
   \label{fig:signal-dist}
 \end{figure}
 
+\subsection{Finding 2: Dimensions encode different aspects of routing need}
+\label{sec:char:finding2}
+
+\paragraph{Cross-dimension structure.}
+Dimensions are not interchangeable predictors of the same latent quantity.
+Figure~\ref{fig:semantics} contrasts \textbf{model uncertainty} ($H_w$) with \textbf{escalation potential} ($\Delta m_{\mathrm{gain}}$)---both from prefill logits but indexing different routing need.
+
 \begin{figure}[t]
   \centering
-  \fbox{\parbox{0.92\linewidth}{\centering\vspace{1.2cm}
-    \textbf{[F2]} ROC curves vs.\ opportunity\vspace{1.2cm}}}
-  \caption{ROC curves for headline signals. \textbf{[TBD]}}
-  \label{fig:roc}
+  \includegraphics[width=\linewidth]{figures/F2_signal_semantics.png}
+  \caption{Model uncertainty vs.\ escalation potential, by oracle bucket.}
+  \label{fig:semantics}
 \end{figure}
 
-\textbf{[TBD: 2--3 sentences on $H_w$/$m_w$ ranking opportunity \citep{plaut2024chat,he2023uncertainty}.]}
+\paragraph{Opportunity vs.\ too-hard.}
+Comparing opportunity ($n{=}507$) and too-hard ($n{=}300$):
+model uncertainty ($H_w$): $d{\approx}0.03$; escalation potential ($\Delta m_{\mathrm{gain}}$): $d{\approx}0.72$; model disagreement ($\Delta H$): $d{\approx}0.82$.
+\textbf{Difficulty-side dimensions} (task difficulty, model uncertainty) do not separate routable from irrecoverable hard queries; \textbf{escalation-side dimensions} (model disagreement, escalation potential) do.
 
-\subsection{Study III: Complementary predictive information (RH3)}
+\paragraph{Recovery matrix.}
+Figure~\ref{fig:recovery} crosses model uncertainty and escalation potential (median splits).
+Highest opportunity rate (57.2\%; $n{=}353$): weak-uncertain queries where the strong model rescues.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/F6_recovery_matrix.png}
+  \caption{Opportunity rate by model uncertainty ($H_w$) and escalation potential ($\Delta m_{\mathrm{gain}}$).}
+  \label{fig:recovery}
+\end{figure}
+
+\subsection{Complementary predictive content (Study III)}
 \label{sec:char:study3}
 
-\textbf{Question.} Do the model-independent and model-dependent signal families provide \textbf{complementary predictive information} about routing opportunity?
+Adding \textbf{model uncertainty} to \textbf{task difficulty} yields $\Delta$AUROC $= +0.049$ (DeLong $p{=}0.008$): the two dimensions capture partially non-redundant predictive content.
+An alternate operationalization of uncertainty ($m_w$) does not improve the joint model on ARC.
+Figure~\ref{fig:decomposition} and Table~\ref{tab:complementarity} summarize the dimensional ladder.
 
-This study evaluates \textbf{prediction} quality---not routing deployment.
-\textbf{Primary endpoint:} $\Delta$AUROC from $c(q)$ alone to joint features $c(q){+}H_w{+}m_w$ on the test set, with DeLong test and bootstrap CI.
-Positive $\Delta$AUROC indicates that the model-dependent family adds predictive information beyond the model-independent family; near-zero $\Delta$ suggests one family suffices.
 \input{tables/T3_complementarity.tex}
 
-\textbf{[TBD: interpret $\Delta$AUROC and DeLong $p$.]}
-
-\subsection{Out-of-distribution generalization}
-\label{sec:char:transfer}
-
-\textbf{Question.} Does the ARC predictive pattern transfer when the reasoning domain changes?
-
-We apply the frozen protocol, pool, and $c(q)$ to three MMLU subjects \citep{hendrycks2021measuring} without re-calibrating $c(q)$.
-One summary table reports opportunity rate and headline $\rho$/$\Delta$AUROC.
-
-\begin{table}[t]
+\begin{figure}[t]
   \centering
-  \small
-  \begin{tabular}{lccccc}
-    \toprule
-    \textbf{Subject} & Opp.\ \% & $\rho(c)$ & $\rho(H_w)$ & $\rho(m_w)$ & $\Delta$AUROC \\
-    \midrule
-    \textbf{[TBD]} & TBD & TBD & TBD & TBD & TBD \\
-    \textbf{[TBD]} & TBD & TBD & TBD & TBD & TBD \\
-    \textbf{[TBD]} & TBD & TBD & TBD & TBD & TBD \\
-    \bottomrule
-  \end{tabular}
-  \caption{MMLU out-of-distribution transfer (frozen $c(q)$). \textbf{[TBD]}}
-  \label{tab:mmlu}
-\end{table}
+  \includegraphics[width=\linewidth]{figures/F3_information_decomposition.png}
+  \caption{Complementarity across operationalized dimensions (CALIB-fit, TEST-eval).}
+  \label{fig:decomposition}
+\end{figure}
 
 \subsection{Probe cost}
 \label{sec:char:cost}
 
-Table~\ref{tab:probe-cost} situates pre-hoc probes in the cost--quality trade-off relative to static routing and post-generation methods \citep{guha2024smoothie,kotte2026ucci,hu2024routerbench}.
+Table~\ref{tab:probe-cost} compares prefill-probe cost to post-generation routing \citep{guha2024smoothie,kotte2026ucci,hu2024routerbench}.
+
 \begin{table}[t]
   \centering
   \small
   \begin{tabular}{ll}
     \toprule
-    \textbf{Strategy} & \textbf{Relative cost per query} ($m{=}2$) \\
+    \textbf{Strategy} & \textbf{Relative cost} ($m{=}2$) \\
     \midrule
-    Always weak (1 generation) & 1 \\
-    Always strong (1 generation) & 3 \\
-    Prefill probes ($m$ forwards) & \textbf{[TBD]} \\
-    Post-gen routing (Smoothie-style; $m$ gens) & 2 generations \\
-    Oracle labeling (offline; $m$ gens) & 2 generations \\
+    Always weak & 1 generation \\
+    Always strong & 3 generations \\
+    Prefill probes & $\ll 1$ generation \\
+    Post-generation routing & 2 generations \\
     \bottomrule
   \end{tabular}
-  \caption{Probe cost vs.\ generation cost. \textbf{[TBD timings]}}
+  \caption{Prefill probes vs.\ full generation cost.}
   \label{tab:probe-cost}
-\end{table}
+\end{figure}

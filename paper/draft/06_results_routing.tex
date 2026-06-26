@@ -1,45 +1,29 @@
-% §6 Study IV: decision utility (RH4)
+% §6 Routing evaluation (Study IV)
 
-Study IV evaluates \textbf{decision} utility: given Study III's assessment of complementary predictive information, can pre-hoc signals support lightweight routing that improves cost--quality over static baselines?
-This is distinct from learned pre-hoc estimators \citep{cao2026scope}: we use a simple calibration-fit logistic policy over characterized signals only.
-We do not use oracle labels at deployment time.
-Median-threshold heuristics are internal sanity checks and are not reported.
+Study~IV performs \textbf{routing evaluation}: given the evidence in \S\ref{sec:characterization}, can pre-inference signals support appropriate model selection?
+We use a calibrated logistic policy as an evaluation instrument---not a routing contribution \citep{cao2026scope}.
 
-\subsection{Held-out policy}
+\subsection{Routing policy}
 \label{sec:routing:policy}
 
-Study IV is independent of Study III (\S\ref{sec:char:study3}).
-We fit on calibration data:
-\begin{equation}
-\hat{p}(q) = P\bigl(y^{\text{opp}}=1 \mid c(q), H_w(q), m_w(q)\bigr),
-\end{equation}
-tune $\tau$ by maximizing $U = \text{accuracy} - \lambda \cdot \text{avg.\ cost}$ (\S\ref{sec:setup:utility}), freeze $(\text{weights}, \tau)$, and evaluate on test only.
-\textbf{Routing rule:} assign $q$ to $M_s$ if $\hat{p}(q) \geq \tau$; else $M_w$.
+Fit on CALIB: $\hat{p}(q) = P(y^{\text{opp}}{=}1 \mid c, H_w, m_w)$; tune $\tau$ for $U = \text{accuracy} - \lambda \cdot \text{cost}$; evaluate on TEST.
+Assign $M_s$ if $\hat{p}(q) \geq \tau$; else $M_w$.
 
-\subsection{Baselines and reporting}
+\subsection{Baselines}
 \label{sec:routing:baselines}
 
-Following \citet{hu2024routerbench}, we compare static policies and an offline upper bound.
-For each $\lambda \in \{0,\,0.05,\,0.10\}$, we report accuracy, average cost, utility $U$, and opportunity recall.
-\begin{itemize}
-  \item \textbf{Always-weak} / \textbf{Always-strong} --- fixed assignment baselines;
-  \item \textbf{Learned router} --- calibration-fit logistic + $\tau(\lambda)$;
-  \item \textbf{Oracle} --- cheapest successful pool member (offline upper bound).
-\end{itemize}
-\textbf{Cost model:} weak $=1$, strong $=3$ (\S\ref{sec:setup:metrics}).
+Always-weak, always-strong, calibrated logistic policy, offline oracle \citep{hu2024routerbench}.
+Cost: weak $=1$, strong $=3$.
 
-\subsection{Results}
+\subsection{Finding 3: Routing leaves exploitable headroom}
 \label{sec:routing:results}
 
 \input{tables/T4_routing.tex}
 
-\begin{figure}[t]
-  \centering
-  \fbox{\parbox{0.92\linewidth}{\centering\vspace{1.2cm}
-    \textbf{[F5]} Cost--quality Pareto (accuracy vs.\ avg.\ cost; $\lambda$ sweep)\vspace{1.2cm}}}
-  \caption{Decision utility: routing accuracy vs.\ inference cost on ARC test. Points for $\lambda \in \{0, 0.05, 0.10\}$ plus static baselines. \textbf{[TBD]}}
-  \label{fig:cost-quality}
-\end{figure}
+At $\lambda{=}0$, the calibrated policy matches always-strong (69.2\%).
+The oracle reaches 74.4\%: \textbf{5.2 percentage points} of headroom, \textbf{none} exploited ($\tau{=}0$).
 
-\textbf{[TBD: Does any $\lambda$ improve accuracy over always-weak at lower cost than always-strong?]}
-If Study III shows negligible $\Delta$AUROC, we report honestly that characterized signals do not support useful routing---a valid characterization result \citep{hu2024routerbench}.
+\paragraph{Interpretation.}
+Before generation, there is useful---but incomplete---information for selecting the appropriate LLM.
+Finding~2 explains part of the gap: policies that conflate \textbf{model uncertainty} with \textbf{escalation potential} cannot select appropriately.
+Detection (${\sim}0.61$ AUROC) exceeds assignment under this policy class \citep{plaut2024chat,hu2024routerbench}.

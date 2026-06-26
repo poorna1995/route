@@ -3,77 +3,49 @@
 \section{Introduction}
 \label{sec:intro}
 
-Large language models (LLMs) vary widely in capability and inference cost, and no single model optimally balances response quality and computational expense across all queries \citep{hu2024routerbench,ong2024routellm}.
-Different queries require different levels of reasoning capability; routing every query through the same model is therefore inefficient \citep{ding2024hybrid,chen2023frugalgpt}.
-Engineers deploy multi-LLM systems that must trade off quality against cost when selecting among models in a fixed pool $\mathcal{M}$ \citep{hu2024routerbench,ding2024hybrid}.
+Large language models (LLMs) vary widely in capability and inference cost.
+Deploying a single model for every query is inefficient: some inputs are answered correctly by a small model, while others require a larger one \citep{hu2024routerbench,ding2024hybrid,chen2023frugalgpt}.
+\textbf{Multi-LLM routing} assigns each query to a model in a fixed pool $\mathcal{M}$ so as to trade off response quality against inference cost \citep{ong2024routellm}.
 
 \paragraph{Problem.}
-Query routing assigns each input $q$ to a model in $\mathcal{M}$.
-Prior work largely follows one of three patterns: \emph{supervised routers} trained on preference or routing labels \citep{ong2024routellm,ding2024hybrid,feng2025graphrouter}; \emph{learned pre-hoc estimators} of model quality \citep{cao2026scope}; or \emph{post-generation} selection after every pool member has produced a full answer \citep{guha2024smoothie,niu2026cascal}.
-These systems optimize \emph{which model to run}; they do not systematically characterize whether inexpensive \textbf{unsupervised pre-inference signals}---computable from the query and from a lightweight prefill probe, without routing supervision labels---themselves carry routing-relevant information before expensive full generation.
-
-\paragraph{Our approach.}
-We study \textbf{routing based on unsupervised pre-inference signals}.
-For each query we extract a feature vector from two complementary families: model-independent statistics $c(q)$ from formatted query text alone, and model-dependent probe statistics $H(q,M_i)$ and $m(q,M_i)$ from one prefill forward pass per pool member (\S\ref{sec:method}).
-We then ask how much \textbf{routing-relevant information} these signals contain, whether the families complement each other, and---only after that characterization---whether a simple calibrated policy can exploit whatever information exists.
-Our primary contribution is \textbf{signal extraction and characterization}, not a deployable router; Study~IV is a \textbf{demonstration} built on the signals Studies~I--III establish.
-
-\paragraph{Contrast with prior routing pipelines.}
-\begin{center}
-\small
-\begin{tabular}{@{}l@{\quad}l@{}}
-\textbf{Typical supervised routing} &
-Query $\rightarrow$ supervised router $\rightarrow$ choose LLM \\
-\textbf{This work} &
-Query $\rightarrow$ unsupervised signal extraction $\rightarrow$ characterize information $\rightarrow$ simple policy $\rightarrow$ choose LLM \\
-\end{tabular}
-\end{center}
+The routing objective is \textbf{appropriate model selection}: route to the \textbf{weakest model expected to answer correctly}, escalating only when additional capability is likely to help.
+Most prior work develops \textbf{routing algorithms}---supervised routers \citep{ong2024routellm,ding2024hybrid,feng2025graphrouter}, learned pre-hoc estimators \citep{cao2026scope}, or post-generation selectors \citep{guha2024smoothie,niu2026cascal}.
+We instead ask a prior question: \textbf{what routing-relevant information is available before any routing decision is made?}
+Specifically, can \textbf{unsupervised pre-inference signals}---statistics derived from query text and prefill probes before full generation---support appropriate model selection?
 
 \paragraph{Research question.}
-\textit{How informative are unsupervised pre-inference routing signals for multi-LLM selection before full model generation?}
+\textit{Can unsupervised pre-inference signals support selecting the appropriate LLM from a fixed pool before generation?}
 
-Scientifically, we ask how much \textbf{routing-relevant information} is present in inexpensive pre-inference signals.
-We operationalize \emph{informativeness} as predictive association with routing need (Spearman $\rho$, opportunity AUROC, complementary predictive gain $\Delta$AUROC)---not as sufficiency for optimal routing or as Shannon mutual information.
-Weak or uniformly null associations are valid findings if reported rigorously \citep{plaut2024chat}; in the latter case the paper emphasizes \emph{limits} of these signal families under our protocol rather than enabling routing (\S\ref{sec:discussion}).
+We do not ask which isolated statistic achieves the highest AUROC.
+We ask which \textbf{latent routing dimensions}---task difficulty, model uncertainty, model disagreement, escalation potential---are measurable before generation, and whether a calibrated policy can use them (Table~\ref{tab:dimensions}).
 
-\paragraph{Appropriate selection.}
-Within $\mathcal{M}$, appropriate assignment means a cost--quality trade-off: route to the \textbf{weakest model expected to answer correctly}, escalating to a stronger model only when pre-inference signals indicate that additional capability is likely to improve the outcome---not always choosing the highest-capability model.
+\paragraph{Approach.}
+We treat routing need as \textbf{latent}: each dimension is \textbf{operationalized} by one prefill statistic (e.g., task difficulty by \texttt{piece\_count}; escalation potential by $\Delta m_{\mathrm{gain}}$).
+Studies I--III ask \textbf{which dimension predicts routing opportunity} and whether dimensions encode \textbf{different} aspects of that need.
+Signal characterization supplies \textbf{evidence}; routing evaluation supplies \textbf{validation} (\S\ref{sec:routing}).
 
-\paragraph{Scientific pipeline.}
-Our contribution follows an \textbf{information $\rightarrow$ characterization $\rightarrow$ understanding $\rightarrow$ utility} structure:
-\begin{enumerate}
-  \item \textbf{Signal taxonomy} --- two families in $\mathcal{S}=\mathcal{S}_{\text{indep}}\cup\mathcal{S}_{\text{dep}}$; v1 instances $c(q)$, $H$, $m$ (\S\ref{sec:method}).
-  \item \textbf{Characterization} (Studies I--II; RH1--RH2) --- does each family encode routing-relevant information?
-  \item \textbf{Understanding} (Study III; RH3) --- do the families provide \emph{additional} information together?
-  \item \textbf{Utility} (Study IV; RH4) --- can a simple policy \emph{exploit whatever information exists} under a cost--quality trade-off?
-\end{enumerate}
-Each study depends on the previous; routing evaluation is meaningful only if Studies~I--III establish whether exploitable information is present.
-
-\paragraph{Supervision boundary.}
-Signal \textbf{computation} is unsupervised: $c(q)$, $H$, and $m$ are extracted without routing labels.
-\textbf{Characterization} uses offline oracle labels from full generation on held-out data only to measure informativeness---never to define signals \citep{hu2024routerbench}.
-\textbf{Policy calibration} (Study~IV) fits a simple logistic model and threshold on the validation split from oracle-derived $y^{\text{opp}}$; this supervised step is a secondary demonstration on top of unsupervised signals, not an end-to-end supervised router (\S\ref{sec:method:supervision}).
-
-\paragraph{Gap.}
-Table~\ref{tab:landscape} (\S\ref{sec:related}) summarizes prior clusters.
-None systematically characterize whether model-independent and model-dependent \textbf{pre-inference signal families} jointly encode routing need at prefill cost rather than full generation cost \citep{guha2024smoothie}.
+\paragraph{What ``unsupervised'' means.}
+\textbf{Signal extraction} is unsupervised at inference time.
+Offline oracle labels evaluate whether each dimension predicts opportunity (Studies I--III).
+Routing evaluation fits a demonstration policy on CALIB only (\S\ref{sec:method:supervision}).
 
 \paragraph{Contributions.}
-In summary:
 \begin{enumerate}
-  \item We formalize \textbf{unsupervised pre-inference signal extraction and characterization} for multi-LLM routing, with a three-layer supervision boundary between signal computation, offline evaluation, and policy demonstration (\S\ref{sec:method}).
-  \item We define model-independent and model-dependent signal families, a shared prompt--probe--oracle protocol, and operational informativeness metrics (\S\ref{sec:method}--\S\ref{sec:setup}).
-  \item We characterize per-family routing-relevant information on $n{=}1{,}172$ ARC-Challenge test queries (Studies I--II; \S\ref{sec:characterization}).
-  \item We evaluate complementary predictive information across families (Study~III; \S\ref{sec:char:study3}).
-  \item We test whether a simple calibrated policy can exploit the information characterized in Studies~I--III (Study~IV; \S\ref{sec:routing}).
+  \item An empirical study of \textbf{unsupervised pre-inference signals} for multi-LLM routing, with appropriate selection defined over a fixed pool and no routing labels at extraction time.
+  \item A dimensional account of routing need: four \textbf{latent routing dimensions} with prefill operationalizations (Table~\ref{tab:dimensions}).
+  \item \textbf{Empirical evidence} on ARC-Challenge: multiple dimensions predict opportunity; \textbf{task difficulty and model uncertainty} overlap, while \textbf{model disagreement and escalation potential} separate routable from irrecoverable hard queries; dimensions are partially complementary (\S\ref{sec:characterization}).
+  \item \textbf{Routing evaluation}: a calibrated logistic policy leaves exploitable headroom relative to an offline oracle (\S\ref{sec:routing}).
 \end{enumerate}
 
-\paragraph{Main findings.}
-\textbf{[TBD: branch on outcome scenario---(a) some signal informative and utility may improve, or (b) uniformly null signals $\Rightarrow$ limits characterization.]}
+\paragraph{Main findings (ARC test, $n{=}1{,}172$).}
+The answer is \textbf{partially}.
+\begin{enumerate}
+  \item \textbf{Dimensions predict opportunity.} Routing opportunity occurs on 43.3\% of queries; escalation potential reaches AUROC ${\sim}0.61$ (Table~\ref{tab:study2}).
+  \item \textbf{Dimensions differ.} Model uncertainty does not separate opportunity from too-hard queries ($d{\approx}0.03$); escalation potential does ($d{\approx}0.72$).
+  \item \textbf{Routing leaves headroom.} A CALIB-fit calibrated policy matches always-strong (69.2\%); oracle 74.4\% (Table~\ref{tab:routing}).
+\end{enumerate}
 
 \paragraph{Paper organization.}
-\S\ref{sec:related} reviews related work.
-\S\ref{sec:method}--\S\ref{sec:setup} define signals, supervision layers, and protocol.
-\S\ref{sec:characterization} reports Studies~I--III.
-\S\ref{sec:routing} reports Study~IV.
-\S\ref{sec:discussion}--\S\ref{sec:conclusion} conclude.
+\S\ref{sec:related}--\S\ref{sec:setup} set context and methodology.
+\S\ref{sec:characterization} tests which dimensions predict opportunity.
+\S\ref{sec:routing} reports routing evaluation.

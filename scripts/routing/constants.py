@@ -188,6 +188,7 @@ COMPLEMENTARITY_CV_MIN_CLASS = 2
 
 ANALYSIS_ROUTING_RELEVANCE = "routing_relevance"
 ANALYSIS_COMPLEMENTARITY = "signal_complementarity"
+ANALYSIS_INTERPRETATION = "interpretation"
 ANALYSIS_ROUTING_PREVIEW = "routing_preview"
 ANALYSIS_ROUTING_HOLDOUT = "routing_holdout"
 

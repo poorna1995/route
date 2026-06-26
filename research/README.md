@@ -49,6 +49,10 @@ Implementation        ../experiments/README.md, scripts/
 | Oracle | `07_oracle_definition.md` | Offline labels, \(y_{\text{opp}}\) |
 | Evaluation | `08_evaluation_design.md` | Metrics, study outputs |
 | Claims | `claims.md` | Hypothesis → evidence map |
+| Process & results | `paper_process_and_results.md` | End-to-end pipeline + locked findings |
+| ACL strategy | `acl_scientific_strategy.md` | Geometry framing + experiment priorities |
+| ACL implementation | `acl_implementation_plan.md` | Prerequisites, work packages, infra, calendar |
+| ACL sprint strategy | `acl_sprint_strategy.md` | Best plan: C1/C2/C3 campaigns, infra, 6–8 week timeline |
 | Paper | `11_paper_outline.md` | Section structure |
 
 ## Engineering documents

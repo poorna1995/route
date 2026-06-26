@@ -3,49 +3,26 @@
 \subsection{Synthesis}
 \label{sec:disc:synthesis}
 
-We characterized pre-hoc unsupervised routing signals for multi-LLM selection: what information the model-independent and model-dependent signal families carry, whether they provide complementary predictive information (Study III), and whether that prediction supports lightweight routing (Study IV).
-Our scientific contribution is \textbf{characterization and prediction from lightweight signals}---not a learned pre-hoc estimator \citep{cao2026scope} or deployable routing product \citep{ong2024routellm,guha2024smoothie}.
+We asked whether unsupervised pre-inference signals can support appropriate multi-LLM routing before generation.
+On ARC-Challenge, the answer is \textbf{partially}.
 
-\textbf{[TBD: per-family informativeness; $\Delta$AUROC; routing utility across $\lambda$.]}
+The scientific contribution is dimensional: routing need decomposes into \textbf{latent dimensions}---task difficulty, model uncertainty, model disagreement, escalation potential---each operationalized by a prefill statistic.
+Before generation, multiple dimensions predict routing opportunity; they encode \textbf{different aspects of routing need}.
+A calibrated routing policy does not fully exploit what is available.
 
-\subsection{Prediction then decision}
-\label{sec:disc:pipeline}
-
-Separating \textbf{prediction} (Studies I--III) from \textbf{decision} (Study IV) clarifies what the signals afford.
-Study III asks whether families jointly estimate routing opportunity; Study IV asks whether that estimate improves assignment under controllable cost preferences.
-Negative prediction does not invalidate the paper; it bounds what unsupervised pre-hoc probes can support.
-
-\subsection{Where signals fail}
+\subsection{Why the dimensional view matters}
 \label{sec:disc:failures}
 
-\textbf{[TBD: error analysis by oracle bucket.]}
-We distinguish false escalation, missed opportunity, and queries where routing is unnecessary (easy) or unhelpful (too-hard).
-Failures may reflect insufficient weak--strong tier gap, not only weak probes \citep{hu2024routerbench}.
+Treating \textbf{model uncertainty} as a proxy for \textbf{escalation potential} fails: opportunity and too-hard queries are indistinguishable on $H_w$ yet separate on $\Delta m_{\mathrm{gain}}$.
+Routing policies must respect the dimensional structure documented in \S\ref{sec:char:finding2}.
 
-\subsection{Timing and probe cost}
-\label{sec:disc:timing}
+\subsection{Future dimensions}
+\label{sec:disc:future}
 
-Post-generation unsupervised routers \citep{guha2024smoothie,niu2026cascal,mu2025ragrouting} and learned pre-hoc estimators \citep{cao2026scope} operate with different information and training budgets than pre-hoc logprob statistics (\S\ref{sec:char:cost}).
-\textbf{[TBD: measured timings.]}
-
-\subsection{Informativeness vs.\ calibration}
-\label{sec:disc:calibration}
-
-Instruction-tuned models are often miscalibrated on MCQ prompts \citep{he2023uncertainty,plaut2024chat}, yet logits may still rank routing need.
-We report $\rho$ and AUROC as primary metrics; deployment would require separate calibration \citep{kotte2026ucci}.
+This study operationalizes four dimensions from query text and single-step prefill logits.
+Richer measurements---generation trajectories, hidden states, paraphrase stability---may support additional latent dimensions (appendix Table~\ref{tab:dim-taxonomy}) without changing the dimensional abstraction.
 
 \subsection{Limitations}
 \label{sec:disc:limits}
 
-\begin{itemize}
-  \item Fixed binary pool in one model family.
-  \item First-token prefill probes only; broader $\mathcal{S}$ deferred.
-  \item Offline oracle labels for evaluation; no human preference annotations.
-  \item MMLU subjects chosen by feasibility \citep{hu2024routerbench}.
-\end{itemize}
-
-\subsection{Future work}
-\label{sec:disc:future}
-
-Additional signal families; larger pools; conformal routing \citep{su2025cprouter}; RouterBench-scale comparisons \citep{hu2024routerbench}; contrast with supervised activation probes \citep{lugoloobi2026failures}.
-Retrieval-augmented calibration and learned pre-hoc estimators \citep{cao2026scope} are orthogonal system directions, not extensions of this characterization study.
+Binary Llama~3.2 pool; ARC-Challenge only; one operationalization per main dimension; demonstration policy calibrated on CALIB.

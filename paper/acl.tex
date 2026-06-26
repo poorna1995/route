@@ -14,7 +14,7 @@
 \usepackage{hyperref}
 \usepackage{natbib}
 
-\title{Characterizing Unsupervised Routing Signals for Multi-LLM Selection}
+\title{Can Unsupervised Pre-Inference Signals Support Appropriate Multi-LLM Routing?}
 
 \author{
   Anonymous Author(s) \\
@@ -26,13 +26,11 @@
 \maketitle
 
 \begin{abstract}
-Multi-LLM systems must trade off response quality against inference cost, yet most routing methods rely on supervised routers, learned pre-hoc estimators, or information available only after full answer generation.
-We study \textbf{routing based on unsupervised pre-inference signals}: inexpensive model-independent features and model-dependent probe statistics extracted before complete generation.
-Our primary contribution is \textbf{signal extraction and characterization}---how much routing-relevant information these signals carry (Studies~I--II), whether the families complement each other (Study~III), and whether a simple calibrated policy can exploit whatever information exists (Study~IV).
-Signal computation is unsupervised; oracle labels from offline full generation are used only to evaluate informativeness and to calibrate the demonstration policy on a validation split---never to extract signals.
-On ARC-Challenge ($n{=}299$ calibration, $n{=}1{,}172$ test), we report per-family informativeness, $\Delta$AUROC across families, and cost--quality utility against static baselines.
-We do not present a deployable routing product; negative or uniformly null signal findings are reported as empirical limits under our protocol.
-\textbf{[TBD: one-sentence headline finding---positive/mixed vs.\ limits outcome.]}
+Multi-LLM systems must select an appropriate model per query while trading off quality and cost, yet most work develops routing algorithms using supervised labels or post-generation information \citep{ong2024routellm,guha2024smoothie}.
+We ask: \textbf{can unsupervised pre-inference signals support appropriate multi-LLM routing before generation?}
+We organize unsupervised pre-inference signals as \textbf{latent routing dimensions} with prefill operationalizations, ask which dimensions predict routing opportunity, and evaluate whether a calibrated logistic policy can exploit them on a held-out test split.
+On ARC-Challenge ($n{=}299$ calibration, $n{=}1{,}172$ test; Llama~3.2~1B/3B): \textbf{(1)}~multiple \textbf{latent routing dimensions} predict opportunity before generation (best operationalization: AUROC ${\sim}0.61$ for escalation potential); \textbf{(2)}~dimensions encode different routing need---task difficulty and model uncertainty overlap, while model disagreement and escalation potential separate routable from irrecoverable hard queries; \textbf{(3)}~a CALIB-fit calibrated policy matches always routing to the strong model (69.2\% vs.\ oracle 74.4\%), leaving 5.2 percentage points unexploited.
+Signal extraction is unsupervised at inference time; oracle labels supply characterization evidence; the routing policy uses supervised calibration on CALIB for evaluation only.
 \end{abstract}
 
 \input{draft/01_introduction.tex}
@@ -43,11 +41,11 @@ We do not present a deployable routing product; negative or uniformly null signa
 
 \input{draft/04_experimental_setup.tex}
 
-\section{Signal Characterization and Prediction}
+\section{Empirical Evidence}
 \label{sec:characterization}
 \input{draft/05_results_characterization.tex}
 
-\section{Routing Decision Evaluation}
+\section{Routing Evaluation}
 \label{sec:routing}
 \input{draft/06_results_routing.tex}
 
@@ -63,8 +61,6 @@ We do not present a deployable routing product; negative or uniformly null signa
 \bibliography{references}
 
 \appendix
-\section{Validation Runs During Configuration Search}
-\label{app:validation}
-% Qwen screening failures; Llama ARC preliminary n=10 — appendix only until configuration lock
+\input{draft/09_appendix.tex}
 
 \end{document}

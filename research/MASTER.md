@@ -7,39 +7,72 @@
 
 ## 1. One sentence
 
-This project characterizes **routing-relevant information in unsupervised pre-inference signals**—representative model-independent \(c(q)\), plus model-dependent \(H\) and \(m\)—for LLM selection between Llama-3.2-1B and 3B on ARC. Study IV demonstrates whether a simple policy can exploit whatever information exists; MMLU tests transfer. Signals are measured **before full model generation** (pre-inference).
+This project investigates whether **unsupervised pre-inference signals can support multi-LLM routing** in a fixed pool (Llama-3.2-1B / 3B on ARC-Challenge). To answer that routing question, we **extract unsupervised pre-inference signals** (model-independent \(c(q)\) + model-dependent \(H\), \(m\)), **characterize** routing-relevant information by **information dimension** (Studies I–III), and **evaluate** whether a calibrated policy can exploit it (Study IV). Signals are computed **before full model generation** (pre-inference).
 
-**Headline contribution (ACL):** **unsupervised pre-inference signal extraction and characterization for routing** — not “unsupervised routing” (Study IV uses supervised calibration on CALIB) and not “we built a router.”
+**One-line problem (advisor):** Given a query, without supervision at signal time, estimate useful pre-inference signals that help **decide which LLM should solve it**.
 
-**Acceptable alternates in prose:** *routing based on unsupervised pre-inference signals* · *unsupervised pre-inference routing signals* (signals only, not the full system).
+**Headline contribution (ACL):** A **systematic empirical study** of whether unsupervised pre-inference signals can support multi-LLM routing — including what routing-relevant information they carry, how dimensions differ and complement each other, and what a calibrated policy can exploit.
 
-**Avoid as contribution headline:** *unsupervised routing* — reviewers will ask why logistic regression on CALIB is unsupervised.
+**The taxonomy supports the science; do not lead with “we propose a framework.”**
+
+**Acceptable in prose:** *unsupervised pre-inference signal-based routing* · *routing based on unsupervised pre-inference signals* · *unsupervised routing* **only when defined once** as routing driven by unsupervised signals (policy calibration on CALIB is the **last** step, not the research object).
+
+**Avoid as sole headline:** *Characterizing routing information* (metrology only) · *we built a router* · *signal framework* as primary novelty claim.
+
+### Professor's mental model (transcript — D66)
+
+```text
+Research problem: Can we perform unsupervised routing?
+        │
+        ▼
+Need unsupervised signals (extract before generation)
+        │
+        ▼
+Need to understand those signals (characterization — how we answer)
+        │
+        ▼
+Need to know whether they help routing (complementarity + limits)
+        │
+        ▼
+Simple routing demonstration (Study IV — last, not first)
+```
+
+**Central insight:** The professor asks a **routing question** but wants the paper to answer it **through signal characterization**, not through a sophisticated router.
 
 ### Goal vs contribution (do not conflate)
 
 | Layer | What it is | Wording |
 | ----- | ---------- | ------- |
-| **Research goal** | Why routing matters | Different queries require different reasoning capability; using one LLM for every query is inefficient |
-| **Scientific object** | What we study | **Unsupervised pre-inference signals** — model-independent features \(c(q)\) and model-dependent probe statistics \(H, m\) forming a feature vector that may govern routing |
-| **Application** | Demonstration (Study IV) | Simple calibrated policy: route to weakest model expected to succeed; escalate when signals indicate benefit |
+| **Research problem** | Can unsupervised pre-inference signals support routing? | **Unsupervised routing** (using unsupervised signals) |
+| **How we answer** | Empirical study of routing-relevant information + limits | **Signal characterization** (Studies I–III) — not a separate paper topic |
+| **Scientific contribution** | What we learn about signals | **Empirical understanding** of pre-inference routing signals |
+| **Routing evaluation** | Exploitability under calibrated policy | Study IV — **last**; not a product claim |
 
-**Not the contribution:** “We built a router.” **The contribution:** estimate and characterize those signals; routing is the **demonstration** that exploits whatever information Studies I–III establish.
+**The contribution is not** “we built a router” or “we proposed a framework.” **The contribution is** empirical evidence on **how much routing-relevant information exists before inference, and what its limits are** — in service of the routing problem.
 
-### Contribution shift (advisor — D63/D64)
+### Framing (advisor — D63/D64/D65)
 
-Weak framing (router-centric):
-
-```text
-Query → Signals → Router → LLM     ← router looks like the contribution
-```
-
-Strong framing (signal-centric):
+Weak framing (characterization-only):
 
 ```text
-Query → Unsupervised signal extraction → Signal characterization → Simple routing policy (demonstration)
+Query → Signals → measure information     ← sounds like a metrics paper
 ```
 
-Emphasis: **“Estimate those signals.”** Model-independent features · model-dependent features · feature vector · how features govern routing.
+Strong framing (routing problem, characterization as means):
+
+```text
+Problem: Can unsupervised pre-inference signals support routing?
+    ↓
+Extract signals (model-independent | model-dependent)
+    ↓
+Characterize routing-relevant information (Studies I–III)
+    ↓
+Test calibrated routing policy (Study IV)
+    ↓
+Generate answer with chosen LLM
+```
+
+Emphasis: **routing is the objective**; **signal characterization is how we answer** whether these signals are viable for routing. Negative routing results (calibrated policy $\approx$ always-strong) are publishable if they answer the research question.
 
 ### Conceptual pipeline
 
@@ -54,10 +87,10 @@ Emphasis: **“Estimate those signals.”** Model-independent features · model-
          │                             │
          └──────────────┬──────────────┘
                         ▼
-           Routing-relevant information?     ← Studies I–III: how much, from which family?
+           Characterize: how much routing-relevant information?   ← Studies I–III (method)
                         │
                         ▼
-           Simple routing policy            ← Study IV: can we exploit what exists? (demonstration)
+           Test: can a calibrated policy exploit it?                 ← Study IV (routing evaluation)
          (weak default; escalate if needed)
                         │
                         ▼
@@ -68,42 +101,72 @@ Emphasis: **“Estimate those signals.”** Model-independent features · model-
 
 ## 2. Contributions
 
+### Contribution hierarchy (ranked — D66)
+
+| Rank | Contribution | Role |
+| ---- | ------------ | ---- |
+| **1. Primary** | Systematic **empirical study** of pre-inference routing signals (routing-relevant information, limits, interpretation) | The science |
+| **2. Secondary** | Taxonomy of **information dimensions** + prefill-based extraction | Supports the science |
+| **3. Tertiary** | Evidence on **complementarity** across families (ΔAUROC ladder) | Structure of information |
+| **4. Fourth** | Simple routing policy — how much information is **exploitable** | Utility demonstration (last) |
+
+### Paper presentation: four questions (not “Study I–IV” in prose)
+
+Use these in **Results**; map to studies internally only.
+
+| Question | Answer (ARC, TEST) | Studies |
+| -------- | ------------------ | ------- |
+| **Q1** Is routing-relevant information present pre-inference? | **Yes** — ρ and AUROC above chance | I–II |
+| **Q2** How much? What are the limits? | **Modest** — AUROC ≈ 0.54–0.61; oracle gap ρ ≈ 0.18 | I–II + interpretation |
+| **Q3** What aspects of routing need do different dimensions encode? | Difficulty (H_w, c(q)) vs recoverability (Δm_gain); dimensions partially complementary (+ΔAUROC 0.049) | III + interpretation |
+| **Q4** Can a calibrated policy exploit it? | **Partially / not fully** — calibrated policy $\approx$ always-strong (69.2\%); oracle 74.4\% | IV |
+
+**Overall answer to the routing question:** **Partially.** Different pre-inference signals encode different aspects of routing need (difficulty vs recoverability). Query proxies and weak-model probes track difficulty/uncertainty; cross-model disagreement tracks recoverability. A simple linear policy captures only part of the available oracle improvement.
+
+```text
+Query proxies          → coarse difficulty
+Weak-model probes      → model uncertainty
+Cross-model disagreement → recoverability
+                         ↓
+Simple routing captures only part of this structure
+```
+
 | Layer | Content | Studies | Paper share |
 | ----- | ------- | ------- | ----------- |
-| **Characterization** | Quantify informativeness of model-independent and model-dependent unsupervised routing signals | I + II | ~50% |
-| **Understanding** | Test whether the two signal families provide complementary information | III | ~20% |
-| **Utility** | Can a simple policy **exploit whatever information exists**? | IV | ~20% |
+| **Empirical characterization** | Q1–Q2: presence and magnitude | I + II | ~35% |
+| **Information structure** | Q3: complementarity, decomposition, calibration | III + interpret | ~30% |
+| **Routing evaluation** | Q4: exploitability | IV | ~15% |
+| **Framework + setup** | Dimensions, extraction, pool | Method + §4 | ~20% |
 
 **Contribution pathway:**
 
 ```text
-Information  →  Characterization  →  Understanding  →  Utility
-   (signals)        (I + II)              (III)          (IV)
+Routing problem  →  Unsupervised signal extraction  →  Signal characterization  →  Routing evaluation
 ```
 
-Routing is a **demonstration**, not the research object. Primary science: **how much routing-relevant information** inexpensive pre-inference signals carry, and how the families relate. Study IV is meaningful only because Studies I–III establish whether exploitable information exists.
+Studies I–III answer **whether and how** unsupervised signals carry routing-relevant information. Study IV answers **whether a minimal policy can use it**—not whether we beat supervised routers. A weak Study IV result (policy ≈ always-strong) is consistent with the routing problem: signals exist but are **limited** for simple exploitation.
 
 **Hypothesis progression (each study depends on the prior):**
 
 ```text
-RH1  Model-independent signals contain routing-relevant information
+RH1  Unsupervised pre-inference signals carry routing-relevant information
         ↓
-RH2  Model-dependent signals contain routing-relevant information
+RH2  Information dimensions encode distinct aspects of routing need
         ↓
-RH3  Together they provide additional information (complementarity)
+RH3  Dimensions provide complementary information
         ↓
-RH4  That information supports a simple routing policy (utility — conditional on I–III)
+RH4  A calibrated policy can exploit available information (conditional on I–III)
 ```
 
 **Contribution paragraph (paper):**
 
-> Current LLM routing methods largely rely on supervised routers, preference data, or information available only after full answer generation. We study **routing based on unsupervised pre-inference signals**: inexpensive quantities computed from the query alone (model-independent) and from a lightweight prefill probe (model-dependent). We characterize **how much routing-relevant information** these signals carry, test whether the families complement each other, and evaluate whether a simple calibrated policy can exploit whatever information exists—without using routing labels to **extract** signals.
+> We investigate whether **unsupervised pre-inference signals can support multi-LLM routing**. Through a systematic empirical study on ARC-Challenge, we show that weak-model entropy and cross-model probe disagreement carry measurable routing-relevant information before full generation, that model-independent query proxies add modest complementary signal, and that the two families are partially redundant yet incrementally informative when combined. A simple calibrated routing policy does not outperform always routing to the strong model, indicating that **current simple exploitation captures only part of the oracle routing improvement**—not that the signals are uninformative. Signal extraction is unsupervised; oracle labels evaluate informativeness and calibrate the demonstration policy on CALIB only.
 
 **Contrast (intro figure / one paragraph):**
 
 | Prior work | This work |
 | ---------- | --------- |
-| Query → supervised router → choose LLM | Query → extract unsupervised signals → characterize information → simple policy → choose LLM |
+| Query → supervised router → choose LLM | Query → unsupervised signals → characterize → calibrated policy → choose LLM |
 
 **Not this paper:** entropy-only router · RouteLLM-style learned router · agent orchestration · task decomposition · graph routing.
 
@@ -112,21 +175,23 @@ RH4  That information supports a simple routing policy (utility — conditional 
 ### Framing hierarchy (advisor guidance — do not conflate)
 
 ```text
-1. Main idea     →  routing based on unsupervised pre-inference signals
-2. How           →  signal extraction + characterization: model-independent | model-dependent
-3. When          →  before full model generation (pre-inference)
-4. Closure       →  simple calibrated policy (Study IV — demonstration, not headline)
+1. Problem       →  unsupervised routing (can pre-inference signals support it?)
+2. Science       →  empirical understanding of routing-relevant information + limits
+3. Method        →  characterization answers the routing question (not a separate goal)
+4. Taxonomy      →  model-independent | model-dependent (supports science)
+5. Closure       →  routing evaluation (last step — exploitation test)
 ```
 
-> The **signals** are the research object; the **router** is the demonstration. Unsupervised applies to **signal computation**, not to the entire system (Study IV fits logistic weights on CALIB).
+> **Routing is the problem; characterization is how we answer it; the router is the last step.** Reviewers must not mistake this for “another routing paper”—the contribution is empirical understanding in service of unsupervised routing.
 
 ### Terminology (locked — avoid reviewer traps)
 
-| Use in prose | Avoid as headline | Why |
-| ------------ | ----------------- | --- |
-| **Unsupervised pre-inference signal extraction for routing** | *unsupervised routing* | Study IV uses oracle-derived labels on CALIB for logistic calibration |
-| **Routing based on unsupervised pre-inference signals** | *we built a router* | Contribution is characterization, not a routing product |
-| **Unsupervised routing signals** (the signals themselves) | conflating signals with the full pipeline | Signals are unsupervised; policy calibration is separate |
+| Use in prose | Avoid as sole headline | Why |
+| ------------ | ---------------------- | --- |
+| **Unsupervised pre-inference routing signals** | *characterizing routing information* | Problem is routing, not metrology |
+| **Routing based on unsupervised pre-inference signals** | *we built a router* | Study IV tests feasibility, not SOTA |
+| **Unsupervised routing** (define once) | using without definition | Means routing *using* unsupervised signals |
+| **Unsupervised routing signals** | conflating signals with full pipeline | Signals are unsupervised; policy step is separate |
 
 ### Terminology (locked — four distinct concepts)
 
@@ -146,9 +211,11 @@ RH4  That information supports a simple routing policy (utility — conditional 
 
 ## 3. Research question & hypotheses
 
-**RQ (frozen):** How informative are **unsupervised pre-inference routing signals** for LLM selection **before full model generation**?
+**RQ (frozen):** Can **unsupervised pre-inference signals support multi-LLM routing** before full model generation?
 
-**Scientific reading (same question):** How much **routing-relevant information** is present in inexpensive pre-inference signals—model-independent and model-dependent—and can a simple policy exploit whatever information exists?
+**Operational sub-question (Studies I–III):** How much **routing-relevant information** do those signals carry, and do **information dimensions** complement each other?
+
+**Operational sub-question (Study IV):** Can a **simple calibrated policy** exploit whatever information exists under a cost–quality trade-off?
 
 *Appropriate selection* means a desirable **cost–quality trade-off** within a fixed pool: route to the **weakest model expected to answer correctly**, escalating to a stronger model only when pre-inference signals indicate that additional capability is likely to improve the outcome—not “pick the strongest model” or a vague “suitable LLM.” Offline, routing opportunity is \(y_{\text{opp}} = 1\) when the weak model fails and the strong model succeeds (`07`).
 
@@ -164,17 +231,17 @@ Weak or null association is a **valid scientific finding** if reported rigorousl
 
 | ID | Layer | Hypothesis |
 | -- | ----- | ---------- |
-| **RH1** | Characterization | Model-independent signals contain measurable routing-relevant information. |
-| **RH2** | Characterization | Model-dependent probe signals contain measurable routing-relevant information. |
-| **RH3** | Understanding | Together, the families provide additional information beyond either alone. |
-| **RH4** | Utility | A simple routing policy can **exploit whatever information exists** for cost–quality gains over static baselines (conditional on I–III). |
+| **RH1** | Characterization | Unsupervised pre-inference signals carry measurable routing-relevant information. |
+| **RH2** | Characterization | Information dimensions encode distinct aspects of routing need. |
+| **RH3** | Understanding | Dimensions provide complementary information beyond any single dimension. |
+| **RH4** | Routing evaluation | A calibrated policy can exploit available information under a cost–quality objective (conditional on I–III). |
 
 ### §3b Outcome scenarios (null results — D64)
 
 | Outcome | RH1–RH3 | RH4 | Paper emphasis |
 | ------- | ------- | --- | -------------- |
-| **Mixed / positive** | Some signals informative | Utility may improve | Information present → simple policy helps |
-| **Uniformly null** (e.g. all AUROC ≈ 0.50 on corrected TEST) | Rejected | Unlikely meaningful utility | **Limits paper:** empirical characterization of what these signal families *do not* provide under this protocol—not a practical routing method |
+| **Mixed / positive** | Some signals informative | Utility may improve | Information present → calibrated policy helps |
+| **Uniformly null** (e.g. all AUROC ≈ 0.50 on corrected TEST) | Rejected | Unlikely meaningful utility | **Limits paper:** empirical characterization of what these signal families *do not* provide under this methodology—not a practical routing method |
 
 A uniformly null result is still publishable as ACL-style empirical science; Abstract/Intro/Discussion must foreground **understanding limits**, not enabling routing.
 
@@ -256,13 +323,13 @@ MMLU                  →  TEST only; τ, λ from ARC validation CALIB
 
 **Paper sentence (Methods):** *The official ARC-Challenge training split was not used, as our study does not train language models or discover task-specific representations. The official validation split was reserved exclusively for representative signal selection and router calibration; all reported results are computed on the official test split.*
 
-### Protocol
+### Experimental configuration
 
 | Item | Value |
 | ---- | ----- |
-| Prompt protocol | v1 (`05` §1) |
-| Oracle | Greedy decode, MCQ letter match, `max_new_tokens=8` (`07`) |
-| Prefill probe | Canonical signal extraction (`05`) |
+| Prompt formatting | Deterministic chat template (`05` §1) |
+| Offline oracle | Greedy decode, MCQ letter match, `max_new_tokens=8` (`07`) |
+| Prefill probe | Canonical model-dependent signal extraction (`05`) |
 | Seed | 42 |
 
 ---

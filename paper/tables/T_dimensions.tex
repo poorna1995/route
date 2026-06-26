@@ -1,0 +1,29 @@
+% Latent routing dimensions and their operationalizations (main analysis).
+\begin{table}[t]
+  \centering
+  \small
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}llp{0.42\linewidth}@{}}
+    \toprule
+    \textbf{Latent routing dimension} & \textbf{Operationalization} & \textbf{Measurement source} \\
+    \midrule
+    \textbf{Task difficulty} &
+    $c(q)=$ \texttt{piece\_count} &
+    Query text (model-independent) \\
+    \addlinespace
+    \textbf{Model uncertainty} &
+    $H_w$ &
+    Weak-model prefill logits \\
+    \addlinespace
+    \textbf{Model disagreement} &
+    $\Delta H = H_w - H_s$ &
+    Paired weak/strong logits \\
+    \addlinespace
+    \textbf{Escalation potential} &
+    $\Delta m_{\mathrm{gain}} = m_s - m_w$ &
+    Paired weak/strong logits \\
+    \bottomrule
+  \end{tabular}
+  \caption{Latent routing dimensions and operationalizations studied in the main analysis. Dimensions are \emph{not} observed directly; each is measured through one CALIB-selected statistic. Appendix audits alternate operationalizations (e.g., $m_w$ for model uncertainty; Table~\ref{tab:md-variants}).}
+  \label{tab:dimensions}
+\end{table}

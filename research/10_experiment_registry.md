@@ -26,7 +26,7 @@ Supplement     §5.5 generalization (MMLU) · §7.2 error analysis
 | Notebook ID | Name                        | Contains                                                         | Hypotheses | Paper    |
 | ----------- | --------------------------- | ---------------------------------------------------------------- | ---------- | -------- |
 | **V1, V2**  | Validation                  | Apparatus + configuration lock                                   | —          | §4 setup |
-| **EXP-01**  | **Signal characterization** | **Study I** (model-independent) + **Study II** (model-dependent) | RH1, RH2   | §5.2–5.3 |
+| **EXP-01**  | **Signal characterization** | **Study I** + **Study II** | RH1, RH2   | §5.2–5.3 |
 | **EXP-02**  | **Complementarity**         | **Study III**                                                    | RH3        | §5.5     |
 | **EXP-03**  | **Routing evaluation**      | **Study IV**                                                     | RH4        | §6       |
 
@@ -36,10 +36,12 @@ EXP-01 is one analysis pipeline with two paper subsections—not two separate no
 
 ## Paper study ↔ notebook mapping
 
+> **RH definitions:** `claims.md` §Hypotheses. Studies I–II jointly test RH1; Study II + interpretation tests RH2.
+
 | Paper study | Hypothesis | Notebook ID     | §    |
 | ----------- | ---------- | --------------- | ---- |
 | **I**       | RH1        | EXP-01 (part 1) | §5.2 |
-| **II**      | RH2        | EXP-01 (part 2) | §5.3 |
+| **II**      | RH1, RH2   | EXP-01 (part 2) | §5.3 |
 | **III**     | RH3        | EXP-02          | §5.4 |
 | **IV**      | RH4        | EXP-03          | §6   |
 | —           | —          | Phase D (MMLU)  | §5.5 |

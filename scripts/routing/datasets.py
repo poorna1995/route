@@ -12,12 +12,14 @@ from datasets import load_dataset
 from routing.prompt_protocol import (
     arc_gold_letter,
     format_arc_question,
-    format_boolq_question,
-    format_gsm8k_question,
     format_mmlu_question,
+    mmlu_gold_letter,
 )
 
-SUPPORTED_DATASETS = frozenset({"gsm8k", "arc_challenge", "arc-challenge", "mmlu", "boolq"})
+MMLU_DATASET_ID = "cais/mmlu"
+DEFAULT_MMLU_SUBJECTS = ("high_school_physics", "logical_fallacies")
+
+SUPPORTED_DATASETS = frozenset({"arc_challenge", "arc-challenge", "mmlu"})
 
 
 @lru_cache(maxsize=None)
@@ -26,12 +28,6 @@ def _load_hf_split(dataset_id: str, config: str | None, split: str):
     if config is None:
         return load_dataset(dataset_id, split=split)
     return load_dataset(dataset_id, config, split=split)
-
-
-@lru_cache(maxsize=None)
-def _load_mmlu_subject(subject: str, split: str):
-    """Cached per-subject MMLU split load."""
-    return load_dataset("cais/mmlu", subject, split=split)
 
 
 def normalize_dataset_name(dataset: str) -> str:
@@ -56,19 +52,6 @@ def dataset_split_policy(dataset: str) -> dict[str, Any]:
             "calib_size": None,
             "eval_size": None,
         }
-    if ds == "mmlu":
-        return {
-            "policy": "official_dev_to_calib",
-            "calib_split": "dev",
-            "eval_split": "test",
-            "calib_size": None,
-            "eval_size": None,
-            "subjects": [
-                "high_school_physics",
-                "abstract_algebra",
-                "high_school_us_history",
-            ],
-        }
     if ds == "gsm8k":
         return {
             "policy": "train_to_calib",
@@ -77,13 +60,14 @@ def dataset_split_policy(dataset: str) -> dict[str, Any]:
             "calib_size": None,
             "eval_size": None,
         }
-    if ds == "boolq":
+    if ds == "mmlu":
         return {
-            "policy": "train_to_calib_validation_to_eval",
-            "calib_split": "train",
-            "eval_split": "validation",
+            "policy": "test_only_transfer",
+            "calib_split": None,
+            "eval_split": "test",
             "calib_size": None,
             "eval_size": None,
+            "subjects": list(DEFAULT_MMLU_SUBJECTS),
         }
     raise ValueError(
         f"Unsupported dataset: {dataset}. Supported: {', '.join(sorted(SUPPORTED_DATASETS))}"
@@ -94,9 +78,8 @@ def policy_subjects(
     dataset: str,
     policy: dict[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    """MMLU subjects from policy; empty tuple for other datasets."""
-    ds = normalize_dataset_name(dataset)
-    cfg = policy or dataset_split_policy(ds)
+    """Subject list for multi-subject benchmarks; empty for single-config datasets."""
+    cfg = policy or dataset_split_policy(normalize_dataset_name(dataset))
     subjects = cfg.get("subjects")
     if not subjects:
         return ()
@@ -134,37 +117,6 @@ def _extract_gsm8k_gold(text: str) -> str | None:
     return nums[-1] if nums else None
 
 
-def _mmlu_gold_letter(row: dict) -> str:
-    answer = row["answer"]
-    if isinstance(answer, int):
-        return ("A", "B", "C", "D")[answer]
-    letter = str(answer).strip().upper()
-    if letter in {"A", "B", "C", "D"}:
-        return letter
-    if letter.isdigit():
-        return ("A", "B", "C", "D")[int(letter)]
-    raise ValueError(f"Unexpected MMLU answer: {answer!r}")
-
-
-def load_gsm8k_queries(split: str, limit: int, seed: int) -> list[dict]:
-    ds = _load_hf_split("openai/gsm8k", "main", split)
-    n = min(limit, len(ds))
-    perm = np.random.default_rng(seed).permutation(len(ds))[:n]
-    rows = []
-    for pos, hf_i in enumerate(perm):
-        row = ds[int(hf_i)]
-        rows.append(
-            {
-                "id": f"gsm8k_{split}_{pos}",
-                "row_uid": make_row_uid("gsm8k", split, str(int(hf_i))),
-                "user_content": format_gsm8k_question(row["question"]),
-                "gold": _normalize_number(_extract_gsm8k_gold(row["answer"])),
-                "eval": "numeric",
-            }
-        )
-    return rows
-
-
 def load_arc_queries(split: str, limit: int, seed: int) -> list[dict]:
     ds = _load_hf_split("allenai/ai2_arc", "ARC-Challenge", split)
     if limit < len(ds):
@@ -188,56 +140,30 @@ def load_mmlu_queries(
     limit: int,
     seed: int,
     *,
-    subjects: tuple[str, ...],
+    subjects: tuple[str, ...] = DEFAULT_MMLU_SUBJECTS,
 ) -> list[dict]:
-    if not subjects:
-        raise ValueError("MMLU load requires policy subjects")
-    pool: list[dict[str, Any]] = []
+    """Load pooled MMLU subjects with frozen MCQ formatting (transfer eval on ``test``)."""
+    rows: list[dict] = []
     for subject in subjects:
-        part = _load_mmlu_subject(subject, split)
-        for hf_i, row in enumerate(part):
-            pool.append(
+        ds = _load_hf_split(MMLU_DATASET_ID, subject, split)
+        for idx, row in enumerate(ds):
+            rows.append(
                 {
-                    "row_uid": make_row_uid("mmlu", f"{subject}/{split}", str(hf_i)),
+                    "id": f"mmlu_{subject}_{idx}",
+                    "row_uid": make_row_uid("mmlu", split, f"{subject}/{idx}"),
                     "user_content": format_mmlu_question(row),
-                    "gold": _mmlu_gold_letter(row),
+                    "gold": mmlu_gold_letter(row),
                     "eval": "letter",
                     "subject": subject,
                 }
             )
-    n = min(limit, len(pool))
-    perm = np.random.default_rng(seed).permutation(len(pool))[:n]
-    rows = []
-    for pos, pool_i in enumerate(perm):
-        item = pool[int(pool_i)]
-        subject = item["subject"]
-        rows.append(
-            {
-                "id": f"mmlu_{subject}_{split}_{pos}",
-                **item,
-            }
-        )
-    return rows
+    if not rows:
+        raise ValueError(f"No MMLU rows for split={split!r} subjects={subjects}")
 
-
-def load_boolq_queries(split: str, limit: int, seed: int) -> list[dict]:
-    ds = _load_hf_split("google/boolq", None, split)
-    n = min(limit, len(ds))
-    perm = np.random.default_rng(seed).permutation(len(ds))[:n]
-    rows = []
-    for pos, hf_i in enumerate(perm):
-        row = ds[int(hf_i)]
-        gold = "yes" if bool(row["answer"]) else "no"
-        rows.append(
-            {
-                "id": f"boolq_{split}_{pos}",
-                "row_uid": make_row_uid("boolq", split, str(int(hf_i))),
-                "user_content": format_boolq_question(row),
-                "gold": gold,
-                "eval": "bool",
-            }
-        )
-    return rows
+    order = np.random.default_rng(seed).permutation(len(rows))
+    if limit < len(rows):
+        order = order[:limit]
+    return [rows[int(i)] for i in order]
 
 
 def load_queries(
@@ -250,23 +176,11 @@ def load_queries(
 ) -> list[dict]:
     """Load benchmark rows with frozen task formatting in `user_content`."""
     dataset = normalize_dataset_name(dataset)
-
-    if dataset == "gsm8k":
-        return load_gsm8k_queries(split, limit, seed)
-
     if dataset == "arc_challenge":
         return load_arc_queries(split, limit, seed)
-
     if dataset == "mmlu":
-        if split not in ("test", "validation", "dev"):
-            split = "test"
-        subjects = policy_subjects(dataset, policy)
-        return load_mmlu_queries(split, limit, seed, subjects=subjects)
-
-    if dataset == "boolq":
-        if split == "test":
-            split = "validation"
-        return load_boolq_queries(split, limit, seed)
+        cfg = policy or dataset_split_policy(dataset)
+        return load_mmlu_queries(split, limit, seed, subjects=policy_subjects(dataset, cfg))
 
     raise ValueError(
         f"Unsupported dataset: {dataset}. Supported: {', '.join(sorted(SUPPORTED_DATASETS))}"
@@ -309,45 +223,24 @@ def split_source_metadata(
             "revision": str(version) if version is not None else None,
             "fingerprint": getattr(raw, "_fingerprint", None),
         }
-    if ds == "boolq":
-        raw = _load_hf_split("google/boolq", None, split)
-        version = getattr(getattr(raw, "info", None), "version", None)
-        return {
-            "dataset_key": ds,
-            "dataset_id": "google/boolq",
-            "dataset_config": None,
-            "split": split,
-            "num_rows": int(len(raw)),
-            "revision": str(version) if version is not None else None,
-            "fingerprint": getattr(raw, "_fingerprint", None),
-        }
     if ds == "mmlu":
-        if not subjects:
-            subjects = policy_subjects(ds)
-        parts: list[dict[str, Any]] = []
+        subs = subjects or DEFAULT_MMLU_SUBJECTS
+        subject_row_counts: dict[str, int] = {}
         total = 0
-        for subject in subjects:
-            part = _load_mmlu_subject(subject, split)
-            version = getattr(getattr(part, "info", None), "version", None)
-            n = int(len(part))
+        for subject in subs:
+            raw = _load_hf_split(MMLU_DATASET_ID, subject, split)
+            n = int(len(raw))
+            subject_row_counts[subject] = n
             total += n
-            parts.append(
-                {
-                    "subject": subject,
-                    "num_rows": n,
-                    "revision": str(version) if version is not None else None,
-                    "fingerprint": getattr(part, "_fingerprint", None),
-                }
-            )
         return {
             "dataset_key": ds,
-            "dataset_id": "cais/mmlu",
-            "dataset_config": f"subjects={','.join(subjects)}",
+            "dataset_id": MMLU_DATASET_ID,
+            "dataset_config": list(subs),
             "split": split,
             "num_rows": total,
-            "subjects": list(subjects),
+            "subject_row_counts": subject_row_counts,
+            "revision": None,
             "fingerprint": None,
-            "parts": parts,
         }
     raise ValueError(
         f"Unsupported dataset: {dataset}. Supported: {', '.join(sorted(SUPPORTED_DATASETS))}"
@@ -367,9 +260,16 @@ def infer_row_uid(
     *,
     split: str | None = None,
 ) -> str | None:
-    """Best-effort row_uid for legacy ARC rows that only stored query_id."""
+    """Best-effort row_uid for legacy rows that only stored query_id."""
     if query_id.startswith("arc_"):
         native = query_id.removeprefix("arc_")
         hf_split = split or "validation"
         return make_row_uid("arc_challenge", hf_split, native)
+    if query_id.startswith("mmlu_"):
+        rest = query_id.removeprefix("mmlu_")
+        parts = rest.rsplit("_", 1)
+        if len(parts) == 2:
+            subject, idx = parts
+            hf_split = split or "test"
+            return make_row_uid("mmlu", hf_split, f"{subject}/{idx}")
     return None

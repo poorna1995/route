@@ -11,9 +11,9 @@
     Primary dataset      & ARC-Challenge \citep{clark2018think} \\
     CALIB split          & Official validation ($n{=}299$) \\
     TEST split           & Official test ($n{=}1{,}172$) \\
-    Prompt protocol      & v1 (\texttt{prompt\_protocol.py}) \\
+    Prompt formatting     & Deterministic chat template (\texttt{prompt\_protocol.py}) \\
     Random seed          & 42 \\
-    $c(q)$ selection     & Pre-study calibration on CALIB --- \textbf{[TBD]} \\
+    $c(q)$ selection     & \texttt{piece\_count} (CALIB screening) \\
     \bottomrule
   \end{tabular}
   \caption{Locked experimental configuration. Screening exclusions in appendix.}

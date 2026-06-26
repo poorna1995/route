@@ -37,22 +37,25 @@ They are **not** tied to any specific implementation.
 
 ---
 
-# Framing — signal space, not a single heuristic
+# Framing — routing problem, unsupervised pre-inference signals
 
-The paper studies a **signal space** 𝒮 of candidate pre-inference probes, not entropy alone:
+The paper investigates **unsupervised pre-inference routing**: can inexpensive signals computed before full generation support appropriate LLM selection in a fixed pool?
 
 ```text
-𝒮 = 𝒮_indep ∪ 𝒮_dep
-
-𝒮_indep   model-independent family   →  representative c(q) in v1
-𝒮_dep     model-dependent probes      →  H (uncertainty), m (confidence separation)
+Problem: multi-LLM routing with unsupervised pre-inference signals
+    ↓
+Signal families: model-independent ∪ model-dependent
+    ↓
+Signal characterization (Studies I–III)
+    ↓
+Routing evaluation (Study IV)
 ```
 
-**v1 scope:** one **representative** model-independent signal (selected from the complexity family per `18`) plus two model-dependent probes. The contribution is **understanding pre-inference information for unsupervised routing**: characterization before routing policy—not assuming any one signal works. Taxonomy 𝒮 is the organizing framework.
+**v1 scope:** one **representative** model-independent signal (selected from the complexity family per `18`) plus two model-dependent probes. The contribution is empirical understanding of **unsupervised pre-inference routing signals**—not assuming any single statistic suffices. Taxonomy 𝒮 organizes signal families.
 
 **Informativeness (operational):** predictive association with routing need via Spearman ρ, AUROC, and complementary predictive gain (ΔAUROC)—not Shannon mutual information. See `MASTER.md` §3.
 
-**Negative results:** Weak association is valid—but if **every** family is null on corrected TEST (AUROC ≈ 0.50), the paper becomes a **limits** characterization (D64), not a routing-methods claim.
+**Negative results:** Weak association is valid. If signals exist but routing evaluation fails: **routing limited by exploitation**. If all dimensions null on TEST: **limits paper** for these signal families.
 
 ---
 
@@ -61,13 +64,13 @@ The paper studies a **signal space** 𝒮 of candidate pre-inference probes, not
 Each study depends on the previous. Study IV is meaningful only if Studies I–III establish whether exploitable information exists.
 
 ```text
-RH1  Model-independent signals contain routing-relevant information        → Study I
+RH1  Unsupervised pre-inference signals carry routing-relevant information        → Studies I–II
         ↓
-RH2  Model-dependent probe signals contain routing-relevant information   → Study II
+RH2  Information dimensions encode distinct aspects of routing need               → Study II + interpret
         ↓
-RH3  Together they provide additional information (complementarity)         → Study III
+RH3  Dimensions provide complementary information                                  → Study III
         ↓
-RH4  A simple routing policy can exploit whatever information exists        → Study IV (demonstration)
+RH4  A calibrated policy can exploit available information                         → Study IV
 ```
 
 **Not this progression:** H1 router works → H2 router works better → H3 saves money.
@@ -80,10 +83,10 @@ These represent the primary scientific claims of the paper.
 
 | ID      | Research Hypothesis                                                                                                | Related Objective | Status |
 | ------- | ------------------------------------------------------------------------------------------------------------------ | ----------------- | ------ |
-| **RH1** | Model-independent signals contain measurable **routing-relevant information**. | O1, O2 | Frozen (D55, D64) |
-| **RH2** | Model-dependent probe signals contain measurable **routing-relevant information**. | O1, O2 | Frozen (D55, D64) |
-| **RH3** | The two signal families provide **additional information** beyond either family alone. | O2 | Frozen (D55, D64) |
-| **RH4** | A simple routing policy can **exploit whatever information exists** for cost–quality gains over static baselines (conditional on I–III). | O3 | Frozen (D55, D64) |
+| **RH1** | Unsupervised pre-inference signals carry measurable **routing-relevant information**. | O1, O2 | Frozen |
+| **RH2** | **Information dimensions** encode **distinct** aspects of routing need. | O1, O2 | Frozen |
+| **RH3** | Dimensions provide **complementary** information beyond any single dimension. | O2 | Frozen |
+| **RH4** | A **calibrated routing policy** can **exploit available information** for cost–quality gains (conditional on I–III). | O3 | Frozen |
 
 ---
 
@@ -218,15 +221,15 @@ Every hypothesis maps to a **paper study**. Notebook IDs and scripts: `10_experi
 
 | Hypothesis | Study | Primary metric |
 | ---------- | ----- | -------------- |
-| RH1 | **I** — Model-independent characterization | Spearman ρ, AUROC for \(c(q)\) vs \(y_{\text{opp}}\) |
-| RH2 | **II** — Model-dependent characterization | Spearman ρ, AUROC for \(H, m\) |
-| RH3 | **III** — Complementarity | ΔAUROC / predictive-gain ladder across families |
-| RH4 | **IV** — Routing evaluation | Cost–quality vs static baselines |
+| RH1 | **I–II** — Signal characterization | Spearman ρ, AUROC across dimension representatives |
+| RH2 | **II** + interpretation — Dimensional structure | Bucket separability; opportunity vs.\ too-hard contrasts |
+| RH3 | **III** — Complementarity | ΔAUROC ladder across dimensions |
+| RH4 | **IV** — Routing evaluation | Cost–quality vs.\ static baselines |
 | H1 | Study I | \(c(q)\) informativeness |
 | H2 | Study II | Entropy informativeness |
 | H3 | Studies II–III | Margin informativeness + complementarity with entropy |
 
-**Deferred:** H4 (paraphrase) — out of v1 scope (D04).
+**Deferred:** H4 (paraphrase stability) — out of main study scope (D04).
 
 ---
 
@@ -238,7 +241,7 @@ Update hypotheses after reviewing literature.
 | ---------- | -------- | ------ |
 | RH1        | Frozen (D55) | Representative model-independent signals — measurable, not "at least one" |
 | RH2        | Frozen (D55) | Model-dependent probe signals — measurable information |
-| RH3        | Frozen (D55) | Two families complementary beyond either alone |
+| RH3        | Frozen (D55) | Dimensions partially complementary beyond any single dimension |
 | RH4        | Strengthened, tempered | RouteLLM/Hybrid LLM show supervised routing gains; RouterBench §5.1 — simple predictive routers often fail to beat **Zero router** on several tasks, so probe-policy gains are not guaranteed |
 | H1         | Clarified  | Hybrid LLM "difficulty" is supervised query-only routing; our H1 targets **unsupervised** s(q) — related motivation, different mechanism |
 | H2, H3     | Clarified  | Not routing probes in Tier-1; Tier-2 uncertainty literature is separate |

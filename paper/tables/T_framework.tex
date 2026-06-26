@@ -1,0 +1,21 @@
+% Analytical pipeline (orthogonal to dimension taxonomy in Table~\ref{tab:dimensions}).
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}clp{0.58\linewidth}@{}}
+    \toprule
+    & \textbf{Stage} & \textbf{Description} \\
+    \midrule
+    1 & Signal extraction &
+    Query text; prefill logits at $t{=}T$ per pool member \\
+    2 & Statistic computation (offline) &
+    One representative per studied dimension (Table~\ref{tab:dimensions}) \\
+    3 & Signal characterization &
+    Routing-relevant information; cross-dimension structure; complementarity \\
+    4 & Routing evaluation &
+    Calibrated logistic policy; offline oracle; exploitation gap \\
+    \bottomrule
+  \end{tabular}
+  \caption{Analytical pipeline. Each stage tests \textbf{latent routing dimensions} operationalized by prefill statistics---not isolated feature rankings.}
+  \label{tab:pipeline}
+\end{table}

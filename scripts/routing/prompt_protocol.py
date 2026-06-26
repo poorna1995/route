@@ -17,6 +17,7 @@ BOOLQ_SUFFIX = "Reply with exactly one word: yes or no."
 
 PROTOCOL_VERSION = "v1"
 ARC_CHOICE_LETTERS = ("A", "B", "C", "D", "E")
+MMLU_CHOICE_LETTERS = ("A", "B", "C", "D")
 
 
 def normalize_arc_choice_labels(labels: list) -> list[str]:
@@ -50,6 +51,25 @@ def arc_gold_letter(row: dict) -> str:
         f"Unexpected ARC answerKey: {row.get('answerKey')!r}; "
         f"id={row.get('id')!r}; labels={row.get('choices', {}).get('label')!r}"
     )
+
+
+def mmlu_gold_letter(row: dict) -> str:
+    """Canonical A–D gold for MMLU letter-match scoring (HF ClassLabel 0–3)."""
+    ans = row.get("answer")
+    if ans is None:
+        raise ValueError(f"MMLU row missing answer: question={row.get('question', '')[:80]!r}")
+    if isinstance(ans, int):
+        if 0 <= ans < len(MMLU_CHOICE_LETTERS):
+            return MMLU_CHOICE_LETTERS[ans]
+        raise ValueError(f"MMLU answer index out of range: {ans}")
+    key = str(ans).strip().upper()
+    if key in MMLU_CHOICE_LETTERS:
+        return key
+    if key.isdigit():
+        idx = int(key)
+        if 0 <= idx < len(MMLU_CHOICE_LETTERS):
+            return MMLU_CHOICE_LETTERS[idx]
+    raise ValueError(f"Unexpected MMLU answer: {ans!r}")
 
 
 class ChatPromptResult(TypedDict):

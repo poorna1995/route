@@ -1,0 +1,61 @@
+% Appendix sections (included from acl.tex after \appendix)
+
+\section{Configuration screening}
+\label{app:validation}
+
+Before locking the primary $(\text{pool}, \text{dataset}, \text{prompt formatting})$ triple, we screened candidates on small samples ($n{=}5$--$10$, seed 42) for non-degenerate routing opportunity and successful prefill extraction (\S\ref{sec:setup:config}).
+Table~\ref{tab:config-screen} summarizes pilot outcomes.
+Qwen~2.5~1.5B/3B on GSM8K ($n{=}5$) yielded 100\% too-hard buckets (both models failed all items).
+The same Qwen pool on ARC ($n{=}10$) yielded 0\% opportunity with 70\% easy---weak model already succeeds on most items.
+Llama~3.2~1B/3B on ARC showed 50\% opportunity on $n{=}10$ and ${\sim}24\%$ on a ${\sim}50$-query pilot, motivating the locked configuration reported in the main text ($n{=}1{,}172$ test; 43.3\% opportunity).
+
+\input{tables/A_config_screening.tex}
+
+\section{Complexity dimension candidate screening}
+\label{app:d46}
+
+Representative $c(q)$ is selected once on CALIB before test evaluation (\S\ref{sec:setup:calib}).
+Table~\ref{tab:d46} reports all five tokenizer-based candidates scored against $y^{\text{opp}}$ on ARC validation ($n{=}299$).
+\texttt{piece\_count} wins by the frozen composite rule despite modest absolute $\rho$ and AUROC; compressibility and normalized Shannon entropy rank higher on $|\rho|$ alone but lower on AUROC.
+We report partial correlation $\rho(c,y^{\text{opp}}\mid\text{length})=-0.448$ on CALIB as a length-confound diagnostic for the selected feature.
+
+\input{tables/A_d46_screening.tex}
+
+\section{Model-dependent probe variants}
+\label{app:md-variants}
+
+Prefill extraction logs auxiliary statistics from the same forward pass (\S\ref{sec:method:prefill}).
+Table~\ref{tab:md-variants} audits redundancy on ARC test.
+Normalized entropy, top-10 entropy, and effective vocabulary size $n_{\mathrm{eff}}=\exp(H_w)$ are numerically redundant with full-vocabulary $H_w$ ($\rho_s{\approx}1.0$; AUROC within 0.001).
+Among derived cross-model statistics, $\Delta n_{\mathrm{eff}}$ achieves the highest opportunity AUROC (0.616) but does not change the recoverability interpretation relative to $\Delta m_{\mathrm{gain}}$ and $\Delta H$.
+
+\input{tables/A_md_variants.tex}
+
+\section{Information dimension taxonomy (extended)}
+\label{app:dimensions}
+
+Table~\ref{tab:dim-taxonomy} lists candidate statistics for each information dimension.
+The main analysis reports bold representatives only; additional rows indicate future measurements without expanding headline claims.
+
+\input{tables/A_dimension_taxonomy.tex}
+
+\section{Calibration diagnostics}
+\label{app:calibration}
+
+Figure~\ref{fig:entropy-calib} shows weak entropy $H_w$ quantile calibration against opportunity rate on TEST (decile bins).
+Figure~\ref{fig:prob-calib} shows probability calibration of the joint logistic model from Study~IV (CALIB-fit, TEST-eval).
+The joint model is underconfident (mean signed gap $-0.037$ per bin), consistent with degenerate routing $\tau{=}0$ on TEST (\S\ref{sec:routing:results}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/F4_entropy_calibration.png}
+  \caption{Weak entropy $H_w$ quantile calibration vs.\ observed opportunity rate (ARC test).}
+  \label{fig:entropy-calib}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/F5_probability_calibration.png}
+  \caption{Joint logistic $\Pr(y^{\text{opp}}\mid c,H_w,m_w)$ calibration (CALIB-fit, TEST-eval).}
+  \label{fig:prob-calib}
+\end{figure}

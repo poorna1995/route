@@ -94,14 +94,12 @@ def load_complexity_from_selection(
     features_path: Path,
     selection_path: Path,
 ) -> pd.DataFrame:
-    """Map frozen D46 column → unified c_q, verifying paths when recorded."""
+    """Map frozen D46 column → unified c_q for any split's features CSV.
+
+    ``selected_feature.json`` records which CALIB file was screened (provenance);
+    merge on TEST (or CALIB) passes that split's features file with the same column.
+    """
     selection = load_complexity_selection(selection_path)
-    recorded_features = selection.get("features_csv")
-    if recorded_features and Path(recorded_features).resolve() != features_path.resolve():
-        raise ValueError(
-            f"features CSV {features_path} does not match selection record "
-            f"{recorded_features} — use the CALIB-screened features file or re-run screen"
-        )
     return load_complexity_column(features_path, source_column=selection["selected_feature"])
 
 

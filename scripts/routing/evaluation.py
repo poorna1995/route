@@ -11,8 +11,10 @@ import pandas as pd
 
 from routing.constants import (
     ANALYSIS_COMPLEMENTARITY,
+    ANALYSIS_INTERPRETATION,
     ANALYSIS_ROUTING_RELEVANCE,
     ABLATION_LADDER,
+    BUCKET_ORDER,
     BOOTSTRAP_COUNT,
     BOOTSTRAP_SEED,
     CALIB_SIZE,
@@ -26,9 +28,13 @@ from routing.constants import (
     COMPLEMENTARITY_STEPS,
     HEADLINE_SIGNALS,
     HYPOTHESES,
+    FEATURE_COMPRESSION,
+    FEATURE_MATTR,
+    FEATURE_PIECE_COUNT,
     LADDER_CROSS_FAMILY,
     PERMUTATION_COUNT,
     PROBE_DERIVED,
+    PROBE_DERIVED_MARGIN,
     PROBE_HEADLINE,
     REFERENCE_MODELS,
     ROUTING_RELEVANCE_SIGNALS,
@@ -627,6 +633,73 @@ def fit_logistic_probs_holdout(
     return clf.predict_proba(X_test)[:, 1].astype(float)
 
 
+def probability_calibration_bins(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    *,
+    n_bins: int = 10,
+) -> dict[str, Any]:
+    """Quantile bins: mean predicted P(opportunity) vs observed rate (no ECE)."""
+    y = np.asarray(y_true, dtype=float)
+    p = np.asarray(y_prob, dtype=float)
+    mask = np.isfinite(y) & np.isfinite(p)
+    y, p = y[mask], p[mask]
+    n = int(len(y))
+    if n < n_bins or len(np.unique(y)) < 2:
+        return {
+            "n_bins": n_bins,
+            "n": n,
+            "bins": [],
+            "mean_predicted": None,
+            "observed_rate": None,
+            "fraction_positive": None,
+            "mean_signed_gap": None,
+            "mean_abs_gap": None,
+            "calibration_verdict": None,
+        }
+
+    order = np.argsort(p)
+    y, p = y[order], p[order]
+    bins: list[dict[str, Any]] = []
+    for i in range(n_bins):
+        lo = int(i * n / n_bins)
+        hi = int((i + 1) * n / n_bins)
+        if hi <= lo:
+            continue
+        yt, pt = y[lo:hi], p[lo:hi]
+        mean_pred = float(np.mean(pt))
+        observed = float(np.mean(yt))
+        bins.append({
+            "bin": i + 1,
+            "n": int(hi - lo),
+            "mean_predicted": mean_pred,
+            "observed_rate": observed,
+            "gap": mean_pred - observed,
+        })
+
+    gaps = [b["gap"] for b in bins]
+    signed = float(np.mean(gaps))
+    return {
+        "n_bins": n_bins,
+        "n": n,
+        "bins": bins,
+        "mean_predicted": [b["mean_predicted"] for b in bins],
+        "observed_rate": [b["observed_rate"] for b in bins],
+        "fraction_positive": [b["observed_rate"] for b in bins],
+        "mean_signed_gap": signed,
+        "mean_abs_gap": float(np.mean(np.abs(gaps))),
+        "calibration_verdict": (
+            "overconfident" if signed > 0.02
+            else "underconfident" if signed < -0.02
+            else "approximately_calibrated"
+        ),
+        "interpretation": (
+            "gap = mean_predicted − observed_rate per bin; "
+            "positive ⇒ overconfident, negative ⇒ underconfident."
+        ),
+    }
+
+
 def calibration_curve_data(
     y_true: np.ndarray,
     y_prob: np.ndarray,
@@ -634,20 +707,61 @@ def calibration_curve_data(
     n_bins: int = 10,
 ) -> dict[str, list[float] | int | None]:
     """Bin predicted opportunity probability vs observed rate (TEST only)."""
-    try:
-        from sklearn.calibration import calibration_curve
-    except ImportError as exc:
-        raise RuntimeError("scikit-learn required for calibration curve") from exc
-    y_true = np.asarray(y_true, dtype=int)
-    y_prob = np.asarray(y_prob, dtype=float)
-    if len(np.unique(y_true)) < 2:
-        return {"n_bins": n_bins, "mean_predicted": None, "fraction_positive": None}
-    frac_pos, mean_pred = calibration_curve(y_true, y_prob, n_bins=n_bins, strategy="quantile")
+    out = probability_calibration_bins(y_true, y_prob, n_bins=n_bins)
     return {
-        "n_bins": n_bins,
-        "mean_predicted": [float(x) for x in mean_pred],
-        "fraction_positive": [float(x) for x in frac_pos],
-        "n_test": int(len(y_true)),
+        "n_bins": out["n_bins"],
+        "mean_predicted": out["mean_predicted"],
+        "fraction_positive": out["fraction_positive"],
+        "observed_rate": out["observed_rate"],
+        "bins": out["bins"],
+        "mean_signed_gap": out["mean_signed_gap"],
+        "mean_abs_gap": out["mean_abs_gap"],
+        "calibration_verdict": out["calibration_verdict"],
+        "n_test": out["n"],
+    }
+
+
+def run_logistic_probability_calibration(
+    frame: pd.DataFrame,
+    *,
+    test_ids: set[str],
+    feature_cols: list[str],
+    model_label: str,
+    n_bins: int = 10,
+) -> dict[str, Any]:
+    """CALIB-fit logistic → TEST predicted P(opp) binned vs observed frequency."""
+    LogisticRegression, _, Pipeline, StandardScaler, _ = load_sklearn_deps()
+    data = filter_complete_rows(frame)
+    missing = [c for c in feature_cols if c not in data.columns]
+    if missing:
+        raise ValueError(f"probability calibration missing columns: {missing}")
+
+    test_mask = data["query_id"].isin(test_ids).to_numpy()
+    if not test_mask.any():
+        raise ValueError("no TEST rows matched test_ids")
+    calib_mask = ~test_mask
+    if calib_mask.sum() < 10:
+        raise ValueError(f"too few CALIB rows: {int(calib_mask.sum())}")
+
+    y = data[COL_OPPORTUNITY].to_numpy(dtype=float)
+    X = build_feature_matrix(data, feature_cols)
+    probs = fit_logistic_probs_holdout(
+        X[calib_mask], y[calib_mask], X[test_mask],
+        LogisticRegression=LogisticRegression,
+        Pipeline=Pipeline,
+        StandardScaler=StandardScaler,
+    )
+    if probs is None:
+        return {"model": model_label, "features": feature_cols, "error": "logistic fit failed"}
+
+    table = probability_calibration_bins(y[test_mask].astype(int), probs, n_bins=n_bins)
+    return {
+        "model": model_label,
+        "features": feature_cols,
+        "protocol": "calib_fit_test_eval",
+        "n_calib": int(calib_mask.sum()),
+        "n_test": int(test_mask.sum()),
+        **table,
     }
 
 
@@ -796,9 +910,537 @@ def run_failure_analysis(
         "analysis": "failure_cases",
         "signal": signal_col,
         "n_per_tail": n,
+        "highest": _rows(high, "high"),
+        "lowest": _rows(low, "low"),
         "highest_entropy": _rows(high, "high"),
         "lowest_entropy": _rows(low, "low"),
         "note": "Use for Discussion: what question types confuse the signal?",
+    }
+
+
+def run_failure_analysis_bundle(
+    frame: pd.DataFrame,
+    *,
+    n: int = 10,
+) -> dict[str, Any]:
+    """Failure tails for difficulty (H_w) and recoverability (Δm_gain) signals."""
+    return {
+        "analysis": "failure_cases",
+        "n_per_tail": n,
+        COL_ENTROPY_WEAK: run_failure_analysis(frame, signal_col=COL_ENTROPY_WEAK, n=n),
+        PROBE_DERIVED_MARGIN: run_failure_analysis(frame, signal_col=PROBE_DERIVED_MARGIN, n=n),
+        "note": (
+            "entropy_w: false positives = high uncertainty but not routable; "
+            "delta_margin_gain: false positives = apparent rescue signal without opportunity."
+        ),
+    }
+
+
+def information_gap_summary(
+    frame: pd.DataFrame,
+    *,
+    calib_ids: set[str],
+    test_ids: set[str],
+    weak_cost: float = 1.0,
+    strong_cost: float = 3.0,
+) -> dict[str, Any]:
+    """Quantify available vs exploited routing information (Study IV holdout on TEST)."""
+    from routing.policies import run_routing_holdout
+
+    holdout = run_routing_holdout(
+        frame,
+        calib_ids=calib_ids,
+        test_ids=test_ids,
+        weak_cost=weak_cost,
+        strong_cost=strong_cost,
+    )
+    by_name = {p["policy"]: p for p in holdout["policies_test"]}
+    oracle = float(by_name["oracle"]["accuracy"])
+    always_strong = float(by_name["always_strong"]["accuracy"])
+    always_weak = float(by_name["always_weak"]["accuracy"])
+    learned = float(by_name["learned_router"]["accuracy"])
+    headroom = oracle - always_strong
+    gained = learned - always_strong
+    fraction = float(gained / headroom) if headroom > 1e-9 else None
+    return {
+        "interpretation": (
+            "Available routing information exceeds what the simple logistic policy exploits. "
+            "The oracle–always-strong gap is measurable headroom; the learned router closes none of it on TEST."
+        ),
+        "test_n": int(holdout["nested_evaluation"]["n_test"]),
+        "accuracies": {
+            "always_weak": always_weak,
+            "always_strong": always_strong,
+            "learned_router": learned,
+            "oracle": oracle,
+        },
+        "gaps_percentage_points": {
+            "routing_headroom": float(headroom),
+            "exploited_by_learned": float(gained),
+            "unexploited": float(oracle - learned),
+        },
+        "fraction_of_headroom_exploited": fraction,
+        "router_tau": holdout["router"]["tau"],
+        "source": "study_iv_holdout",
+    }
+
+
+def _ks_between_buckets(
+    merged: pd.DataFrame,
+    signal_col: str,
+    bucket_a: str,
+    bucket_b: str,
+    *,
+    ks_2samp,
+) -> dict[str, Any]:
+    a = merged.loc[merged["bucket"] == bucket_a, signal_col].to_numpy(dtype=float)
+    b = merged.loc[merged["bucket"] == bucket_b, signal_col].to_numpy(dtype=float)
+    a = a[np.isfinite(a)]
+    b = b[np.isfinite(b)]
+    if len(a) < 2 or len(b) < 2:
+        return {"n_a": len(a), "n_b": len(b), "statistic": None, "p_value": None}
+    stat, p = ks_2samp(a, b)
+    return {
+        "n_a": int(len(a)),
+        "n_b": int(len(b)),
+        "statistic": float(stat),
+        "p_value": float(p),
+        "mean_a": float(np.mean(a)),
+        "mean_b": float(np.mean(b)),
+    }
+
+
+def _top_decile_overlap(
+    merged: pd.DataFrame,
+    col_a: str,
+    col_b: str,
+    *,
+    id_col: str = "query_id",
+) -> dict[str, Any]:
+    sub = merged[[id_col, col_a, col_b]].dropna()
+    if len(sub) < 10:
+        return {"n": len(sub), "decile_size": 0, "overlap": 0, "jaccard": None}
+    k = max(1, len(sub) // 10)
+    top_a = set(sub.nlargest(k, col_a)[id_col])
+    top_b = set(sub.nlargest(k, col_b)[id_col])
+    inter = len(top_a & top_b)
+    union = len(top_a | top_b)
+    return {
+        "n": int(len(sub)),
+        "decile_size": k,
+        "overlap": inter,
+        "jaccard": float(inter / union) if union else None,
+    }
+
+
+def signal_quantile_calibration(
+    frame: pd.DataFrame,
+    signal_col: str,
+    *,
+    quantile: float = 0.20,
+    outcome_col: str = "y_opp",
+    n_boot: int = BOOTSTRAP_COUNT,
+    seed: int = BOOTSTRAP_SEED,
+) -> dict[str, Any]:
+    """Opportunity rate in bottom / middle / top signal quantile bands (rank-based)."""
+    need = {signal_col, outcome_col, "bucket"}
+    missing = need - set(frame.columns)
+    if missing:
+        raise ValueError(f"quantile calibration requires columns: {missing}")
+
+    sub = frame[list(need)].dropna(subset=[signal_col, outcome_col]).sort_values(signal_col)
+    n = len(sub)
+    k = max(1, int(round(n * quantile)))
+    mid_lo = int(np.floor(n * (0.5 - quantile / 2)))
+    mid_hi = int(np.floor(n * (0.5 + quantile / 2)))
+    if mid_hi <= mid_lo:
+        mid_hi = mid_lo + 1
+
+    slices = {
+        "bottom": sub.iloc[:k],
+        "middle": sub.iloc[mid_lo:mid_hi],
+        "top": sub.iloc[n - k :],
+    }
+
+    def _summarize(part: pd.DataFrame) -> dict[str, Any]:
+        opp = part[outcome_col].astype(float)
+        rate = float(opp.mean())
+        counts = part["bucket"].value_counts().to_dict()
+        return {
+            "n": int(len(part)),
+            "opportunity_rate": rate,
+            "opportunity_rate_ci_low": None,
+            "opportunity_rate_ci_high": None,
+            "too_hard_rate": float((part["bucket"] == "too_hard").mean()),
+            "easy_rate": float((part["bucket"] == "easy").mean()),
+            "signal_min": float(part[signal_col].min()),
+            "signal_max": float(part[signal_col].max()),
+            "signal_median": float(part[signal_col].median()),
+            "bucket_counts": {str(b): int(counts.get(b, 0)) for b in BUCKET_ORDER},
+        }
+
+    # Bootstrap full rank assignment (resample rows, re-bin by rank).
+    rng = np.random.default_rng(seed)
+    boot_rates: dict[str, list[float]] = {label: [] for label in slices}
+    arr = sub.to_numpy()
+    col_i = list(sub.columns).index(signal_col)
+    y_i = list(sub.columns).index(outcome_col)
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        boot = arr[idx]
+        order = np.argsort(boot[:, col_i])
+        boot = boot[order]
+        bn = len(boot)
+        bk = max(1, int(round(bn * quantile)))
+        bmid_lo = int(np.floor(bn * (0.5 - quantile / 2)))
+        bmid_hi = int(np.floor(bn * (0.5 + quantile / 2)))
+        if bmid_hi <= bmid_lo:
+            bmid_hi = bmid_lo + 1
+        parts = {
+            "bottom": boot[:bk, y_i],
+            "middle": boot[bmid_lo:bmid_hi, y_i],
+            "top": boot[bn - bk :, y_i],
+        }
+        for label, ys in parts.items():
+            if len(ys):
+                boot_rates[label].append(float(np.mean(ys)))
+
+    bins: dict[str, Any] = {}
+    for label, part in slices.items():
+        row = _summarize(part)
+        br = np.array(boot_rates[label], dtype=float)
+        if len(br):
+            row["opportunity_rate_ci_low"] = float(np.quantile(br, 0.025))
+            row["opportunity_rate_ci_high"] = float(np.quantile(br, 0.975))
+        bins[label] = row
+
+    return {
+        "signal": signal_col,
+        "outcome": outcome_col,
+        "quantile_fraction": quantile,
+        "n_total": n,
+        "interpretation": (
+            "Rank-based bands: bottom/middle/top quantile_fraction of signal values; "
+            "opportunity_rate is the observed fraction with y_opp=1 in each band."
+        ),
+        "bins": bins,
+        "baseline_opportunity_rate": float(sub[outcome_col].mean()),
+    }
+
+
+def _fit_ols_summary(
+    frame: pd.DataFrame,
+    target: str,
+    predictors: list[str],
+) -> dict[str, Any]:
+    cols = [target, *predictors]
+    sub = frame[cols].dropna().astype(float)
+    if len(sub) < len(predictors) + 3:
+        return {"n": len(sub), "r_squared": None, "coefficients": {}, "residual_std": None}
+
+    y = sub[target].to_numpy()
+    x = sub[predictors].to_numpy()
+    design = np.column_stack([np.ones(len(y)), x])
+    beta, _, _, _ = np.linalg.lstsq(design, y, rcond=None)
+    y_hat = design @ beta
+    resid = y - y_hat
+    ss_res = float(np.sum(resid ** 2))
+    ss_tot = float(np.sum((y - y.mean()) ** 2))
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else None
+    dof = max(len(y) - len(predictors) - 1, 1)
+    return {
+        "n": int(len(sub)),
+        "r_squared": float(r2) if r2 is not None else None,
+        "residual_std": float(np.sqrt(ss_res / dof)),
+        "coefficients": {"intercept": float(beta[0])}
+        | {name: float(beta[i + 1]) for i, name in enumerate(predictors)},
+    }
+
+
+def recovery_matrix(
+    frame: pd.DataFrame,
+    *,
+    entropy_col: str = COL_ENTROPY_WEAK,
+    margin_gain_col: str = PROBE_DERIVED_MARGIN,
+    split: str = "median",
+) -> dict[str, Any]:
+    """2×2: weak uncertainty (difficulty) × cross-model margin gain (recoverability)."""
+    need = {entropy_col, margin_gain_col, "bucket", COL_OPPORTUNITY}
+    missing = need - set(frame.columns)
+    if missing:
+        raise ValueError(f"recovery_matrix missing columns: {missing}")
+
+    sub = frame[[entropy_col, margin_gain_col, "bucket", COL_OPPORTUNITY]].dropna()
+    if split != "median":
+        raise ValueError(f"unsupported split: {split}")
+
+    h_thr = float(sub[entropy_col].median())
+    dm_thr = float(sub[margin_gain_col].median())
+    uncertain = sub[entropy_col] >= h_thr
+    rescues = sub[margin_gain_col] >= dm_thr
+
+    row_labels = ("strong_rescues", "strong_no_rescue")
+    col_labels = ("weak_uncertain", "weak_confident")
+    row_titles = ("Strong rescues", "Strong doesn't rescue")
+    col_titles = ("Weak uncertain", "Weak confident")
+
+    cells: dict[str, dict[str, Any]] = {}
+    counts = np.zeros((2, 2), dtype=int)
+    opp_rates = np.zeros((2, 2), dtype=float)
+
+    for ri, (row_key, row_mask, row_title) in enumerate(
+        zip(row_labels, (rescues, ~rescues), row_titles)
+    ):
+        for ci, (col_key, col_mask, col_title) in enumerate(
+            zip(col_labels, (uncertain, ~uncertain), col_titles)
+        ):
+            mask = row_mask & col_mask
+            cell = sub.loc[mask]
+            n = int(len(cell))
+            counts[ri, ci] = n
+            opp_rate = float(cell[COL_OPPORTUNITY].mean()) if n else 0.0
+            opp_rates[ri, ci] = opp_rate
+            bucket_counts = {
+                b: int((cell["bucket"] == b).sum()) for b in BUCKET_ORDER if (cell["bucket"] == b).any()
+            }
+            dominant = max(bucket_counts, key=bucket_counts.get) if bucket_counts else None
+            cells[f"{row_key}__{col_key}"] = {
+                "row": row_key,
+                "col": col_key,
+                "row_label": row_title,
+                "col_label": col_title,
+                "n": n,
+                "fraction_of_total": float(n / len(sub)) if len(sub) else 0.0,
+                "opportunity_rate": opp_rate,
+                "bucket_counts": bucket_counts,
+                "dominant_bucket": dominant,
+            }
+
+    return {
+        "interpretation": (
+            "Rows split cross-model margin gain Δm_gain (recoverability); "
+            "columns split weak entropy H_w (difficulty / uncertainty). "
+            "The uncertain+rescues cell concentrates routing opportunity."
+        ),
+        "split": split,
+        "thresholds": {
+            entropy_col: h_thr,
+            margin_gain_col: dm_thr,
+        },
+        "row_labels": list(row_labels),
+        "col_labels": list(col_labels),
+        "row_titles": list(row_titles),
+        "col_titles": list(col_titles),
+        "counts": counts.tolist(),
+        "opportunity_rates": opp_rates.tolist(),
+        "cells": cells,
+        "n": int(len(sub)),
+    }
+
+
+def run_interpretation_analysis(
+    merged: pd.DataFrame,
+    *,
+    features_csv: Path | None = None,
+    complementarity_json: Path | None = None,
+    merged_full: pd.DataFrame | None = None,
+    test_ids: set[str] | None = None,
+    calib_ids: set[str] | None = None,
+    n_boot: int = BOOTSTRAP_COUNT,
+    bootstrap_seed: int = BOOTSTRAP_SEED,
+) -> dict[str, Any]:
+    """Paper Q2–Q3 bundle: landscape, overlap, oracle-gap, partial ρ, entropy regression, decomposition."""
+    spearmanr, kendalltau, pearsonr, roc_auc_score, mannwhitneyu, average_precision_score = (
+        _require_analysis_deps()
+    )
+    from scipy.stats import ks_2samp
+    from routing.model_independent import partial_spearman
+
+    frame = merged.copy()
+    if features_csv is not None:
+        feats = pd.read_csv(features_csv)
+        feat_cols = [FEATURE_PIECE_COUNT, FEATURE_MATTR, FEATURE_COMPRESSION]
+        keep = ["query_id", *[c for c in feat_cols if c in feats.columns]]
+        frame = frame.merge(feats[keep], on="query_id", how="left", suffixes=("", "_feat"))
+
+    y_opp = frame["y_opp"].to_numpy(dtype=float)
+    y_gap = frame["oracle_gap"].to_numpy(dtype=float)
+
+    landscape = bucket_summary(frame)
+    landscape["interpretation"] = (
+        "Four oracle buckets describe the routing landscape: "
+        "easy (both correct), opportunity (weak wrong, strong right), "
+        "weak_only (weak right, strong wrong), too_hard (both wrong)."
+    )
+
+    panel_signals = list(HEADLINE_SIGNALS) + list(PROBE_DERIVED)
+    distributions = {
+        col: distribution_by_bucket(frame, col)
+        for col in panel_signals
+        if col in frame.columns
+    }
+
+    overlap_signals = [c for c in panel_signals if c in frame.columns]
+    ks_opp_hard = {
+        col: _ks_between_buckets(
+            frame, col, "opportunity", "too_hard", ks_2samp=ks_2samp,
+        )
+        for col in overlap_signals
+    }
+    opp_vs_hard_effects = {
+        col: effect_size_between_buckets(
+            frame, col, "opportunity", "too_hard", mannwhitneyu,
+        )
+        for col in overlap_signals
+    }
+
+    boot_kw = {"n_boot": n_boot, "bootstrap_seed": bootstrap_seed}
+    oracle_gap_corr: dict[str, Any] = {}
+    opportunity_corr: dict[str, Any] = {}
+    for col in overlap_signals:
+        x = frame[col].to_numpy(dtype=float)
+        oracle_gap_corr[col] = correlation_metrics(
+            y_gap, x,
+            spearmanr=spearmanr, kendalltau=kendalltau, pearsonr=pearsonr,
+            roc_auc_score=roc_auc_score, average_precision_score=average_precision_score,
+            **boot_kw,
+        )
+        opportunity_corr[col] = correlation_metrics(
+            y_opp, x,
+            spearmanr=spearmanr, kendalltau=kendalltau, pearsonr=pearsonr,
+            roc_auc_score=roc_auc_score, average_precision_score=average_precision_score,
+            **boot_kw,
+        )
+
+    c = frame[COL_COMPLEXITY].to_numpy(dtype=float) if COL_COMPLEXITY in frame.columns else None
+    h = frame[COL_ENTROPY_WEAK].to_numpy(dtype=float) if COL_ENTROPY_WEAK in frame.columns else None
+    m = frame[COL_MARGIN_WEAK].to_numpy(dtype=float) if COL_MARGIN_WEAK in frame.columns else None
+
+    partial_vs_opp: dict[str, Any] = {}
+    partial_vs_gap: dict[str, Any] = {}
+    if c is not None and h is not None:
+        partial_vs_opp["entropy_w_given_c_q"] = partial_spearman(h, y_opp, c, spearmanr)
+        partial_vs_gap["entropy_w_given_c_q"] = partial_spearman(h, y_gap, c, spearmanr)
+        partial_vs_opp["c_q_given_entropy_w"] = partial_spearman(c, y_opp, h, spearmanr)
+        partial_vs_gap["c_q_given_entropy_w"] = partial_spearman(c, y_gap, h, spearmanr)
+    if c is not None and m is not None:
+        partial_vs_opp["margin_w_given_c_q"] = partial_spearman(m, y_opp, c, spearmanr)
+        partial_vs_gap["margin_w_given_c_q"] = partial_spearman(m, y_gap, c, spearmanr)
+    if h is not None and m is not None:
+        rho_hm, p_hm = spearmanr(h, m)
+        partial_vs_opp["entropy_w_given_margin_w"] = partial_spearman(h, y_opp, m, spearmanr)
+        partial_vs_gap["entropy_w_given_margin_w"] = partial_spearman(h, y_gap, m, spearmanr)
+    else:
+        rho_hm, p_hm = None, None
+
+    entropy_regression = _fit_ols_summary(
+        frame,
+        COL_ENTROPY_WEAK,
+        [FEATURE_PIECE_COUNT, FEATURE_MATTR, FEATURE_COMPRESSION],
+    )
+    entropy_regression["target"] = COL_ENTROPY_WEAK
+    entropy_regression["predictors"] = [FEATURE_PIECE_COUNT, FEATURE_MATTR, FEATURE_COMPRESSION]
+    entropy_regression["interpretation"] = (
+        "R² shows how much weak entropy variance query features explain; "
+        "residual_std captures unexplained routing-relevant probe variation."
+    )
+
+    consistency_pairs = [
+        (COL_COMPLEXITY, COL_ENTROPY_WEAK),
+        (COL_COMPLEXITY, COL_MARGIN_WEAK),
+        (COL_ENTROPY_WEAK, COL_MARGIN_WEAK),
+    ]
+    top_decile = {
+        f"{a}_vs_{b}": _top_decile_overlap(frame, a, b)
+        for a, b in consistency_pairs
+        if a in frame.columns and b in frame.columns
+    }
+
+    decomposition: dict[str, Any] = {"source": None}
+    if complementarity_json is not None:
+        comp = json.loads(complementarity_json.read_text())
+        decomposition = {
+            "source": str(complementarity_json),
+            "ablation_ladder": comp.get("ablation_ladder", {}).get("models"),
+            "auc_increments": comp.get("auc_increments", {}).get("steps"),
+            "rank_agreement": comp.get("rank_agreement"),
+            "solo_reference": comp.get("solo_reference", {}).get("models"),
+            "within_dep_family": comp.get("within_dep_family"),
+        }
+
+    signal_calibration: dict[str, Any] = {}
+    if COL_ENTROPY_WEAK in frame.columns:
+        signal_calibration[COL_ENTROPY_WEAK] = signal_quantile_calibration(
+            frame, COL_ENTROPY_WEAK, n_boot=n_boot, seed=bootstrap_seed,
+        )
+    if PROBE_DERIVED_MARGIN in frame.columns:
+        signal_calibration[PROBE_DERIVED_MARGIN] = signal_quantile_calibration(
+            frame, PROBE_DERIVED_MARGIN, n_boot=n_boot, seed=bootstrap_seed + 1,
+        )
+
+    probability_calibration: dict[str, Any] = {}
+    if merged_full is not None and test_ids:
+        joint_cols = [COL_COMPLEXITY, COL_ENTROPY_WEAK, COL_MARGIN_WEAK]
+        try:
+            probability_calibration["complexity_joint"] = run_logistic_probability_calibration(
+                merged_full,
+                test_ids=test_ids,
+                feature_cols=joint_cols,
+                model_label="complexity_joint",
+            )
+        except ValueError as exc:
+            probability_calibration["complexity_joint"] = {"error": str(exc)}
+
+    recovery = recovery_matrix(frame)
+
+    information_gap: dict[str, Any] = {}
+    if merged_full is not None and test_ids and calib_ids:
+        try:
+            information_gap = information_gap_summary(
+                merged_full,
+                calib_ids=calib_ids,
+                test_ids=test_ids,
+            )
+        except (ValueError, KeyError) as exc:
+            information_gap = {"error": str(exc)}
+
+    return {
+        "analysis": ANALYSIS_INTERPRETATION,
+        "question": "What aspects of routing need do different signals encode?",
+        "n": int(len(frame)),
+        "routing_landscape": landscape,
+        "recovery_matrix": recovery,
+        "information_gap": information_gap,
+        "bucket_distributions": distributions,
+        "bucket_overlap": {
+            "comparison": "opportunity_vs_too_hard",
+            "interpretation": (
+                "Large overlap in signal distributions suggests probes track difficulty "
+                "more than recoverability (opportunity vs too_hard are not cleanly separated)."
+            ),
+            "ks_test": ks_opp_hard,
+            "effect_sizes": opp_vs_hard_effects,
+        },
+        "oracle_gap": {
+            "definition": "oracle_gap = strong_ok - weak_ok",
+            "placement": "main_text",
+            "correlations": oracle_gap_corr,
+        },
+        "opportunity_correlations": opportunity_corr,
+        "partial_correlations": {
+            "vs_opportunity": partial_vs_opp,
+            "vs_oracle_gap": partial_vs_gap,
+        },
+        "entropy_regression": entropy_regression,
+        "signal_redundancy": {
+            "rho_entropy_margin": float(rho_hm) if rho_hm is not None else None,
+            "p_value": float(p_hm) if p_hm is not None else None,
+            "top_decile_overlap": top_decile,
+        },
+        "information_decomposition": decomposition,
+        "signal_calibration": signal_calibration,
+        "probability_calibration": probability_calibration,
+        "bootstrap": {"n_resamples": n_boot, "ci_level": 0.95, "seed": bootstrap_seed},
     }
 
 

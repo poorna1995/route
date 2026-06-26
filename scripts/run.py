@@ -9,7 +9,8 @@ Subcommands:
   merge           Merge oracle + probes → routing relevance JSON
   doctor          Pre-flight checks on oracle / probe / merge artifacts
   complementarity Cross-family signal ladder analysis
-  plot            Paper figures (distributions | roc | scatter)
+  plot            Paper figures (distributions | roc | scatter | decomposition)
+  interpret       Q2–Q3 interpretation bundle (landscape, overlap, decomposition)
   route-preview   Median-threshold routing sanity check (D37)
   route-eval      Study IV hold-out routing evaluation (EXP-03 / RH4)
   summarize-c2    Summarize C2 oracle JSON for dataset screening
@@ -44,6 +45,8 @@ from routing.evaluation import (
     run_calibration_stability,
     run_complementarity_analysis,
     run_failure_analysis,
+    run_failure_analysis_bundle,
+    run_interpretation_analysis,
     summarize_c2,
 )
 from routing.model_dependent import run_probe_extraction
@@ -60,17 +63,25 @@ from routing.doctor import run_doctor
 from routing.oracle import run_oracle_assessment
 from routing.plots import (
     plot_calibration,
+    plot_conceptual_model,
     plot_distributions,
     plot_entropy_margin_scatter,
     plot_family_map,
+    plot_information_decomposition,
     plot_ladder,
+    plot_probability_calibration,
+    plot_conceptual_model,
+    plot_recovery_matrix,
     plot_roc_curves,
+    plot_signal_calibration,
+    plot_signal_semantics,
 )
 from routing.constants import (
     BOOTSTRAP_COUNT,
     BOOTSTRAP_SEED,
     CALIB_REDRAW_FOLDS,
     CALIB_SIZE,
+    COL_ENTROPY_WEAK,
     COMPLEMENTARITY_CV_FOLDS,
     DEFAULT_COMPLEXITY_SELECTION_NAME,
     DEFAULT_TOKENIZER_ID,
@@ -398,10 +409,78 @@ def cmd_complementarity(args: argparse.Namespace) -> int:
 
 
 def cmd_failure_analysis(args: argparse.Namespace) -> int:
-    result = run_failure_analysis(pd.read_csv(args.merged_csv), n=args.n)
+    from routing.constants import PROBE_DERIVED_MARGIN
+
+    df = pd.read_csv(args.merged_csv)
+    if args.signal == "both":
+        result = run_failure_analysis_bundle(df, n=args.n)
+    elif args.signal == "entropy":
+        result = run_failure_analysis(df, signal_col=COL_ENTROPY_WEAK, n=args.n)
+    else:
+        result = run_failure_analysis(df, signal_col=PROBE_DERIVED_MARGIN, n=args.n)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2))
-    print(f"Wrote {args.output}  (n={args.n} per tail)")
+    print(f"Wrote {args.output}  (n={args.n} per tail, signal={args.signal})")
+    return 0
+
+
+def cmd_interpret(args: argparse.Namespace) -> int:
+    merged_full = None
+    test_ids = None
+    calib_ids = None
+    if args.splits_json:
+        splits = load_splits(args.splits_json)
+        test_ids = splits["test"]
+        calib_ids = splits["calib"]
+        full_path = args.merged_full_csv
+        if full_path is None:
+            candidate = args.merged_csv.parent / "arc_merged_full.csv"
+            full_path = candidate if candidate.exists() else None
+        if full_path is not None:
+            merged_full = pd.read_csv(full_path)
+    result = run_interpretation_analysis(
+        pd.read_csv(args.merged_csv),
+        features_csv=args.features_csv,
+        complementarity_json=args.complementarity_json,
+        merged_full=merged_full,
+        test_ids=test_ids,
+        calib_ids=calib_ids,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2))
+    print(f"Wrote {args.output}  (n={result['n']})")
+    landscape = result["routing_landscape"]["counts"]
+    print(f"  buckets: {landscape}")
+    gap = result["oracle_gap"]["correlations"].get("delta_margin_gain", {})
+    if gap.get("spearman_rho") is not None:
+        print(f"  oracle_gap ρ(Δm_gain) = {gap['spearman_rho']:+.3f}")
+    reg = result["entropy_regression"]
+    if reg.get("r_squared") is not None:
+        print(f"  entropy ~ features R² = {reg['r_squared']:.3f}")
+    cal = result.get("signal_calibration", {}).get("entropy_w", {}).get("bins", {})
+    if cal:
+        print("  H_w quantile calibration (opportunity rate):")
+        for band in ("bottom", "middle", "top"):
+            b = cal[band]
+            print(f"    {band:6s}  {b['opportunity_rate']:.1%}  (n={b['n']})")
+    prob = result.get("probability_calibration", {}).get("complexity_joint", {})
+    if prob.get("bins"):
+        print(f"  logistic calibration ({prob.get('calibration_verdict', 'n/a')}, mean gap {prob.get('mean_signed_gap', 0):+.3f}):")
+        for b in prob["bins"]:
+            print(
+                f"    bin {b['bin']:2d}  pred={b['mean_predicted']:.2f}  "
+                f"obs={b['observed_rate']:.2f}  gap={b['gap']:+.2f}"
+            )
+    igap = result.get("information_gap", {})
+    if igap.get("accuracies"):
+        acc = igap["accuracies"]
+        gaps = igap["gaps_percentage_points"]
+        print(
+            f"  information gap: oracle {acc['oracle']:.1%} | "
+            f"learned {acc['learned_router']:.1%} | "
+            f"headroom {gaps['routing_headroom']:.1%} | "
+            f"exploited {gaps['exploited_by_learned']:.1%}"
+        )
     return 0
 
 
@@ -481,10 +560,34 @@ def cmd_plot(args: argparse.Namespace) -> int:
         if not args.complementarity_json:
             raise SystemExit("--complementarity-json required for ladder")
         plot_ladder(args.complementarity_json, args.output, dpi=args.dpi)
+    elif args.figure == "entropy-calibration":
+        if not args.merged_csv:
+            raise SystemExit("--merged-csv required for entropy-calibration")
+        plot_signal_calibration(args.merged_csv, args.output, dpi=args.dpi)
+    elif args.figure == "probability-calibration":
+        if not args.merged_csv:
+            raise SystemExit("--merged-csv required (use arc_merged_full.csv)")
+        if not args.splits_json:
+            raise SystemExit("--splits-json required for probability-calibration")
+        plot_probability_calibration(args.merged_csv, args.splits_json, args.output, dpi=args.dpi)
     elif args.figure == "calibration":
         if not args.complementarity_json:
             raise SystemExit("--complementarity-json required for calibration")
         plot_calibration(args.complementarity_json, args.output, dpi=args.dpi)
+    elif args.figure == "decomposition":
+        if not args.complementarity_json:
+            raise SystemExit("--complementarity-json required for decomposition")
+        plot_information_decomposition(args.complementarity_json, args.output, dpi=args.dpi)
+    elif args.figure == "semantics":
+        if not args.merged_csv:
+            raise SystemExit("--merged-csv required for semantics")
+        plot_signal_semantics(args.merged_csv, args.output, dpi=args.dpi)
+    elif args.figure == "recovery-matrix":
+        if not args.merged_csv:
+            raise SystemExit("--merged-csv required for recovery-matrix")
+        plot_recovery_matrix(args.merged_csv, args.output, dpi=args.dpi)
+    elif args.figure == "conceptual-model":
+        plot_conceptual_model(args.output, dpi=args.dpi)
     print(f"Wrote {args.output}")
     return 0
 
@@ -812,16 +915,35 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", type=Path, required=True)
     p.set_defaults(func=cmd_splits)
 
-    p = sub.add_parser("failure-analysis", help="Top/bottom entropy cases for Discussion")
+    p = sub.add_parser("failure-analysis", help="Top/bottom signal tails for Discussion")
     p.add_argument("--merged-csv", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
-    p.add_argument("--n", type=int, default=20)
+    p.add_argument("--n", type=int, default=10)
+    p.add_argument(
+        "--signal",
+        choices=["both", "entropy", "delta_margin"],
+        default="both",
+        help="Signal for tail analysis (default: both H_w and Δm_gain)",
+    )
     p.set_defaults(func=cmd_failure_analysis)
 
+    p = sub.add_parser("interpret", help="Q2–Q3 interpretation bundle (landscape, overlap, decomposition)")
+    p.add_argument("--merged-csv", type=Path, required=True)
+    p.add_argument("--features-csv", type=Path, default=None, help="Query features for entropy regression")
+    p.add_argument("--complementarity-json", type=Path, default=None, help="Study III JSON for decomposition block")
+    p.add_argument("--splits-json", type=Path, default=None, help="CALIB/TEST split for logistic probability calibration")
+    p.add_argument("--merged-full-csv", type=Path, default=None, help="CALIB+TEST merge (default: arc_merged_full.csv)")
+    p.add_argument("--output", type=Path, required=True)
+    p.set_defaults(func=cmd_interpret)
+
     p = sub.add_parser("plot", help="Generate paper figures")
-    p.add_argument("figure", choices=["distributions", "roc", "scatter", "ladder", "family-map", "calibration"])
+    p.add_argument(
+        "figure",
+        choices=["distributions", "roc", "scatter", "ladder", "family-map", "calibration", "decomposition", "entropy-calibration", "probability-calibration", "semantics", "recovery-matrix", "conceptual-model"],
+    )
     p.add_argument("--merged-csv", type=Path, default=None)
     p.add_argument("--complementarity-json", type=Path, default=None)
+    p.add_argument("--splits-json", type=Path, default=None)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--dpi", type=int, default=150)
     p.set_defaults(func=cmd_plot)

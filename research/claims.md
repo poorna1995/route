@@ -1,138 +1,139 @@
-# Claims — Paper vocabulary & evidence map
+# Claims — Vocabulary, narrative, and evidence map
 
-> **Frozen design:** [`MASTER.md`](MASTER.md) · **Metrics detail:** `08_evaluation_design.md` · **Paper outline:** `11_paper_outline.md`
+> **Frozen design:** [`MASTER.md`](MASTER.md) · **Metrics:** `08_evaluation_design.md` · **Outline:** `11_paper_outline.md`
 
 ---
 
-## Contribution (one paragraph — paper Intro / Abstract)
+## Locked vocabulary (use consistently in `research/` and `paper/`)
 
-> Current LLM routing methods largely rely on supervised routers, preference data, or information available only after full answer generation. We study **routing based on unsupervised pre-inference signals**: inexpensive model-independent features and model-dependent probe statistics extracted before full generation. We characterize **how much routing-relevant information** these signals carry, test whether the families complement each other, and evaluate whether a simple calibrated policy can exploit whatever information exists. Signal **computation** is unsupervised; oracle labels are used only to **evaluate** informativeness and to **calibrate** the demonstration policy on a held-out validation split—not to extract signals.
+Define each term once; do not alternate synonyms in prose.
 
-**Headline (not):** “We built a router” · “unsupervised routing.”  
-**Headline (yes):** unsupervised pre-inference **signal extraction and characterization** for routing.
+| Term | Definition | Do not substitute |
+| ---- | ---------- | ----------------- |
+| **Multi-LLM routing** | Assigning each query to one model in a fixed pool \(\mathcal{M}\) under a cost–quality objective | model selection, dispatch, orchestration |
+| **Appropriate model selection** | Route to the weakest model expected to answer correctly; escalate only when additional capability is likely to help | best model, suitable LLM |
+| **Unsupervised pre-inference signals** | Statistics computed from query text and/or prefill logits **before full answer generation**, without routing labels at extraction time | pre-generation features (ambiguous), probes alone |
+| **Model-independent signals** | Query-derived statistics (e.g., complexity proxies) | query-only features, linguistic features (in lists only) |
+| **Model-dependent signals** | Statistics from a **prefill probe** on a specific model's logits | model entropy alone, confidence alone |
+| **Prefill probe** | One forward pass on the formatted prompt; logits at the final prompt position | observation, acquisition pass |
+| **Latent routing dimension** | Unobserved aspect of routing need (task difficulty, model uncertainty, model disagreement, escalation potential) | signal, feature, raw statistic |
+| **Operationalization** | Prefill statistic that measures a dimension (e.g., $H_w$ for model uncertainty) | representative statistic, probe |
+| **Routing-relevant information** | Predictive association between a signal and routing need (opportunity, oracle buckets, weak–strong gap) | informativeness alone without definition |
+| **Signal characterization** | Empirical analysis of routing-relevant information (Studies I–III) | measurement, metrology, protocol |
+| **Routing evaluation** | Held-out test of whether a calibrated policy exploits characterized information (Study IV) | router contribution, routing system |
+| **Offline oracle** | Full greedy inference labels used only for evaluation and calibration | ground truth routing |
+| **Routing opportunity** | \(y^{\text{opp}}=1\) when weak fails and strong succeeds | escalation label |
+| **Calibration split (CALIB)** | ARC validation (\(n{=}299\)): representative selection and policy fitting | validation set (ambiguous) |
+| **Test split (TEST)** | ARC test (\(n{=}1{,}172\)): all reported metrics | held-out (define once) |
+| **Calibrated policy** | Logistic + threshold fit on CALIB; routing evaluation instrument | learned router, simple router |
 
-**Contribution pathway:**
+**Banned in paper prose:** Protocol v1/v2, L1–L4, framework (as novelty claim), measurement protocol, observation store, Paper v1.
+
+**Notebook-only IDs** (never in paper): V1/V2 pilots, EXP-01–03, D46, Phase A/B/C.
+
+---
+
+## Research question (frozen)
+
+> **Can unsupervised pre-inference signals support appropriate multi-LLM routing before generation?**
+
+**Contrast sentence:** Prior work develops routing *algorithms*; we ask what *routing-relevant information is available before any routing decision*.
+
+**Answer (ARC TEST):** **Partially.** Information exists and dimensions differ; a calibrated policy does not exploit available headroom.
+
+---
+
+## Narrative spine (ACL-style)
 
 ```text
-Query → Unsupervised signal extraction → Signal characterization → Simple routing policy (demonstration)
+Routing problem (unsupervised, pre-inference)
+    → Signal extraction (model-independent + model-dependent)
+    → Signal characterization (existence, structure, complementarity)
+    → Routing evaluation (exploitation test)
 ```
 
----
-
-## Goal vs contribution
-
-| | Goal | Contribution |
-| --- | --- | --- |
-| **Framing** | Route efficiently across LLMs | **Estimate and characterize** pre-inference signals |
-| **Studies I–III** | — | How much routing-relevant information? Complementarity? |
-| **Study IV** | Demonstration | Simple policy exploits whatever information exists |
+**Routing is the problem; characterization is how we answer it; routing evaluation is the final test—not a product claim.**
 
 ---
 
-## Supervision (Methods — three layers; D64)
+## Contributions (ranked)
 
-> **Signal computation** is unsupervised: \(c(q)\), \(H\), and \(m\) are extracted without routing labels or router training. **Signal characterization** (Studies I–III) uses offline oracle labels (\(y_{\text{opp}}\), buckets) only to measure predictive association (ρ, AUROC, ΔAUROC)—never to define signals. **Routing policy** (Study IV) fits a simple logistic model and threshold on CALIB from oracle-derived labels; this supervised **calibration** is a demonstration built on unsupervised signals, not the primary contribution and not an end-to-end supervised router.
-
-**Reviewer FAQ:** *“Why call this unsupervised if you fit logistic regression?”* → Unsupervised refers to **signal extraction**. Policy calibration is explicitly secondary and uses labels only on CALIB.
-
----
-
-## Outcome scenarios (Abstract/Discussion branching)
-
-| TEST outcome | Paper emphasis |
-| ------------ | -------------- |
-| Some signal informative | Information present; policy may help (RH4) |
-| All families null (AUROC ≈ 0.50) | **Limits paper:** what these probes do *not* provide under this protocol; do not claim enabling routing |
+| Rank | Contribution |
+| ---- | ------------ |
+| **1** | Empirical study of **unsupervised pre-inference signals** for multi-LLM routing |
+| **2** | Taxonomy of **information dimensions** with representative statistics and reproducible prefill-based extraction |
+| **3** | Evidence that dimensions encode **different routing need** and are **partially complementary** |
+| **4** | Routing evaluation showing an **exploitation gap** between oracle and a calibrated policy |
 
 ---
 
-## Paper vocabulary (use in `paper/` only)
+## Scientific question (unit of analysis)
 
-```text
-Signal families → Characterization (I–II) → Understanding (III) → Utility (IV)
-```
+> **Which latent routing dimension predicts routing opportunity?**
 
-**Studies (ACL naming):**
+Not: *which feature has the largest AUROC?*  
+Dimensions are latent; statistics are operationalizations. AUROC summarizes detectability for a dimension—not a feature leaderboard.
 
-| Study | Layer | Name | RH |
-| ----- | ----- | ---- | -- |
-| I | Characterization | Model-independent | RH1 |
-| II | Characterization | Model-dependent | RH2 |
-| III | Understanding | Complementarity | RH3 |
-| IV | Utility | Lightweight routing | RH4 |
+## Latent routing dimensions (main analysis)
 
-**Terminology (locked):**
+| Latent routing dimension | Operationalization | Opportunity AUROC (TEST) |
+| ------------------------ | ---------------- | ------------------------ |
+| **Task difficulty** | `piece_count` / $c(q)$ | 0.541 |
+| **Model uncertainty** | $H_w$ | 0.581 |
+| **Model disagreement** | $\Delta H$ | 0.602 |
+| **Escalation potential** | $\Delta m_{\mathrm{gain}}$ | 0.605 |
 
-| Concept | Wording |
-| ------- | ------- |
-| Main object | **unsupervised pre-inference routing signals** |
-| Headline contribution | **signal extraction and characterization for routing** |
-| Avoid headline | *unsupervised routing* · *we built a router* |
-| Taxonomy | **model-independent** / **model-dependent** (feature vector) |
-| Study IV | **routing demonstration** (simple calibrated policy) |
-| Operational property | **before full model generation** (define *pre-inference* once) |
+**Difficulty-side vs escalation-side:** task difficulty + model uncertainty overlap; model disagreement + escalation potential separate opportunity from too-hard.
 
-Notebook IDs (V1, EXP-01–03) stay in `research/` only — never in paper prose. EXP-01 = signal characterization (Studies I–II).
+**Appendix operationalization:** $m_w$ as alternate measure of model uncertainty (AUROC 0.432 on TEST; does not improve joint model).
+
+**Deferred dimensions** (future work): dynamics, representation, stability, calibration.
 
 ---
 
-## Informativeness (one paragraph for Methods / Intro)
+## Hypotheses (RH1–RH4)
 
-> We use _informativeness_ operationally: the degree to which an unsupervised routing signal shows predictive association with routing need (offline oracle opportunity and weak–strong correctness gap). We quantify this with Spearman correlation, AUROC/AUPRC, and complementary predictive gain (ΔAUROC when combining signal families)—not with information-theoretic mutual information.
-
----
-
-## Literature positioning (intro / related work)
-
-| Category | Routing information | Examples |
-| -------- | ------------------- | -------- |
-| Supervised routers | Labels, prefs, offline gens | RouteLLM, Hybrid LLM, GraphRouter |
-| Label-free post-generation | Pool outputs | Smoothie, CASCAL |
-| **This work** | Unsupervised pre-inference signals (before full generation) | \(c(q)\), \(H\), \(m\) |
+| ID | Hypothesis | Study | Evidence |
+| -- | ---------- | ----- | -------- |
+| **RH1** | Latent routing dimensions carry measurable predictive content for routing opportunity | I–II | T2; F1 |
+| **RH2** | Dimensions encode **distinct** aspects of routing need (difficulty-side vs escalation-side) | II + interpret | F2, F6 |
+| **RH3** | Dimensions provide **complementary** information beyond any single dimension | III | T3; F3 |
+| **RH4** | A **calibrated policy** can exploit available information under a cost–quality objective | IV | T4 |
 
 ---
 
-## Datasets (by purpose — paper §4)
+## Three findings (reader-facing)
 
-| Purpose | Dataset |
-| ------- | ------- |
-| Primary characterization | ARC-Challenge |
-| Generalization | MMLU (2 subjects) |
-| Robustness (optional) | BoolQ |
-
----
-
-## Hypothesis → evidence → table (paper-first)
-
-Each hypothesis maps to **one primary table**. Run only experiments that fill these tables.
-
-| Hypothesis | Study | Primary table | Key outputs |
-| ---------- | ----- | ------------- | ----------- |
-| **RH1** | I (model-independent) | T2 (indep. column) | ρ, AUROC, distributions for \(c(q)\) |
-| **RH2** | II (model-dependent) | T2 (dep. column) | ρ, AUROC for \(H, m\); partial ρ \| \(c\) |
-| **RH3** | III (complementarity) | T3 | ΔAUROC ladder \(c → c{+}H → c{+}H{+}m\) |
-| **RH4** | IV (demonstration) | T4 | Exploit whatever information exists; cost–quality vs baselines |
-
-**Guiding principle (D64):** Every experiment → justifies a paragraph → justifies a hypothesis → answers the RQ. Otherwise → future work.
-
-**Null results:** Fill tables honestly. If all signals null on corrected TEST, write a **limits** paper (Abstract/Intro/Discussion)—do not add rescue experiments.
+| Finding | Claim | Key numbers |
+| ------- | ----- | ----------- |
+| **F1** | Latent dimensions **predict opportunity** before generation | Opportunity 43.3%; escalation potential AUROC ~0.61 |
+| **F2** | **Dimensions differ**—difficulty-side vs escalation-side | $H_w$ $d{\approx}0.03$ vs $\Delta m_{\mathrm{gain}}$ $d{\approx}0.72$ |
+| **F3** | Routing **leaves headroom** | Always-strong 69.2%; calibrated policy 69.2%; oracle 74.4% (5.2 pp unexploited) |
 
 ---
 
-## Paper metrics (v1 — no additions)
+## Supervision (state once in Methods)
 
-Spearman ρ + CI · AUROC/AUPRC · bucket separability · ΔAUROC · opportunity rate · probe cost (T5).
-
-**Not in v1:** ECE suite · MI headlines · median-heuristic routing in paper.
+| Stage | Routing labels? | Role |
+| ----- | ----------------- | ---- |
+| Signal extraction | **No** | Unsupervised at inference |
+| Signal characterization | Oracle **offline only** | Measure routing-relevant information |
+| Routing evaluation | CALIB only | Test exploitation; not the research claim |
 
 ---
 
-## Future work (not v1 — one line in Discussion)
+## Title
 
-| Paper | Topic |
-| ----- | ----- |
-| **This paper** | Unsupervised pre-inference signal extraction + characterization → LLM routing demonstration |
-| Future | Learned combination of signals (beyond simple logistic) |
-| Future | Extend to agents and multi-step orchestration |
+> Can Unsupervised Pre-Inference Signals Support Appropriate Multi-LLM Routing?
 
-Paraphrase stability deferred (D04)—not evaluated in v1.
+---
+
+## Hypothesis → table map
+
+| Hypothesis | Table | Figure |
+| ---------- | ----- | ------ |
+| RH1–RH2 | T2 | F1, F2, F6 |
+| RH3 | T3 | F3 |
+| RH4 | T4 | — |
+
+**Principle:** Every experiment fills a table that answers a hypothesis that answers the research question.

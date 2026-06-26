@@ -3,158 +3,117 @@
 \section{Method}
 \label{sec:method}
 
-This section formalizes the measurement framework introduced in \S\ref{sec:intro}.
-We define unsupervised pre-inference routing signals, separate three supervision layers (signal computation, characterization, policy demonstration), and specify how we operationalize informativeness.
-Experimental configuration, splits, and study hierarchy are in \S\ref{sec:setup}; empirical results follow in \S\ref{sec:characterization}--\S\ref{sec:routing}.
+We formalize unsupervised pre-inference routing (\S\ref{sec:method:formulation}), define \textbf{latent routing dimensions} and their operationalizations (\S\ref{sec:method:dimensions}), describe prefill-based signal extraction (\S\ref{sec:method:extraction}), and define evaluation metrics.
+Experimental configuration: \S\ref{sec:setup}; empirical evidence: \S\ref{sec:characterization}; routing evaluation: \S\ref{sec:routing}.
 
-\subsection{Problem formulation}
+\subsection{Routing formulation}
 \label{sec:method:formulation}
 
-Let $\mathcal{M}=\{M_1,\ldots,M_k\}$ be a fixed model pool of instruction-tuned LLMs with known relative cost tiers \citep{hu2024routerbench,ding2024hybrid}.
-For each query $q$, routing assigns one $M_i \in \mathcal{M}$.
-We study \textbf{unsupervised pre-inference routing signals}: statistics computable before full generation on the target query, without using routing supervision labels to extract them \citep{guha2024smoothie,mu2025ragrouting}.
-Throughout, \emph{pre-inference} means the signal is available before paying the inference cost of a complete answer; a \textbf{prefill probe} (one forward pass on the formatted prompt) is permitted for the model-dependent family, but not autoregressive decoding to completion.
+Let $\mathcal{M}=\{M_1,\ldots,M_k\}$ be a fixed pool with known cost tiers \citep{hu2024routerbench,ding2024hybrid}.
+For each query $q$, routing assigns one $M_i \in \mathcal{M}$ with objective \textbf{appropriate model selection}: route to the \textbf{weakest model expected to answer correctly}.
 
-\paragraph{Appropriate assignment.}
-Appropriate assignment means achieving a cost--quality trade-off within $\mathcal{M}$: route to the \textbf{weakest model expected to answer correctly}, escalating to a stronger model only when pre-inference signals indicate that additional capability is likely to improve the outcome.
-Our empirical question is \textbf{how much routing-relevant information} inexpensive pre-inference signals carry for that assignment---not whether a particular router architecture maximizes accuracy.
+\textbf{Unsupervised pre-inference routing} uses query text and prefill probes before full generation, without routing supervision at extraction time \citep{guha2024smoothie,mu2025ragrouting}.
+Prior work often ranks isolated statistics (e.g., entropy vs.\ margin).
+We instead ask which \textbf{latent routing dimensions}---unobserved aspects of routing need---are measurable before generation and whether they predict \textbf{routing opportunity}.
 
 \paragraph{Research hypotheses.}
-Studies I--IV test a sequential chain; Study~IV is conditional on what Studies~I--III establish:
 \begin{align*}
-  \text{RH1:}& \;\mathcal{S}_{\text{indep}} \text{ contains measurable routing-relevant information} \\
-  \text{RH2:}& \;\mathcal{S}_{\text{dep}} \text{ contains measurable routing-relevant information} \\
-  \text{RH3:}& \;\text{the families provide additional information beyond either alone} \\
-  \text{RH4:}& \;\text{a simple policy can exploit whatever information exists for cost--quality gains.}
+  \text{RH1:}& \;\text{latent routing dimensions carry measurable predictive content for routing opportunity} \\
+  \text{RH2:}& \;\text{dimensions encode different aspects of routing need} \\
+  \text{RH3:}& \;\text{dimensions provide complementary predictive content beyond any single dimension} \\
+  \text{RH4:}& \;\text{a calibrated routing policy can exploit available information.}
 \end{align*}
 
-\paragraph{Oracle upper bound (offline only).}
-The oracle is an evaluation construct, not a routing method.
-For each $(q,M_i)$, we run full inference under a frozen prompt protocol and assign correctness $y(q,M_i)\in\{0,1\}$ using a task-appropriate metric (\S\ref{sec:setup}).
-Prefill signals are never used to compute oracle labels.
-Among models tied at maximum quality, the oracle prefers the lowest-cost pool member \citep{hu2024routerbench}.
-This offline upper bound defines routing need for evaluation only; we do not use it to train a neural router.
+\paragraph{Routing need (evaluation).}
+For $(M_w,M_s)$, \textbf{routing opportunity} is $y(q,M_w)=0$ and $y(q,M_s)=1$ ($y^{\text{opp}}$).
+Offline oracle labels $y(q,M_i)$ come from full greedy inference (\S\ref{sec:method:extraction}); they never enter signal extraction.
+Four buckets---easy, opportunity, weak-only, too-hard---structure dimension-wise characterization.
 
-\paragraph{Routing need.}
-For a designated weak--strong pair $(M_w,M_s)$, query $q$ exhibits \textbf{routing opportunity} when $y(q,M_w)=0$ and $y(q,M_s)=1$.
-We write the binary indicator $y^{\text{opp}}(q)\in\{0,1\}$.
-Other $(y_w,y_s)$ combinations define \emph{easy} (both succeed), \emph{weak-only} (weak succeeds, strong fails), and \emph{too-hard} (both fail).
-These four buckets structure characterization in \S\ref{sec:characterization}.
+\subsection{Latent routing dimensions}
+\label{sec:method:dimensions}
 
-\subsection{Three layers of supervision}
-\label{sec:method:supervision}
+A \textbf{latent routing dimension} is an aspect of routing need that is not observed directly---for example, how difficult the task is for the pool, how uncertain the weak model is, or whether escalation to the strong model is likely to help.
+Each dimension is \textbf{operationalized} by a deterministic statistic computed from query text or prefill logits (Table~\ref{tab:dimensions}).
 
-We distinguish three stages; only the first is unsupervised in the machine-learning sense:
-\begin{table}[t]
-  \centering
-  \small
-  \begin{tabular}{@{}p{0.22\linewidth}cp{0.52\linewidth}@{}}
-    \toprule
-    \textbf{Stage} & \textbf{Labels?} & \textbf{Role} \\
-    \midrule
-    Signal computation ($c$, $H$, $m$) & No &
-    Unsupervised extraction; \textbf{primary contribution} \\
-    Characterization (Studies I--III) & Oracle offline only &
-    Measure $\rho$, AUROC, $\Delta$AUROC; never define signals \\
-    Policy demonstration (Study IV) & Yes on validation &
-    Logistic $+$ threshold from $y^{\text{opp}}$; \textbf{secondary} \\
-    \bottomrule
-  \end{tabular}
-  \caption{Supervision boundary: unsupervised signal extraction vs.\ offline evaluation vs.\ policy calibration.}
-  \label{tab:supervision}
-\end{table}
+\paragraph{Scientific unit.}
+The unit of analysis is the \textbf{dimension}, not the statistic.
+Entropy, \texttt{piece\_count}, and $\Delta m_{\mathrm{gain}}$ are \emph{operationalizations}; the research question is whether the underlying dimension predicts opportunity.
+Studies I--II therefore ask, for each dimension: \textbf{does this aspect of routing need predict $y^{\text{opp}}$?}
+We report $\rho$ and AUROC as summaries of detectability---not as a feature leaderboard.
 
-\noindent
-\textbf{Signal computation} produces $c(q)$, $H(q,M_i)$, and $m(q,M_i)$ without routing labels, preference data, or router training.
-\textbf{Characterization} uses oracle labels generated by offline full inference solely to quantify predictive association with routing need.
-\textbf{Policy demonstration} fits a simple logistic regression $\Pr(y^{\text{opp}}\mid c, H_w, m_w)$ and tunes a decision threshold $\tau$ (and optional cost penalty $\lambda$) on the ARC validation split; reported utility is evaluated on the held-out test split (\S\ref{sec:routing}).
-We do not claim an unsupervised routing \emph{system}: unsupervised describes \emph{signal extraction}; calibration is an explicit, secondary step built on those signals.
+\input{tables/T_dimensions}
 
-\subsection{Signal-family taxonomy}
-\label{sec:method:signals}
+\paragraph{Operationalization details.}
+\textbf{Task difficulty} is measured by $c(q)=$ \texttt{piece\_count}, selected on CALIB from query-text candidates (appendix Table~\ref{tab:d46}).
+\textbf{Model uncertainty} uses weak-model entropy $H_w$ at the final prefill position \citep{he2023uncertainty,plaut2024chat}.
+\textbf{Model disagreement} and \textbf{escalation potential} use paired weak/strong logits: $\Delta H = H_w - H_s$ and $\Delta m_{\mathrm{gain}} = m_s - m_w$.
+Appendix Table~\ref{tab:md-variants} audits alternate operationalizations (e.g., $m_w$ as an alternative to $H_w$ for model uncertainty).
 
-We group candidate statistics into two \textbf{signal families} forming a pre-inference feature vector:
-\begin{equation}
-\mathcal{S} = \mathcal{S}_{\text{indep}} \cup \mathcal{S}_{\text{dep}}, \quad
-\mathcal{S}_{\text{indep}} = \{ s(q) \}, \quad
-\mathcal{S}_{\text{dep}} = \{ s(q, M_i) \}.
-\end{equation}
-The \textbf{model-independent family} $\mathcal{S}_{\text{indep}}$ contains $s(q)$ computed from formatted query text only (no LLM forward pass).
-The \textbf{model-dependent family} $\mathcal{S}_{\text{dep}}$ contains $s(q,M_i)$ from a prefill probe on each pool member.
-The taxonomy organizes what we measure; the scientific object is whether these families encode routing-relevant information---including null results.
+\subsection{Prefill-based signal extraction}
+\label{sec:method:extraction}
 
-\paragraph{Model-independent family: representative $c(q)$.}
-We study one representative complexity signal $c(q)$, selected by one-time calibration on ARC validation (\S\ref{sec:setup:calib}).
-Candidates span four families: token length (\texttt{piece\_count}), lexical diversity (MATTR), lexical information (Shannon entropy over tokenizer pieces), and compressibility (zlib ratio on UTF-8 text).
-The winner becomes the frozen $c(q)$ for all test reporting; we do not re-select on the held-out test set or on MMLU.
+Table~\ref{tab:pipeline} summarizes the analytical pipeline.
+\textbf{Signal extraction} performs one prefill forward pass per pool member.
+Richer measurements (trajectories, hidden states) would change operationalizations but not the dimensional abstraction.
 
-Lexical Shannon entropy $H_{\text{text}}(q)$ operates on tokenizer piece frequencies---a different random variable from model-dependent probe entropy $H(q,M_i)$ (\S\ref{sec:method:prefill}).
+\input{tables/T_framework}
 
-\paragraph{Model-dependent family: $H$ and $m$.}
+\paragraph{Statistic definitions.}
 \label{sec:method:prefill}
-We implement token entropy and log-probability margin from one prefill forward pass per $(q,M_i)$:
+Task difficulty: $c(q)=$ \texttt{piece\_count}.
+Model uncertainty and (appendix) model confidence from weak logits at $t{=}T$:
 \begin{equation}
 H(q,M_i) = -\sum_{v \in V} p_T(v)\log p_T(v), \qquad
 m(q,M_i) = p_T^{(1)} - p_T^{(2)},
 \end{equation}
-where $p_T$ is the full-vocabulary softmax at probe step $t=T$ (last prompt token), temperature $\tau=1$, and top-$k$/top-$p$ are disabled.
-We refer to $m$ as log-probability margin; we do not call $m$ or peak probability \emph{confidence}, which implies calibration \citep{plaut2024chat,kotte2026ucci}.
-Auxiliary quantities logged on the same pass include $p_{\max}$ and vocabulary size for auditability.
+full-vocabulary $p_T$, temperature $\tau{=}1$.
+Model disagreement and escalation potential:
+$\Delta H = H_w - H_s$; $\Delta m_{\mathrm{gain}} = m_s - m_w$.
 
-Raw $H(q,M_i)$ and $m(q,M_i)$ are not assumed comparable across $M_i$ \citep{he2023uncertainty,plaut2024chat}.
-Analysis uses within-query comparisons, ranks, and correlation with offline routing need.
-
-\subsection{Operational definition of informativeness}
-\label{sec:method:informativeness}
-
-We use informativeness operationally, not as Shannon mutual information $I(S;Y)$.
-A signal is informative to the extent it shows \textbf{predictive association with routing need}, measured by:
-\begin{itemize}
-  \item Spearman $\rho$ with bootstrap CI vs.\ $y^{\text{opp}}$ (and vs.\ oracle gap as secondary);
-  \item AUROC / AUPRC for opportunity detection;
-  \item complementary predictive gain: $\Delta$AUROC when adding a signal family beyond another (Study~III).
-\end{itemize}
-If every studied signal yields AUROC $\approx 0.50$ on the corrected test split, we report a \textbf{limits} characterization: what these probe families do \emph{not} provide under our protocol, rather than a practical routing method (\S\ref{sec:discussion}).
-
-\subsection{Prompt protocol}
-\label{sec:method:protocol}
-
-Prompt construction has three layers; the same chat prompt $P(u)$ is used for signal extraction and oracle evaluation on a given $(q,M_i)$:
-\begin{center}
-\small
-Benchmark item $\rightarrow$ task formatting ($u$) $\rightarrow$ chat template $P(u)$\\
-$\hookrightarrow$ prefill probe (signals) \quad|\quad full inference (oracle labels, offline)
-\end{center}
-
-\begin{enumerate}
-  \item \textbf{Task formatting} --- Deterministic \texttt{user\_content} per benchmark (e.g., ARC-Challenge: question, labeled choices, letter-only reply instruction).
-  \item \textbf{Chat template} --- \texttt{tokenizer.apply\_chat\_template} wraps $u$ in the model-native template without a researcher-defined system prompt.
-  \item \textbf{Branch} --- Prefill probe for signals; greedy \texttt{generate()} for oracle labels only.
-\end{enumerate}
-We log \texttt{protocol\_version}, \texttt{prompt\_hash}, \texttt{prompt\_tokens}, and \texttt{extraction\_method} per row.
-
-\subsection{Oracle generation (evaluation only)}
-\label{sec:method:oracle}
+\paragraph{Branches.}
+The same chat prompt $P(u)$ is used for signal extraction and offline oracle labeling; operationalizations are computed offline only.
 
 \begin{table}[t]
   \centering
   \small
   \begin{tabular}{lcc}
     \toprule
-    \textbf{Setting} & \textbf{Oracle (labels)} & \textbf{Prefill probe (signals)} \\
+    \textbf{Setting} & \textbf{Offline oracle} & \textbf{Prefill probe} \\
     \midrule
-    Decoding & Greedy ($\tau=0$) & No generation \\
-    Distribution & --- & $\tau=1$; full-vocab softmax \\
-    Purpose & Offline $y(q,M_i)$, $y^{\text{opp}}$ & $c(q)$, $H$, $m$ \\
+    Decoding & Greedy ($\tau{=}0$) & None \\
+    Distribution & --- & $\tau{=}1$; full-vocab softmax \\
+    Purpose & Labels $y(q,M_i)$ & Logits for operationalizations \\
     \bottomrule
   \end{tabular}
-  \caption{Oracle full inference vs.\ prefill probe.}
+  \caption{Offline oracle labeling vs.\ prefill-based signal extraction.}
   \label{tab:oracle-vs-probe}
 \end{table}
 
-\noindent
-Signals and oracle labels are strictly separated: no information from $y$ enters signal computation.
+\paragraph{Supervision boundary.}
+\label{sec:method:supervision}
+Signal extraction is unsupervised at inference; dimension-wise characterization uses offline oracle labels as \textbf{evidence}; routing evaluation fits a demonstration policy on CALIB only.
 
-\subsection{Scope}
-Locked pool, datasets, split policy, calibration procedure for $c(q)$, sample sizes, and evaluation metrics are in \S\ref{sec:setup}.
-The routing policy (\S\ref{sec:routing}) is defined only after \S\ref{sec:characterization} establishes what routing-relevant information the signals carry.
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}p{0.26\linewidth}cp{0.48\linewidth}@{}}
+    \toprule
+    \textbf{Stage} & \textbf{Labels?} & \textbf{Role} \\
+    \midrule
+    Signal extraction & No & Unsupervised at inference \\
+    Dimension characterization & Oracle offline & \textbf{Evidence} \\
+    Routing evaluation & CALIB only & Validate implications \\
+    \bottomrule
+  \end{tabular}
+  \caption{Supervision boundary.}
+  \label{tab:supervision}
+\end{table}
+
+\subsection{Evaluation design}
+\label{sec:method:evaluation}
+
+\textbf{Primary question (Studies I--II):} which latent routing dimension predicts routing opportunity?
+\textbf{Secondary question (Study III):} do dimensions provide complementary predictive content?
+We report $\rho$, opportunity AUROC/AUPRC, and $\Delta$AUROC when combining operationalized dimensions---not exhaustive leaderboards over every candidate statistic.
+Study~III ladder: task difficulty $\rightarrow$ difficulty + model uncertainty $\rightarrow$ joint with model confidence (appendix operationalization).
+Routing evaluation (Study~IV) uses operationalizations of task difficulty, model uncertainty, and model confidence.

@@ -1,0 +1,40 @@
+% Extended dimension taxonomy (candidates; not main-paper claims). Bold rows match Table~\ref{tab:dimensions}.
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}p{0.14\linewidth}p{0.20\linewidth}p{0.58\linewidth}@{}}
+    \toprule
+    \textbf{Dimension} & \textbf{Source} & \textbf{Candidate statistics; main study in bold} \\
+    \midrule
+    \textbf{Complexity} & Query text &
+    \textbf{\texttt{piece\_count}}, MATTR, MTLD, compression, text Shannon, sentence count, choice count, prompt length \\
+    \addlinespace
+    \textbf{Uncertainty} & $M_i$ logits &
+    \textbf{$H$}, $H_{\mathrm{top10}}$, $n_{\mathrm{eff}}$, tail entropy, R\'enyi \\
+    \addlinespace
+    Confidence & $M_i$ logits &
+    \textbf{$m$}, $p_{\max}$, top-5 mass, log-odds \\
+    \addlinespace
+    \textbf{Agreement} & $M_w{\leftrightarrow}M_s$ &
+    \textbf{$\Delta H$}, KL, JS divergence, rank correlation \\
+    \addlinespace
+    \textbf{Recoverability} & $M_w{\leftrightarrow}M_s$ &
+    \textbf{$\Delta m_{\mathrm{gain}}$}, $\Delta p_{\max}$, $\Delta n_{\mathrm{eff}}$ \\
+    \addlinespace
+    Dynamics & Generation trajectory &
+    entropy slope, margin slope, trajectory variance (future work) \\
+    \addlinespace
+    Representation & Hidden states &
+    layer norms, hidden similarity (future work) \\
+    \addlinespace
+    Stability & Paraphrase / multi-probe &
+    cross-paraphrase variance (deferred) \\
+    \addlinespace
+    Calibration & Offline fit &
+    ECE, temperature, Brier (deferred) \\
+    \bottomrule
+  \end{tabular}
+  \caption{Extended information-dimension taxonomy. Main text reports bold representatives only; additional rows indicate future measurements without expanding headline claims.}
+  \label{tab:dim-taxonomy}
+\end{table}

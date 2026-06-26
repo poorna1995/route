@@ -1,22 +1,21 @@
-% T3: Study III — complementarity ladder (fill after complementarity JSON)
+% T3: complementarity across latent routing dimensions (calib-fit, test-eval)
 \begin{table}[t]
   \centering
   \small
   \begin{tabular}{lcc}
     \toprule
-    \textbf{Model} & \textbf{Features} & AUROC [95\% CI] \\
+    \textbf{Dimensions in model} & \textbf{Operationalizations} & AUROC [95\% CI] \\
     \midrule
-    Complexity only & $c(q)$ & TBD \\
-    Entropy only & $H_w$ & TBD \\
-    Margin only & $m_w$ & TBD \\
-    $c + H$ & $c, H_w$ & TBD \\
-    $c + m$ & $c, m_w$ & TBD \\
-    \textbf{Joint (primary)} & $c, H_w, m_w$ & \textbf{TBD} \\
+    Task difficulty & $c(q)$ & $0.541$ [$0.509$, $0.574$] \\
+    Model uncertainty (ref.) & $H_w$ & $0.581$ \\
+    Task difficulty + Model uncertainty & $c$, $H_w$ & $0.590$ [$0.558$, $0.622$] \\
+    \textbf{Task difficulty + Model uncertainty + Model confidence} & $c$, $H_w$, $m_w$ & $0.578$ [$0.546$, $0.612$] \\
     \midrule
-    $\Delta$AUROC ($c \rightarrow c{+}H{+}m$) & --- & \textbf{TBD} \\
-    DeLong $p$ & --- & TBD \\
+    $\Delta$AUROC (difficulty $\rightarrow$ +uncertainty) & --- & $\mathbf{+0.049}$ [$+0.014$, $+0.085$] \\
+    DeLong $p$ & --- & $0.008$ \\
+    $\Delta$AUROC (+uncertainty $\rightarrow$ joint w/ $m_w$) & --- & $-0.013$ [$-0.031$, $+0.005$] \\
     \bottomrule
   \end{tabular}
-  \caption{Study III (RH3): complementary predictive information on ARC test. Primary endpoint: $\Delta$AUROC from $c(q)$ to $c{+}H_w{+}m_w$.}
+  \caption{Study III: do latent routing dimensions provide \emph{complementary} predictive content for opportunity? Logistic models fit on CALIB; AUROC on TEST. $m_w$ is an alternate operationalization of model uncertainty (appendix); it does not improve the joint model on ARC.}
   \label{tab:complementarity}
 \end{table}

@@ -1,12 +1,10 @@
 % §8 Conclusion
 
-We studied pre-hoc unsupervised routing signals for multi-LLM selection: whether the model-independent and model-dependent signal families encode routing need, whether they provide complementary predictive information, and whether that prediction supports lightweight routing under controllable cost--quality preferences.
-Under a frozen prompt--probe--oracle protocol, we characterized $c(q)$, $H$, and $m$ on ARC-Challenge with a prediction-then-decision evaluation structure.
+We studied whether unsupervised pre-inference signals can support appropriate multi-LLM routing before generation.
+We framed routing need as \textbf{latent dimensions}---task difficulty, model uncertainty, model disagreement, escalation potential---each operationalized by a prefill statistic, and asked which dimensions predict routing opportunity on ARC-Challenge.
 
-\textbf{[TBD: characterization headline.]}
+\textbf{Multiple dimensions predict opportunity} (best AUROC ${\sim}0.61$ for escalation potential).
+\textbf{Dimensions differ}: difficulty-side and escalation-side operationalizations separate different routing need.
+\textbf{Routing leaves headroom}: 5.2 percentage points above always-strong remain unexploited by a calibrated policy.
 
-\textbf{[TBD: complementary predictive information ($\Delta$AUROC).]}
-
-\textbf{[TBD: decision utility across $\lambda$ or honest negative result.]}
-
-Our contribution is fundamental measurement of what lightweight unsupervised probes reveal---including negative results---not a new state-of-the-art router or learned pre-hoc estimator \citep{cao2026scope}.
+The contribution is a dimensional map of pre-inference routing information---not a feature correlation study and not a new supervised router.
