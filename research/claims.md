@@ -13,8 +13,10 @@ Define each term once; do not alternate synonyms in prose.
 | **Multi-LLM routing** | Assigning each query to one model in a fixed pool \(\mathcal{M}\) under a cost–quality objective | model selection, dispatch, orchestration |
 | **Appropriate model selection** | Route to the weakest model expected to answer correctly; escalate only when additional capability is likely to help | best model, suitable LLM |
 | **Unsupervised pre-inference signals** | Statistics computed from query text and/or prefill logits **before full answer generation**, without routing labels at extraction time | pre-generation features (ambiguous), probes alone |
-| **Model-independent signals** | Query-derived statistics (e.g., complexity proxies) | query-only features, linguistic features (in lists only) |
-| **Model-dependent signals** | Statistics from a **prefill probe** on a specific model's logits | model entropy alone, confidence alone |
+| **Query-derived signals** | Statistics from query text alone (model-independent) | query-only features, linguistic features (in lists only) |
+| **Model-derived signals** | Statistics from a **prefill probe** on one model's logits | model-dependent alone, terminal confidence alone |
+| **Cross-model signals** | Statistics from paired weak/strong prefill probes | relational, disagreement alone |
+| **Perturbation-derived signals** | Statistics under meaning-preserving query perturbations (future) | paraphrase stability, semantic entropy |
 | **Prefill probe** | One forward pass on the formatted prompt; logits at the final prompt position | observation, acquisition pass |
 | **Latent routing dimension** | Unobserved aspect of routing need (task difficulty, model uncertainty, model disagreement, escalation potential) | signal, feature, raw statistic |
 | **Operationalization** | Prefill statistic that measures a dimension (e.g., $H_w$ for model uncertainty) | representative statistic, probe |
@@ -43,11 +45,26 @@ Define each term once; do not alternate synonyms in prose.
 
 ---
 
+## Information sources (paper taxonomy — three + future)
+
+Organize signals by **where information comes from**, not by extraction depth.
+
+| Information source | Examples (this paper) | Study |
+| ------------------ | --------------------- | ----- |
+| **Query-derived** | `piece_count` / $c(q)$ | I |
+| **Model-derived** | $H_w$, $m_w$ (terminal prefill) | II |
+| **Cross-model** | $\Delta H$, $\Delta m_{\mathrm{gain}}$ | II–III |
+| *(Future) Perturbation-derived* | paraphrase stability (D04 defer) | — |
+
+**Model-derived (C3 extension):** terminal statistics (C0) → **layerwise confidence evolution** (C3). Richer characterization within model-derived — **not** a fourth information source. Concepts: [`c3_layerwise_concepts.md`](c3_layerwise_concepts.md).
+
+**Anchor sentence (transcript + co-author):** *Study unsupervised signals first. Routing is only an application.*
+
 ## Narrative spine (ACL-style)
 
 ```text
 Routing problem (unsupervised, pre-inference)
-    → Signal extraction (model-independent + model-dependent)
+    → Signal extraction (query-derived | model-derived | cross-model)
     → Signal characterization (existence, structure, complementarity)
     → Routing evaluation (exploitation test)
 ```
@@ -83,7 +100,9 @@ Dimensions are latent; statistics are operationalizations. AUROC summarizes dete
 | **Model disagreement** | $\Delta H$ | 0.602 |
 | **Escalation potential** | $\Delta m_{\mathrm{gain}}$ | 0.605 |
 
-**Difficulty-side vs escalation-side:** task difficulty + model uncertainty overlap; model disagreement + escalation potential separate opportunity from too-hard.
+**Difficulty vs recoverability:** query-derived + model-derived uncertainty track **difficulty**; cross-model signals track **recoverability**. Task difficulty + model uncertainty overlap; model disagreement + escalation potential separate opportunity from too-hard.
+
+**Legacy aliases (decision register / code only):** *model-independent* = query-derived; *model-dependent* = model-derived. Do not use as primary paper taxonomy.
 
 **Appendix operationalization:** $m_w$ as alternate measure of model uncertainty (AUROC 0.432 on TEST; does not improve joint model).
 
@@ -96,7 +115,7 @@ Dimensions are latent; statistics are operationalizations. AUROC summarizes dete
 | ID | Hypothesis | Study | Evidence |
 | -- | ---------- | ----- | -------- |
 | **RH1** | Latent routing dimensions carry measurable predictive content for routing opportunity | I–II | T2; F1 |
-| **RH2** | Dimensions encode **distinct** aspects of routing need (difficulty-side vs escalation-side) | II + interpret | F2, F6 |
+| **RH2** | Dimensions encode **distinct** aspects of routing need (difficulty vs recoverability) | II + interpret | F2, F6 |
 | **RH3** | Dimensions provide **complementary** information beyond any single dimension | III | T3; F3 |
 | **RH4** | A **calibrated policy** can exploit available information under a cost–quality objective | IV | T4 |
 
@@ -107,7 +126,7 @@ Dimensions are latent; statistics are operationalizations. AUROC summarizes dete
 | Finding | Claim | Key numbers |
 | ------- | ----- | ----------- |
 | **F1** | Latent dimensions **predict opportunity** before generation | Opportunity 43.3%; escalation potential AUROC ~0.61 |
-| **F2** | **Dimensions differ**—difficulty-side vs escalation-side | $H_w$ $d{\approx}0.03$ vs $\Delta m_{\mathrm{gain}}$ $d{\approx}0.72$ |
+| **F2** | **Difficulty \(\neq\) recoverability** before decoding | $H_w$ $d{\approx}0.03$ vs $\Delta m_{\mathrm{gain}}$ $d{\approx}0.72$ |
 | **F3** | Routing **leaves headroom** | Always-strong 69.2%; calibrated policy 69.2%; oracle 74.4% (5.2 pp unexploited) |
 
 ---
@@ -137,3 +156,17 @@ Dimensions are latent; statistics are operationalizations. AUROC summarizes dete
 | RH4 | T4 | — |
 
 **Principle:** Every experiment fills a table that answers a hypothesis that answers the research question.
+
+---
+
+## Keywords (ACL / paper metadata)
+
+**Primary:** unsupervised pre-inference signals · multi-LLM routing · prefill probe · signal characterization · routing opportunity · appropriate model selection
+
+**Information sources:** query-derived · model-derived · cross-model · perturbation-derived (future)
+
+**Findings:** difficulty vs recoverability · exploitation gap · complementary predictive gain · offline oracle · calibrated policy
+
+**Methods:** ARC-Challenge · MMLU transfer · Cohen's d · AUROC · Spearman ρ
+
+**Contrast (not our contribution):** supervised routing · post-generation routing · agent orchestration · RouteLLM · GraphRouter

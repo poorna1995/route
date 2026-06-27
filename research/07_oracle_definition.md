@@ -137,5 +137,5 @@ Seed 42. See `MASTER.md` §5.
 
 ## Analysis questions (evidence, not routing)
 
-1. When \(y_{\text{opp}} = 1\), do model-independent and model-dependent signals shift as hypothesized? (RH1, RH2)
-2. Do the two signal families provide complementary information beyond either alone? (RH3)
+1. When \(y_{\text{opp}} = 1\), do query-derived, model-derived, and cross-model signals shift as hypothesized? (RH1, RH2)
+2. Do the three information sources provide complementary information beyond any single source? (RH3)

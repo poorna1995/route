@@ -9,10 +9,13 @@ Subcommands:
   merge           Merge oracle + probes → routing relevance JSON
   doctor          Pre-flight checks on oracle / probe / merge artifacts
   complementarity Cross-family signal ladder analysis
-  plot            Paper figures (distributions | roc | scatter | decomposition)
+  plot            Paper figures (distributions | roc | scatter | formation | ...)
   interpret       Q2–Q3 interpretation bundle (landscape, overlap, decomposition)
   route-preview   Median-threshold routing sanity check (D37)
   route-eval      Study IV hold-out routing evaluation (EXP-03 / RH4)
+  compare-generalization  RH7 dimension transfer across merged regimes
+  analyze-formation     RH5 layerwise divergence from JSONL traces
+  layerwise-parity      Pre-TEST: lm_head(norm(h_L)) vs out.logits smoke (Llama)
   summarize-c2    Summarize C2 oracle JSON for dataset screening
   verify-logprobs Feasibility check for full-vocabulary logits
 
@@ -50,6 +53,7 @@ from routing.evaluation import (
     summarize_c2,
 )
 from routing.model_dependent import run_probe_extraction
+from routing.layerwise import run_layerwise_extraction, run_terminal_parity_smoke
 from routing.model_independent import run_feature_extraction, run_feature_screen
 from routing.data import (
     load_complexity_column,
@@ -59,6 +63,7 @@ from routing.data import (
     normalize_signals_csv,
     write_complexity_selection,
 )
+from routing.compare_generalization import compare_generalization, format_summary
 from routing.doctor import run_doctor
 from routing.oracle import run_oracle_assessment
 from routing.plots import (
@@ -69,13 +74,14 @@ from routing.plots import (
     plot_family_map,
     plot_information_decomposition,
     plot_ladder,
+    plot_layer_evolution,
     plot_probability_calibration,
-    plot_conceptual_model,
     plot_recovery_matrix,
     plot_roc_curves,
     plot_signal_calibration,
     plot_signal_semantics,
 )
+from routing.formation_analysis import analyze_formation
 from routing.constants import (
     BOOTSTRAP_COUNT,
     BOOTSTRAP_SEED,
@@ -85,6 +91,7 @@ from routing.constants import (
     COMPLEMENTARITY_CV_FOLDS,
     DEFAULT_COMPLEXITY_SELECTION_NAME,
     DEFAULT_TOKENIZER_ID,
+    MARGIN_TOL_DEFAULT,
     PERMUTATION_COUNT,
     ROUTING_RELEVANCE_SIGNALS,
     STABILITY_CALIB_DRAWS,
@@ -177,13 +184,37 @@ def cmd_oracle(args: argparse.Namespace) -> int:
 
 
 def cmd_probes(args: argparse.Namespace) -> int:
-    if args.prompt is None and args.dataset is None:
-        raise SystemExit("Provide --prompt or --dataset")
     if args.prompt is not None and args.dataset is not None:
         raise SystemExit("Use --prompt or --dataset, not both")
     if args.batch_size < 1:
         raise SystemExit("--batch-size must be >= 1")
     split, limit = _resolve_split_load(args)
+    if getattr(args, "layerwise", False):
+        if args.dataset is None:
+            raise SystemExit("layerwise requires --dataset")
+        if args.prompt is not None:
+            raise SystemExit("layerwise is incompatible with --prompt")
+        if args.batch_size != 1:
+            print("warning: layerwise currently runs batch_size=1 per query", file=sys.stderr)
+        return run_layerwise_extraction(
+            model=args.model,
+            output=args.output,
+            trace_path=args.layer_trace,
+            dataset=args.dataset,
+            split=split,
+            limit=limit,
+            seed=args.seed,
+            device=args.device,
+            dtype=args.dtype,
+            stab_eps=args.stab_eps,
+            stab_k=args.stab_k,
+            margin_tol=args.margin_tol,
+            overwrite=args.overwrite,
+            batch_size=args.batch_size,
+            query_filter=_query_filter_from_args(args),
+        )
+    if args.prompt is None and args.dataset is None:
+        raise SystemExit("Provide --prompt or --dataset")
     return run_probe_extraction(
         model=args.model,
         output=args.output,
@@ -588,8 +619,38 @@ def cmd_plot(args: argparse.Namespace) -> int:
         plot_recovery_matrix(args.merged_csv, args.output, dpi=args.dpi)
     elif args.figure == "conceptual-model":
         plot_conceptual_model(args.output, dpi=args.dpi)
+    elif args.figure == "formation":
+        if not args.layer_trace or not args.merged_csv:
+            raise SystemExit("--layer-trace and --merged-csv required for formation")
+        plot_layer_evolution(args.layer_trace, args.merged_csv, args.output, dpi=args.dpi)
     print(f"Wrote {args.output}")
     return 0
+
+
+def cmd_analyze_formation(args: argparse.Namespace) -> int:
+    payload = analyze_formation(
+        trace_path=args.layer_trace,
+        merged_csv=args.merged_csv,
+        output=args.output,
+    )
+    print(payload.get("interpretation", ""))
+    print(f"Wrote {args.output}")
+    return 0
+
+
+def cmd_layerwise_parity(args: argparse.Namespace) -> int:
+    split, limit = _resolve_split_load(args)
+    return run_terminal_parity_smoke(
+        model=args.model,
+        dataset=args.dataset,
+        split=split,
+        limit=limit,
+        seed=args.seed,
+        device=args.device,
+        dtype=args.dtype,
+        margin_tol=args.margin_tol,
+        query_filter=_query_filter_from_args(args),
+    )
 
 
 def cmd_route_preview(args: argparse.Namespace) -> int:
@@ -654,6 +715,27 @@ def cmd_route_eval(args: argparse.Namespace) -> int:
         opp_s = f"{opp:.0%}" if opp is not None else "n/a"
         wo_s = f"{wo:.0%}" if wo is not None else "n/a"
         print(f"{r['policy']:<18} {r['accuracy']:>6.1%} {r['avg_cost']:>6.2f} {opp_s:>11} {wo_s:>12}")
+    return 0
+
+
+def cmd_compare_generalization(args: argparse.Namespace) -> int:
+    regimes: list[tuple[str, Path]] = []
+    for spec in args.regime:
+        if "=" not in spec:
+            raise SystemExit(f"Expected NAME=PATH for --regime, got {spec!r}")
+        name, path = spec.split("=", 1)
+        regimes.append((name.strip(), Path(path.strip())))
+
+    payload = compare_generalization(
+        regimes=regimes,
+        output=args.output,
+        mmlu_subject_splits=not args.no_mmlu_subjects,
+        n_boot=args.bootstrap_n,
+        bootstrap_seed=args.bootstrap_seed,
+    )
+    print(format_summary(payload))
+    if args.output:
+        print(f"\nWrote {args.output}")
     return 0
 
 
@@ -787,6 +869,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", default="auto")
     p.add_argument("--dtype", default=None)
     p.add_argument("--batch-size", type=int, default=1)
+    p.add_argument("--layerwise", action="store_true", help="C3 layerwise margin trajectories")
+    p.add_argument("--layer-trace", type=Path, default=None, dest="layer_trace", help="JSONL trace output")
+    p.add_argument("--stab-eps", type=float, default=0.02, dest="stab_eps")
+    p.add_argument("--stab-k", type=int, default=2, dest="stab_k")
+    p.add_argument("--margin-tol", type=float, default=MARGIN_TOL_DEFAULT, dest="margin_tol", help="Terminal margin parity tolerance (layerwise smoke)")
+    p.add_argument("--overwrite", action="store_true", help="Replace existing --output / --layer-trace (layerwise)")
     _add_split_args(p)
     p.set_defaults(func=cmd_probes)
 
@@ -939,14 +1027,36 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("plot", help="Generate paper figures")
     p.add_argument(
         "figure",
-        choices=["distributions", "roc", "scatter", "ladder", "family-map", "calibration", "decomposition", "entropy-calibration", "probability-calibration", "semantics", "recovery-matrix", "conceptual-model"],
+        choices=["distributions", "roc", "scatter", "ladder", "family-map", "calibration", "decomposition", "entropy-calibration", "probability-calibration", "semantics", "recovery-matrix", "conceptual-model", "formation"],
     )
     p.add_argument("--merged-csv", type=Path, default=None)
+    p.add_argument("--layer-trace", type=Path, default=None, dest="layer_trace")
     p.add_argument("--complementarity-json", type=Path, default=None)
     p.add_argument("--splits-json", type=Path, default=None)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--dpi", type=int, default=150)
     p.set_defaults(func=cmd_plot)
+
+    p = sub.add_parser("analyze-formation", help="RH5 divergence + bucket medians from layer traces")
+    p.add_argument("--layer-trace", type=Path, required=True, dest="layer_trace")
+    p.add_argument("--merged-csv", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.set_defaults(func=cmd_analyze_formation)
+
+    p = sub.add_parser(
+        "layerwise-parity",
+        help="Pre-TEST smoke: verify lm_head(norm(hidden_states[-1])) matches out.logits",
+    )
+    p.add_argument("--model", required=True)
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--split", default="test")
+    p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--device", default="auto")
+    p.add_argument("--dtype", default=None)
+    p.add_argument("--margin-tol", type=float, default=MARGIN_TOL_DEFAULT, dest="margin_tol")
+    _add_split_args(p)
+    p.set_defaults(func=cmd_layerwise_parity)
 
     p = sub.add_parser("route-preview", help="Median-threshold routing sanity check")
     p.add_argument("--merged-csv", type=Path, required=True)
@@ -971,6 +1081,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="CALIB threshold objective: accuracy - lambda*avg_cost (0 = max accuracy)",
     )
     p.set_defaults(func=cmd_route_eval)
+
+    p = sub.add_parser("compare-generalization", help="RH7 dimension transfer across merged regimes")
+    p.add_argument(
+        "--regime",
+        action="append",
+        required=True,
+        metavar="NAME=MERGED_CSV",
+        help="Regime label and merged CSV (repeatable, e.g. arc=analysis/arc_merged.csv)",
+    )
+    p.add_argument("--output", type=Path, default=None)
+    p.add_argument("--no-mmlu-subjects", action="store_true", help="Skip per-subject MMLU breakdown")
+    p.add_argument("--bootstrap-n", type=int, default=BOOTSTRAP_COUNT)
+    p.add_argument("--bootstrap-seed", type=int, default=BOOTSTRAP_SEED)
+    p.set_defaults(func=cmd_compare_generalization)
 
     p = sub.add_parser("summarize-c2", help="Summarize C2 oracle JSON")
     p.add_argument("--oracle", type=Path, required=True)

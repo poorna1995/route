@@ -1,6 +1,6 @@
 # Model-Independent Signal Selection (survey archive)
 
-> **\(c(q)\) selection (D46):** One **representative** model-independent complexity signal, chosen via **D46 signal screening** (`05` §8, `screen_cq_candidates.py`) — **not a paper experiment**. CALIB 150 only to lock. Families: Length · Lexical diversity · Information · Compressibility.
+> **\(c(q)\) selection (D46):** One **representative query-derived** complexity signal (paper term; legacy filename: model-independent), chosen via **D46 signal screening** (`05` §8, `screen_cq_candidates.py`) — **not a paper experiment**. CALIB 150 only to lock. Families: Length · Lexical diversity · Information · Compressibility.
 
 This file retains the **literature survey** (papers Lugoloobi, RouteLLM, etc.) for Methods justification. Do not use for frozen config — see MASTER.
 
@@ -10,7 +10,7 @@ This file retains the **literature survey** (papers Lugoloobi, RouteLLM, etc.) f
 
 **Research question:** How informative are **unsupervised pre-inference signals** for selecting an appropriate LLM?
 
-The RQ says **signals**, not only model-dependent probes. Taxonomy 𝒮 already defines:
+The RQ says **signals**, not only model-derived probes. Taxonomy 𝒮 already defines:
 
 ```text
 𝒮 = 𝒮_indep ∪ 𝒮_dep
@@ -23,7 +23,7 @@ The RQ says **signals**, not only model-dependent probes. Taxonomy 𝒮 already 
 
 **Reviewer risk:** "Why introduce 𝒮 if only one branch is evaluated?"
 
-**Fix:** Add **one** model-independent signal \(c(q)\) with a **literature-justified** definition — not a kitchen-sink of lexical features.
+**Fix:** Add **one** query-derived signal \(c(q)\) with a **literature-justified** definition — not a kitchen-sink of lexical features.
 
 ---
 

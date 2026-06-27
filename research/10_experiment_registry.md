@@ -88,7 +88,7 @@ EXP-01 is one analysis pipeline with two paper subsections—not two separate no
 
 | Process | Name | Question | Paper? | Slice | Status |
 | ------- | ---- | -------- | ------ | ----- | ------ |
-| **D46** | **Pre-study calibration** | Which model-independent candidate is the best **representative** \(c(q)\) on CALIB? | **No** — Methods setup only | ARC validation (~299) | Protocol locked (D57/D60); outcome pending |
+| **D46** | **Pre-study calibration** | Which **query-derived** candidate is the best **representative** \(c(q)\) on CALIB? | **No** — Methods setup only | ARC validation (~299) | Protocol locked (D57/D60); outcome: `piece_count` |
 
 Families: Length · Lexical diversity · Information · Compressibility. CLI: `run.py screen` → `analysis/d46_signal_screen_*.json`, `analysis/selected_feature.json`.
 

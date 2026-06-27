@@ -30,7 +30,7 @@
       "concerns": "Numeric extraction from long CoT; both models failed all 5 queries",
       "priority": 3,
       "rationale": "R1-R5 satisfied but C2 evidence negative; revisit only with better parsing or larger n",
-      "c2_evidence": "experiments/c2/qwen_gsm8k_n5.json"
+      "c2_evidence": "negative n=5 pilot (0% opportunity, 100% too_hard); artifact removed"
     },
     {
       "id": "math_subset",

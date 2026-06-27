@@ -38,22 +38,26 @@ Only signals that satisfy the screening criteria will be retained for the routin
 
 # Part A — Candidate Signal Taxonomy
 
-Let **𝒮** denote the pre-inference signal space. The paper **organizes** 𝒮 into two families; v1 **studies one instance per family branch** (plus margin as second model-dependent probe).
+Let **𝒮** denote the pre-inference signal space. The paper **organizes** 𝒮 by **information source** (matches professor transcript); v1 studies one representative per source branch used in this paper.
 
 ```text
               Pre-inference signal space 𝒮
-                    /              \
-                   /                \
-        Model-independent      Model-dependent
-        s(q)                     s(q, Mᵢ)
-                   \                /
-                    \              /
-                 Characterization → Complementarity → Router
+         /              |              \
+        /               |               \
+ Query-derived    Model-derived    Cross-model
+ c(q)             H_w, m_w         ΔH, Δm_gain
+        \               |               /
+         \         (C3: layerwise       /
+          \         extension)         /
+           \              |           /
+            Characterize → Complementarity → Routing evaluation
 ```
 
-## Model-independent families — \(s(q)\)
+**C3 (layerwise confidence evolution):** methodological extension within **model-derived** (terminal → layerwise)—not a fourth information source. See [`c3_layerwise_concepts.md`](c3_layerwise_concepts.md).
 
-No forward pass on the routed LLM pool.
+## Query-derived — \(c(q)\)
+
+No forward pass on the routed LLM pool. *(Legacy alias: model-independent.)*
 
 | Family | Examples | v1 status |
 | ------ | -------- | --------- |
@@ -63,24 +67,38 @@ No forward pass on the routed LLM pool.
 | Semantic ambiguity | text Shannon entropy, compression ratio | Candidates for \(c(q)\) |
 | Graph / interaction features | task–query graphs (GraphRouter contrast) | Future work |
 
-## Model-dependent families — \(s(q, M_i)\)
+## Model-derived — \(s(q, M_i)\)
 
-Prefill probe on each pool member (canonical protocol in `05`).
+Prefill probe on each pool member (canonical protocol in `05`). *(Legacy alias: model-dependent.)*
 
 | Family | Examples | v1 status |
 | ------ | -------- | --------- |
 | **Entropy** | token entropy \(H\) | **Studied** → RH2 |
 | **Confidence / margin** | log-prob margin \(m\) | **Studied** → RH2, RH3 |
-| Robustness | paraphrase stability | Deferred D04 |
+| **Layerwise evolution (C3)** | `stabilization_layer` ⭐, `slope_margin` (secondary) | Extension within model-derived |
+| Robustness | paraphrase stability | Deferred D04 → perturbation-derived |
 | Hidden-state signals | activation probes (Lugoloobi contrast) | Optional discussion; not our method |
 
-**Experiments test hypotheses, not the full taxonomy.** Additional families position future work and Related Work — they are not v1 experiment scope.
+**Experiments test hypotheses, not the full taxonomy.** Perturbation-derived and hidden-state signals position future work—they are not v1 experiment scope.
 
 ---
 
-## Model-agnostic signals (implementation detail)
+## Cross-model — derived from paired probes
 
-`s(q)`  (also written **model-independent**: same meaning)
+Computed at merge from weak + strong **model-derived** terminal logits:
+
+| Signal | Notation | Role |
+| ------ | -------- | ---- |
+| Model disagreement | \(\Delta H = H_w - H_s\) | Recoverability / disagreement |
+| Escalation potential | \(\Delta m_{\mathrm{gain}} = m_s - m_w\) | Recoverability / margin gain |
+
+**Role:** Tests **RH2–RH3** — difficulty vs recoverability structure.
+
+---
+
+## Query-derived signals (implementation detail)
+
+\(c(q)\) — also written **query-derived** (legacy: *model-independent*)
 
 | Signal | Notation | What it is | Cost |
 | ------ | -------- | ---------- | ---- |
@@ -90,9 +108,9 @@ Prefill probe on each pool member (canonical protocol in `05`).
 
 **Status:** Selection in progress (`18`). Length dropped (D07).
 
-## Model-dependent signals (implementation detail)
+## Model-derived signals (implementation detail)
 
-`s(q, Mᵢ)`
+\(s(q, Mᵢ)\) — legacy alias: *model-dependent*
 
 | Signal | Notation | v1 |
 | ------ | -------- | -- |
@@ -160,7 +178,7 @@ Initial candidates (not v1):
 | **Dependencies**              | Access to token log-probabilities                                                           |
 | **Probe cost**                | One forward pass                                                                            |
 | **Decision**                  | **Keep**                                                                                    |
-| **Decision rationale**        | Tier-2 motivates mechanism; gap in Tier-1 routing; one forward pass (A2); spec complete (`05` §2). Primary model-dependent probe for pilot. → D02 |
+| **Decision rationale**        | Tier-2 motivates mechanism; gap in Tier-1 routing; one forward pass (A2); spec complete (`05` §2). Primary **model-derived** probe for pilot. → D02 |
 
 **Supports:** H2, RH2
 

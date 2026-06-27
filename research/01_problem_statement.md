@@ -19,7 +19,7 @@ We characterize routing-relevant information because routing depends on understa
 
 ```text
 Query
-  → unsupervised signal extraction (model-independent | model-dependent)
+  → unsupervised signal extraction (query-derived | model-derived | cross-model)
   → signal characterization
   → calibrated routing evaluation
   → generate answer with selected LLM
@@ -57,7 +57,7 @@ One ACL paper = one problem, four hypotheses, one methodology.
 
 | ID | Objective |
 | -- | --------- |
-| **O1** | Define and taxonomize unsupervised pre-inference signals (model-independent and model-dependent). |
+| **O1** | Define and taxonomize unsupervised pre-inference signals by **information source** (query-derived, model-derived, cross-model). |
 | **O2** | Characterize routing-relevant information under a cost–quality objective. |
 | **O3** | Evaluate whether a calibrated routing policy can exploit characterized signals. |
 

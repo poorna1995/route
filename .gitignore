@@ -16,13 +16,35 @@ build/
 *.pem
 credentials.json
 
+# Model / dataset caches (can be GB+; never commit)
+.cache/
+.huggingface/
+models/
+checkpoints/
+
+# Large binary / tensor artifacts (regenerable; catch-all outside analysis/experiments)
+*.parquet
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.jsonl
+
 # Experiment artifacts (regenerate on GPU/CPU runs)
+# Includes M4/M5 oracles, signal CSVs, C3 campaigns (experiments/campaigns/**).
 experiments/**
 !experiments/README.md
 !experiments/**/
 !experiments/**/.gitkeep
 
 # Analysis outputs (regenerable); keep frozen study manifests
+# Large files here: arc_merged*.csv (~1–1.5 MB), mmlu_merged.csv (~500 KB), routing JSON.
 analysis/*
 !analysis/.gitkeep
 !analysis/splits.json

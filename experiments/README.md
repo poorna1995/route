@@ -298,6 +298,41 @@ Matches `research/WORKFLOW.md` and `research/MASTER.md`:
 | `route-preview` | Median-heuristic sanity (D37) — not paper | preview JSON |
 | `summarize-c2` | C2 screening summary | `analysis/c2_*_summary.json` |
 | `screen_c2_candidates.sh` | Batch C2 on MMLU/BoolQ | oracle JSON + summaries |
+| `run_c3_runpod.sh` | **C3 GPU** — parity, smoke, layerwise extract | campaign CSV + JSONL |
+| `run_c3_postprocess.sh` | **C3 CPU** — merge, F7, RH5 JSON | `analysis/c3_*`, `paper/figures/F7_*` |
+
+---
+
+## C3 layerwise (RunPod)
+
+Scripts wrap the phased workflow in [`research/c3_prefill_extensions_plan.md`](../research/c3_prefill_extensions_plan.md) §10.
+
+**One-time pod setup:**
+
+```bash
+cd /workspace/llm_routing
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync && uv pip install torch --index-url https://download.pytorch.org/whl/cu124
+uv sync --extra analysis
+huggingface-cli login
+chmod +x scripts/run_c3_runpod.sh scripts/run_c3_postprocess.sh
+```
+
+**GPU (in order):**
+
+```bash
+./scripts/run_c3_runpod.sh parity          # 1B + 3B — inspect margin Δ summary
+./scripts/run_c3_runpod.sh smoke             # 10 weak + 10 strong
+./scripts/run_c3_runpod.sh extract calib all # CALIB
+./scripts/run_c3_postprocess.sh calib        # F7 + RH5 weak & strong → decision gate
+# if interpretable:
+./scripts/run_c3_runpod.sh extract test all
+./scripts/run_c3_postprocess.sh test
+```
+
+Optional: `BATCH_SIZE=2` or `4` (layerwise still runs one query per forward until batched path lands).
+
+Artifacts: `experiments/campaigns/C3_llama_confidence_formation/M5/`. F7 outputs: `paper/figures/F7_confidence_evolution_{calib,test}_{weak,strong}.png`.
 
 ---
 

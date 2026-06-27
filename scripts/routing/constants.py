@@ -28,6 +28,21 @@ PROBE_DERIVED_ENTROPY = "delta_entropy"  # H_w − H_s
 # Strong-minus-weak margin gain (higher ⇒ strong model more peaked than weak).
 PROBE_DERIVED_MARGIN = "delta_margin_gain"  # m_s − m_w
 
+# C3 layerwise formation scalars (model-derived extension).
+# Primary headline scalar: stabilization_layer. slope_margin is secondary/exploratory.
+PROBE_FORMATION_BASES = ("stabilization_layer", "slope_margin")
+PROBE_DERIVED_SLOPE = "delta_slope_margin"  # slope_margin_s − slope_margin_w
+PROBE_DERIVED_STAB = "delta_stabilization_layer"  # stabilization_layer_s − stabilization_layer_w
+
+PROBE_METHOD = "prefill_probe"
+PROBE_METHOD_LAYERWISE = "prefill_probe_layerwise"
+STAB_EPS_DEFAULT = 0.02
+STAB_K_DEFAULT = 2
+# Stabilization is defined over adjacent margin steps; requires L >= 2 to observe
+# any transition. When L >= 2 and stabilization is detected, minimum layer is 2.
+STAB_MIN_LAYER = 2
+MARGIN_TOL_DEFAULT = 1e-3  # terminal parity check; bf16 on RunPod Llama
+
 FEATURE_PIECE_COUNT = "piece_count"
 FEATURE_MATTR = "mattr"
 FEATURE_SHANNON = "text_shannon"
@@ -234,6 +249,8 @@ PROBE_CSV_FIELDS = (
     "tokenizer_id",
     "extraction_method",
 )
+
+PROBE_LAYERWISE_FIELDS = PROBE_CSV_FIELDS + PROBE_FORMATION_BASES + ("num_layers",)
 
 WEAK_COST = 1.0
 STRONG_COST = 3.0

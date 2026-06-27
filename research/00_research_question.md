@@ -10,7 +10,9 @@
 
 **One-line problem:** Given a query, without routing labels at signal-extraction time, can inexpensive pre-inference signals help **decide which LLM should answer**?
 
-**How we answer it:** Extract unsupervised signals → characterize routing-relevant information (Studies I–III) → evaluate whether a calibrated policy can exploit it (Study IV).
+**How we answer it:** Extract unsupervised signals from three **information sources** (query-derived, model-derived, cross-model) → characterize routing-relevant information (Studies I–III) → evaluate whether a calibrated policy can exploit it (Study IV).
+
+**Anchor:** *Study unsupervised signals first. Routing is only an application.*
 
 ---
 
@@ -85,6 +87,19 @@ Primary contribution: **empirical understanding** of pre-inference routing signa
 
 ---
 
+## Information sources (paper taxonomy)
+
+| Source | Examples | Study |
+| ------ | -------- | ----- |
+| **Query-derived** | `piece_count` / \(c(q)\) | I |
+| **Model-derived** | \(H_w\), \(m_w\) | II |
+| **Cross-model** | \(\Delta H\), \(\Delta m_{\mathrm{gain}}\) | II–III |
+| *(Future) Perturbation-derived* | paraphrase stability | — |
+
+C3 (**layerwise confidence evolution**) extends **model-derived** signals (terminal → layerwise); it is not a fourth source. See [`c3_layerwise_concepts.md`](c3_layerwise_concepts.md).
+
+---
+
 ## Advisor alignment
 
-See `transcript.md` for structured guidance: one problem, unsupervised pre-inference signals, model-independent + model-dependent families, learn weights on CALIB, agents deferred, ACL target, paper-first workflow.
+See [`MASTER.md`](MASTER.md) §1 and [`claims.md`](claims.md): one problem, unsupervised pre-inference signals, three information sources, calibrated policy on CALIB only, agents deferred, ACL target, paper-first workflow. Professor examples (entropy, complexity, paraphrases) illustrate signal types—not the contribution.

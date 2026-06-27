@@ -23,20 +23,52 @@ Fill tables → Discussion
 
 ---
 
+## Execution order (locked — two-week sprint)
+
+**Resolve C3 uncertainty first**, then write from evidence.
+
+| Day | Task | Outcome |
+| --- | ---- | ------- |
+| **1** | Implement `layerwise.py` + probe flag; RunPod **smoke n=10** | Stop if smoke fails — C6 → future work |
+| **2** | ARC TEST weak + strong layerwise; **F7** + RH5 JSON | Paper scope frozen (with or without §5.7) |
+| **3+** | Write (see order below) | Submit-ready draft |
+
+---
+
+## Writing order (not reading order)
+
+Draft in this sequence; **Intro last**.
+
+```text
+1. Results + figures     (C1–C5 from claims_evidence_matrix.md; C6 if Day 2 succeeded)
+2. Methods + Setup       (only experiments actually run)
+3. Discussion
+4. Introduction + Related Work
+5. Abstract              (one matrix row per sentence)
+6. Claim ↔ evidence pass (claims_evidence_matrix.md)
+```
+
+**Reading order in PDF** stays ACL-conventional (Intro first for reviewers).
+
+---
+
 ## Section order (ACL-conventional)
 
 Present **Results** around three findings; use Study I–IV labels only in Method / appendix.
 
 ```text
-1 Introduction          — routing problem; answer = partially
+1 Introduction          — routing problem; pre-inference information question
 2 Related Work          — supervised / post-generation vs pre-inference
-3 Method                — dimensions, prefill extraction, supervision boundary
+3 Method                — three information sources; prefill extraction; supervision boundary
 4 Experimental Setup    — pool, splits, oracle, metrics
-5 Empirical Evidence    — F1 existence; F2 structure; complementarity
+5 Empirical Evidence    — F1 existence; F2 difficulty vs recoverability; MMLU transfer
+5.7 Extension (C3)     — layerwise confidence evolution within model-derived (optional subsection)
 6 Routing Evaluation    — F3 exploitation gap
-7 Discussion            — limits, future measurements
+7 Discussion            — limits, perturbation-derived future work
 8 Conclusion
 ```
+
+**Anchor:** Study unsupervised signals first. Routing is only an application.
 
 ---
 
@@ -45,8 +77,9 @@ Present **Results** around three findings; use Study I–IV labels only in Metho
 | Use in `paper/` | Never in `paper/` |
 | --------------- | ----------------- |
 | unsupervised pre-inference signals | Protocol v1/v2, L1–L4 |
+| information source (query-derived, model-derived, cross-model) | model-independent / model-dependent (legacy) |
 | information dimension | framework (as novelty) |
-| representative statistic | measurement protocol |
+| difficulty vs recoverability | difficulty-side / escalation-side (internal only) |
 | signal characterization | observation store |
 | routing evaluation | EXP-01, V1/V2 |
 
@@ -74,6 +107,8 @@ Present **Results** around three findings; use Study I–IV labels only in Metho
 ---
 
 ## Hypothesis → table checklist
+
+See **[`claims_evidence_matrix.md`](claims_evidence_matrix.md)** — every Intro/Abstract claim must map to a row.
 
 | Done | Item | File |
 | ---- | ---- | ---- |

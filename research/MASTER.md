@@ -7,7 +7,9 @@
 
 ## 1. One sentence
 
-This project investigates whether **unsupervised pre-inference signals can support multi-LLM routing** in a fixed pool (Llama-3.2-1B / 3B on ARC-Challenge). To answer that routing question, we **extract unsupervised pre-inference signals** (model-independent \(c(q)\) + model-dependent \(H\), \(m\)), **characterize** routing-relevant information by **information dimension** (Studies I–III), and **evaluate** whether a calibrated policy can exploit it (Study IV). Signals are computed **before full model generation** (pre-inference).
+This project investigates whether **unsupervised pre-inference signals can support multi-LLM routing** in a fixed pool (Llama-3.2-1B / 3B on ARC-Challenge). To answer that routing question, we **extract unsupervised pre-inference signals** from three **information sources**—query-derived \(c(q)\), model-derived \(H\), \(m\), and cross-model \(\Delta H\), \(\Delta m_{\mathrm{gain}}\)—**characterize** routing-relevant information by **information dimension** (Studies I–III), and **evaluate** whether a calibrated policy can exploit it (Study IV). Signals are computed **before full model generation** (pre-inference).
+
+**Anchor:** *Study unsupervised signals first. Routing is only an application.*
 
 **One-line problem (advisor):** Given a query, without supervision at signal time, estimate useful pre-inference signals that help **decide which LLM should solve it**.
 
@@ -63,7 +65,7 @@ Strong framing (routing problem, characterization as means):
 ```text
 Problem: Can unsupervised pre-inference signals support routing?
     ↓
-Extract signals (model-independent | model-dependent)
+Extract signals (query-derived | model-derived | cross-model)
     ↓
 Characterize routing-relevant information (Studies I–III)
     ↓
@@ -79,23 +81,26 @@ Emphasis: **routing is the objective**; **signal characterization is how we answ
 ```text
                     Query q
                         │
-         ┌──────────────┴──────────────┐
-         │                             │
-         ▼                             ▼
-  Model-independent              Model-dependent
-  signals c(q)                   probe signals H(q), m(q)
-         │                             │
-         └──────────────┬──────────────┘
+         ┌──────────────┼──────────────┐
+         │              │              │
+         ▼              ▼              ▼
+   Query-derived   Model-derived   Cross-model
+   c(q)            H_w, m_w        ΔH, Δm_gain
+         │              │              │
+         │         (C3: layerwise     │
+         │          extension)         │
+         └──────────────┼──────────────┘
                         ▼
-           Characterize: how much routing-relevant information?   ← Studies I–III (method)
+           Characterize: how much routing-relevant information?   ← Studies I–III
                         │
                         ▼
-           Test: can a calibrated policy exploit it?                 ← Study IV (routing evaluation)
-         (weak default; escalate if needed)
+           Test: can a calibrated policy exploit it?                 ← Study IV
                         │
                         ▼
               Generate final answer
 ```
+
+**Information sources (paper taxonomy):** query-derived · model-derived · cross-model · *(future)* perturbation-derived. **C3** extends model-derived (terminal → layerwise); it is not a fourth source.
 
 ---
 
@@ -124,9 +129,9 @@ Use these in **Results**; map to studies internally only.
 **Overall answer to the routing question:** **Partially.** Different pre-inference signals encode different aspects of routing need (difficulty vs recoverability). Query proxies and weak-model probes track difficulty/uncertainty; cross-model disagreement tracks recoverability. A simple linear policy captures only part of the available oracle improvement.
 
 ```text
-Query proxies          → coarse difficulty
-Weak-model probes      → model uncertainty
-Cross-model disagreement → recoverability
+Query proxies          → difficulty
+Weak-model probes      → difficulty / uncertainty
+Cross-model signals    → recoverability
                          ↓
 Simple routing captures only part of this structure
 ```
@@ -160,7 +165,7 @@ RH4  A calibrated policy can exploit available information (conditional on I–I
 
 **Contribution paragraph (paper):**
 
-> We investigate whether **unsupervised pre-inference signals can support multi-LLM routing**. Through a systematic empirical study on ARC-Challenge, we show that weak-model entropy and cross-model probe disagreement carry measurable routing-relevant information before full generation, that model-independent query proxies add modest complementary signal, and that the two families are partially redundant yet incrementally informative when combined. A simple calibrated routing policy does not outperform always routing to the strong model, indicating that **current simple exploitation captures only part of the oracle routing improvement**—not that the signals are uninformative. Signal extraction is unsupervised; oracle labels evaluate informativeness and calibrate the demonstration policy on CALIB only.
+> We investigate whether **unsupervised pre-inference signals can support multi-LLM routing**. Through a systematic empirical study on ARC-Challenge, we show that query-derived proxies, weak-model entropy, and cross-model probe disagreement carry measurable routing-relevant information before full generation, that **difficulty and recoverability are distinct properties**, and that the three information sources are partially complementary when combined. A simple calibrated routing policy does not outperform always routing to the strong model, indicating that **current simple exploitation captures only part of the oracle routing improvement**—not that the signals are uninformative. Signal extraction is unsupervised; oracle labels evaluate informativeness and calibrate the demonstration policy on CALIB only.
 
 **Contrast (intro figure / one paragraph):**
 
@@ -178,7 +183,7 @@ RH4  A calibrated policy can exploit available information (conditional on I–I
 1. Problem       →  unsupervised routing (can pre-inference signals support it?)
 2. Science       →  empirical understanding of routing-relevant information + limits
 3. Method        →  characterization answers the routing question (not a separate goal)
-4. Taxonomy      →  model-independent | model-dependent (supports science)
+4. Taxonomy      →  query-derived | model-derived | cross-model (supports science)
 5. Closure       →  routing evaluation (last step — exploitation test)
 ```
 
@@ -199,7 +204,8 @@ RH4  A calibrated policy can exploit available information (conditional on I–I
 | ------- | ------- | ----------------- |
 | **Unsupervised** | No routing labels used to **compute** signals \(c, H, m\) | Signal-extraction paradigm |
 | **Routing signals** | Quantities intended to reflect routing-relevant information (e.g. \(c(q)\), \(H\), \(m\)) | **Research object** |
-| **Model-independent / model-dependent** | Two families in taxonomy \(\mathcal{S}\) | Feature-vector structure |
+| **Query-derived / model-derived / cross-model** | Three **information sources** in taxonomy \(\mathcal{S}\) | Where pre-inference information comes from |
+| **Model-independent / model-dependent** | Legacy aliases in code and decision register | Do not use as primary paper taxonomy |
 | **Before full model generation** | Signals available before complete answer generation; prefill probe permitted | Operational constraint |
 | **Calibrated policy (Study IV)** | Logistic + threshold fit on CALIB from oracle-derived \(y_{\text{opp}}\) | **Demonstration** — not primary contribution |
 
@@ -225,7 +231,7 @@ We use **informativeness** operationally—not as Shannon mutual information \(I
 
 - Spearman \(\rho\) (+ bootstrap CI) vs routing need / oracle gap  
 - AUROC / AUPRC for opportunity detection  
-- **Complementary predictive gain:** \(\Delta\)AUROC when adding a signal family beyond another (Study III)
+- **Complementary predictive gain:** \(\Delta\)AUROC when adding an information source beyond another (Study III)
 
 Weak or null association is a **valid scientific finding** if reported rigorously—but **changes the paper’s emphasis** (see §3b).
 
@@ -241,7 +247,7 @@ Weak or null association is a **valid scientific finding** if reported rigorousl
 | Outcome | RH1–RH3 | RH4 | Paper emphasis |
 | ------- | ------- | --- | -------------- |
 | **Mixed / positive** | Some signals informative | Utility may improve | Information present → calibrated policy helps |
-| **Uniformly null** (e.g. all AUROC ≈ 0.50 on corrected TEST) | Rejected | Unlikely meaningful utility | **Limits paper:** empirical characterization of what these signal families *do not* provide under this methodology—not a practical routing method |
+| **Uniformly null** (e.g. all AUROC ≈ 0.50 on corrected TEST) | Rejected | Unlikely meaningful utility | **Limits paper:** empirical characterization of what these information sources *do not* provide under this methodology—not a practical routing method |
 
 A uniformly null result is still publishable as ACL-style empirical science; Abstract/Intro/Discussion must foreground **understanding limits**, not enabling routing.
 
@@ -256,9 +262,9 @@ Validation (V1/V2)
         ↓
 D46 screening — representative c(q) on CALIB only  [not a paper experiment]
         ↓
-Study I   — Characterization: model-independent     [RH1]
+Study I   — Characterization: query-derived              [RH1]
         ↓
-Study II  — Characterization: model-dependent        [RH2]
+Study II  — Characterization: model-derived + cross-model [RH2]
         ↓
 Study III — Understanding: complementarity           [RH3]
         ↓
@@ -277,15 +283,16 @@ Study ↔ notebook ID mapping: `10_experiment_registry.md` only.
 
 ### Signals (three headline probes)
 
-| Signal | Family | Role | Definition |
-| ------ | ------ | ---- | ---------- |
-| **\(c(q)\)** | Model-independent | **Representative** complexity signal | Selected per D46 screening (`18`); exact formula recorded in `05` §8 when implemented |
-| **\(H_i(q)\)** | Model-dependent | Uncertainty | Mean token entropy, prefill probe |
-| **\(m_i(q)\)** | Model-dependent | Confidence separation | Mean \(\log p_{(1)}-\log p_{(2)}\) margin, prefill |
+| Signal | Information source | Role | Definition |
+| ------ | ------------------ | ---- | ---------- |
+| **\(c(q)\)** | Query-derived | **Representative** complexity signal | Selected per D46 screening (`18`); exact formula recorded in `05` §8 when implemented |
+| **\(H_i(q)\)** | Model-derived | Uncertainty | Token entropy at final prefill position |
+| **\(m_i(q)\)** | Model-derived | Confidence separation | \(\log p_{(1)}-\log p_{(2)}\) margin at final prefill position |
+| **\(\Delta H, \Delta m_{\mathrm{gain}}\)** | Cross-model | Recoverability | Derived from paired weak/strong terminal logits |
 
-**\(c(q)\) is not an arbitrary heuristic.** One representative is chosen from the model-independent complexity family via the documented screening process (`18` §3–§7). The exact formula lives in `05` §8 after implementation—not in methodology prose until evaluated.
+**\(c(q)\) is not an arbitrary heuristic.** One representative is chosen from the query-derived complexity family via the documented screening process (`18` §3–§7). The exact formula lives in `05` §8 after implementation—not in methodology prose until evaluated.
 
-**Tokenization (D58):** Length/diversity/entropy candidates use the **Llama HF tokenizer** on raw `user_content` (no forward pass). Compression uses raw UTF-8. This aligns segmentation with the study pool without making \(c(q)\) model-dependent.
+**Tokenization (D58):** Length/diversity/entropy candidates use the **Llama HF tokenizer** on raw `user_content` (no forward pass). Compression uses raw UTF-8. This aligns segmentation with the study pool without making \(c(q)\) model-derived.
 
 **Margin stays (D48):** entropy measures uncertainty; margin measures confidence separation. Testing redundancy and complementarity between them is core science (RH3), independent of any single advisor mention.
 
@@ -329,7 +336,7 @@ MMLU                  →  TEST only; τ, λ from ARC validation CALIB
 | ---- | ----- |
 | Prompt formatting | Deterministic chat template (`05` §1) |
 | Offline oracle | Greedy decode, MCQ letter match, `max_new_tokens=8` (`07`) |
-| Prefill probe | Canonical model-dependent signal extraction (`05`) |
+| Prefill probe | Canonical **model-derived** signal extraction (`05`) |
 | Seed | 42 |
 
 ---

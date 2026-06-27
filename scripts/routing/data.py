@@ -17,13 +17,16 @@ from routing.constants import (
     COMPLEXITY_SELECTION_SCHEMA,
     FEATURE_NAMES,
     PROBE_DERIVED_MARGIN,
+    PROBE_DERIVED_SLOPE,
+    PROBE_DERIVED_STAB,
+    PROBE_FORMATION_BASES,
+    PROBE_METHOD,
     PROBE_METRIC_BASES,
     SCREEN_TAG,
 )
 from routing.prompt_protocol import PROTOCOL_VERSION
 
 MERGED_TABLE_SCHEMA = "merged_v2"
-PROBE_METHOD = "prefill_probe"
 
 # Delta conventions (documented for readers of merged CSV):
 #   delta_entropy, delta_* (except margin): weak − strong
@@ -198,6 +201,7 @@ def _verify_prompt_hashes(merged: pd.DataFrame) -> None:
 
 def _suffix_columns(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
     keep = ["query_id"] + [c for c in PROBE_METRIC_BASES if c in df.columns]
+    keep += [c for c in PROBE_FORMATION_BASES if c in df.columns]
     meta = [
         c
         for c in ("model_id", "prompt_hash", "protocol_version", "extraction_method", "schema")
@@ -205,6 +209,7 @@ def _suffix_columns(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
     ]
     out = df[keep + meta].copy()
     rename = {c: f"{c}_{suffix}" for c in PROBE_METRIC_BASES if c in out.columns}
+    rename.update({c: f"{c}_{suffix}" for c in PROBE_FORMATION_BASES if c in out.columns})
     rename.update({c: f"{c}_{suffix}" for c in meta if c != "query_id"})
     return out.rename(columns=rename)
 
@@ -234,6 +239,8 @@ def _attach_table_metadata(
     merged.attrs["delta_conventions"] = {
         "default": "weak_minus_strong",
         PROBE_DERIVED_MARGIN: "strong_minus_weak",
+        PROBE_DERIVED_SLOPE: "strong_minus_weak",
+        PROBE_DERIVED_STAB: "strong_minus_weak",
     }
     return merged
 
@@ -279,6 +286,13 @@ def merge_tables(
         else:
             merged[f"delta_{base}"] = merged[wc] - merged[sc]
 
+    for base in PROBE_FORMATION_BASES:
+        wc, sc = f"{base}_w", f"{base}_s"
+        if wc not in merged.columns or sc not in merged.columns:
+            continue
+        col = PROBE_DERIVED_SLOPE if base == "slope_margin" else PROBE_DERIVED_STAB
+        merged[col] = merged[sc] - merged[wc]
+
     return _attach_table_metadata(merged, weak=weak, strong=strong, query_features=query_features)
 
 
@@ -287,6 +301,8 @@ def list_signal_columns(merged: pd.DataFrame) -> list[str]:
     if COL_COMPLEXITY in merged.columns:
         candidates.append(COL_COMPLEXITY)
     for base in PROBE_METRIC_BASES:
+        candidates.extend([f"{base}_w", f"{base}_s"])
+    for base in PROBE_FORMATION_BASES:
         candidates.extend([f"{base}_w", f"{base}_s"])
     candidates.extend([c for c in merged.columns if c.startswith("delta_")])
 

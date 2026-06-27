@@ -151,19 +151,19 @@ query_id | bucket | weak_ok | strong_ok | y_opp | c_q | H_w | m_w | ...
 
 ## Studies (paper experiments)
 
-### Study I (RH1) — model-independent
+### Study I (RH1) — query-derived
 
 Does \(c(q)\) contain routing information? Metrics: Spearman, AUROC, AUPRC, distributions.  
 **CLI:** `merge` → EXP-01 (part 1)
 
-### Study II (RH2) — model-dependent
+### Study II (RH2) — model-derived + cross-model
 
-Do \(H, m\) contain routing information? Same metrics. Strong probes exploratory.  
+Do \(H_w, m_w\) and derived \(\Delta H\), \(\Delta m_{\mathrm{gain}}\) contain routing information? Same metrics. Strong probes exploratory.  
 **CLI:** `merge` → EXP-01 (part 2)
 
 ### Study III (RH3) — complementarity (centerpiece)
 
-Do the two families measure different information? Ladder: \(c \to H \to m \to c{+}H \to c{+}m \to c{+}H{+}m\).
+Do the three information sources measure different properties (difficulty vs recoverability)? Ladder: \(c \to H \to m \to c{+}H \to c{+}m \to c{+}H{+}m\).
 
 **Primary endpoint:** ΔAUROC \(c \to c{+}H{+}m\) on TEST.
 
@@ -206,24 +206,29 @@ Same protocol, models, and frozen \(c(q)\). **Do not repeat D46.** One transfer 
 
 ---
 
-## Writing order
+## Execution order (submission sprint)
 
-**Now:** Introduction, Related Work, Method, Experimental Setup.
+**Locked plan:** [`submission_milestones.md`](submission_milestones.md)
 
-**As results arrive:** Study I → II → III → IV → Generalization.
+| Milestone | Days | Focus |
+| --------- | ---- | ----- |
+| **M1** | 2–3 | Ugly **complete draft** (Results first) |
+| **M2** | 2 | C3: implement → run → include **or** future work |
+| **M3** | 2–3 | Revise **Intro, Discussion, figures, Abstract** |
 
-**Last:** Discussion, Conclusion.
+**Gate:** [`claims_evidence_matrix.md`](claims_evidence_matrix.md) — no claim without evidence.
 
 ---
 
-## Execution schedule
+## Execution schedule (experiments — complete)
 
 | Week | Tasks |
 | ---- | ----- |
-| **1** | Splits, CALIB extraction, D46, freeze `selected_feature.json` |
-| **2** | Full ARC TEST extraction, merge, doctor |
-| **3** | Studies I–III, figures, fill Results §5 |
-| **4** | Study IV, MMLU, Discussion, final edit |
+| ~~1–2~~ | ~~C0 ARC pipeline~~ ✅ |
+| ~~3~~ | ~~MMLU transfer~~ ✅ |
+| **Now** | C3 (optional scope lock) → write paper |
+
+---
 
 ---
 
@@ -235,4 +240,4 @@ Do **not** redesign experiments, add signals, change hypotheses, add datasets, i
 
 ## Reviewer narrative (one paragraph)
 
-> We are **not proposing a new router**. We ask what information about routing exists **before expensive model generation**. We organize unsupervised routing signals into **model-independent** and **model-dependent** families, characterize each, test complementarity, and examine whether this understanding supports a **simple lightweight routing policy** evaluated with proper hold-out calibration.
+> We are **not proposing a new router**. We ask what routing-relevant information exists **before expensive model generation**. We organize unsupervised pre-inference signals by **information source** (query-derived, model-derived, cross-model), characterize each, test complementarity, and examine whether this understanding supports a **simple calibrated routing policy** evaluated with proper hold-out calibration. **Routing is only an application** of signal characterization.

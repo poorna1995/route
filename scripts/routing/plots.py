@@ -712,3 +712,36 @@ def plot_conceptual_model(output: Path, *, dpi: int = 150) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
+
+
+def plot_layer_evolution(
+    trace_path: Path,
+    merged_csv: Path,
+    output: Path,
+    *,
+    dpi: int = 150,
+) -> None:
+    from routing.formation_analysis import F7_BUCKETS, bucket_medians, load_traces, trace_depth_fraction
+
+    traces = load_traces(trace_path)
+    merged = pd.read_csv(merged_csv)
+    medians = bucket_medians(traces, merged)
+    xs = np.asarray(trace_depth_fraction(next(iter(traces.values()))), dtype=float)
+
+    labels = {"easy": "Easy", "opportunity": "Opportunity", "too_hard": "Too hard"}
+    colors = {"easy": SCATTER_COLORS["easy"], "opportunity": SCATTER_COLORS["opportunity"], "too_hard": SCATTER_COLORS["too_hard"]}
+
+    fig, ax = plt.subplots(figsize=(7, 4.5), constrained_layout=True)
+    for bucket in F7_BUCKETS:
+        y = medians[bucket]
+        ax.plot(xs, y, label=labels[bucket], color=colors[bucket], linewidth=2)
+
+    ax.set_xlabel("Fraction of depth (ℓ / L)")
+    ax.set_ylabel(r"Median margin $m_\ell$")
+    ax.set_title("Layerwise Confidence Evolution Across Depth")
+    ax.legend(frameon=False)
+    ax.grid(True, alpha=0.25)
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)

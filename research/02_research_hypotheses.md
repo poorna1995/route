@@ -44,18 +44,18 @@ The paper investigates **unsupervised pre-inference routing**: can inexpensive s
 ```text
 Problem: multi-LLM routing with unsupervised pre-inference signals
     ↓
-Signal families: model-independent ∪ model-dependent
+Information sources: query-derived | model-derived | cross-model
     ↓
 Signal characterization (Studies I–III)
     ↓
 Routing evaluation (Study IV)
 ```
 
-**v1 scope:** one **representative** model-independent signal (selected from the complexity family per `18`) plus two model-dependent probes. The contribution is empirical understanding of **unsupervised pre-inference routing signals**—not assuming any single statistic suffices. Taxonomy 𝒮 organizes signal families.
+**v1 scope:** one **representative** query-derived signal (`piece_count` / \(c(q)\), D46) plus model-derived probes (\(H_w\), \(m_w\)) and cross-model derived signals (\(\Delta H\), \(\Delta m_{\mathrm{gain}}\)). The contribution is empirical understanding of **unsupervised pre-inference routing signals**—not assuming any single statistic suffices. Taxonomy 𝒮 organizes **information sources**; C3 extends model-derived (layerwise), not a fourth source.
 
 **Informativeness (operational):** predictive association with routing need via Spearman ρ, AUROC, and complementary predictive gain (ΔAUROC)—not Shannon mutual information. See `MASTER.md` §3.
 
-**Negative results:** Weak association is valid. If signals exist but routing evaluation fails: **routing limited by exploitation**. If all dimensions null on TEST: **limits paper** for these signal families.
+**Negative results:** Weak association is valid. If signals exist but routing evaluation fails: **routing limited by exploitation**. If all dimensions null on TEST: **limits paper** for these information sources.
 
 ---
 
@@ -102,7 +102,7 @@ They support RH1–RH3.
 
 **Signal**
 
-Representative model-independent complexity statistic \(c(q)\) — selected per D46 screening process (`18`); exact formula in `05` §8 when implemented.
+Representative **query-derived** complexity statistic \(c(q)\) — selected per D46 screening process (`18`); exact formula in `05` §8 when implemented.
 
 **Claim**
 
@@ -166,7 +166,7 @@ Difference between the highest and second-highest token probabilities.
 
 **Claim**
 
-Weak-model log-probability margin **contains statistically measurable information about routing need**. Study III tests whether margin adds incremental information beyond entropy, and whether model-dependent signals add information beyond the model-independent representative.
+Weak-model log-probability margin **contains statistically measurable information about routing need**. Study III tests whether margin adds incremental information beyond entropy, and whether model-derived signals add information beyond the query-derived representative.
 
 **Expected Behaviour**
 
@@ -233,16 +233,37 @@ Every hypothesis maps to a **paper study**. Notebook IDs and scripts: `10_experi
 
 ---
 
+# Extension hypothesis — RH5 (C3, optional)
+
+**Scope:** Extends **model-derived** signals only. Not a fourth information source. See [`c3_layerwise_concepts.md`](c3_layerwise_concepts.md).
+
+**Hypothesis RH5 (locked wording):**
+
+> Does layerwise evolution of model confidence provide routing-relevant information **beyond terminal** prefill confidence?
+
+**Measurable form:**
+
+> Do easy, opportunity, and too-hard queries exhibit **different confidence evolution** across transformer layers?
+
+**Operationalizations:** `stabilization_layer` (primary), `slope_margin` (secondary), F7 trajectories, divergence at fraction depth ℓ/L.
+
+**Wording:** Use *confidence evolution* / *trajectories* in Methods and Results. Reserve *confidence formation* for Discussion only if results support it.
+
+**Null result:** Publishable — “terminal prefill probes suffice on ARC for routing characterization.”
+
+---
+
 # Literature Refinement Log
 
 Update hypotheses after reviewing literature.
 
 | Hypothesis | Revision | Reason |
 | ---------- | -------- | ------ |
-| RH1        | Frozen (D55) | Representative model-independent signals — measurable, not "at least one" |
+| RH1        | Frozen (D55) | Representative **query-derived** signals — measurable, not "at least one" |
 | RH2        | Frozen (D55) | Model-dependent probe signals — measurable information |
 | RH3        | Frozen (D55) | Dimensions partially complementary beyond any single dimension |
 | RH4        | Strengthened, tempered | RouteLLM/Hybrid LLM show supervised routing gains; RouterBench §5.1 — simple predictive routers often fail to beat **Zero router** on several tasks, so probe-policy gains are not guaranteed |
+| RH5        | C3 optional  | Layerwise **confidence evolution** beyond terminal — null publishable |
 | H1         | Clarified  | Hybrid LLM "difficulty" is supervised query-only routing; our H1 targets **unsupervised** s(q) — related motivation, different mechanism |
 | H2, H3     | Clarified  | Not routing probes in Tier-1; Tier-2 uncertainty literature is separate |
 | H4         | Unchanged  | No Tier-1 precedent |

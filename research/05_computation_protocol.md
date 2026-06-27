@@ -26,7 +26,7 @@ This document explains **how** each retained signal is computed. Implementation 
 
 # §1 — Shared notation and prefill probe protocol
 
-All model-dependent signals share this **prefill probe** protocol unless stated otherwise. Do not use generic *probe* when *prefill probe* is meant — *probe* alone is ambiguous (prefix probe, paraphrase probe, activation probe, etc.).
+All **model-derived** signals share this **prefill probe** protocol unless stated otherwise. *(Legacy: model-dependent.)* Do not use generic *probe* when *prefill probe* is meant — *probe* alone is ambiguous (prefix probe, paraphrase probe, activation probe, etc.).
 
 | Symbol | Meaning |
 | ------ | ------- |
@@ -58,7 +58,7 @@ Terminology: use **log-probability margin** (or **margin** in prose) for \(m\). 
 
 ### Interpretation boundary (what signals are and are not)
 
-Each retained probe implements a model-dependent function \(s_i = f(q, M_i)\): logits—and therefore \(H\), \(m\), and \(p_{\max}\)—change when either the query or the pool member changes.
+Each retained probe implements a **model-derived** function \(s_i = f(q, M_i)\): logits—and therefore \(H\), \(m\), and \(p_{\max}\)—change when either the query or the pool member changes.
 
 | Signal | Measures | Does **not** directly measure |
 | ------ | -------- | ----------------------------- |
@@ -384,14 +384,16 @@ Add a new § here only when `04` Part F records **Keep** for a signal not yet sp
 
 ---
 
-# §8 — Query complexity \(c(q)\) (model-independent — D46 pending)
+# §8 — Query complexity \(c(q)\) (query-derived — D46)
+
+> **Paper term:** query-derived. Legacy/code: model-independent.
 
 ## Signal specification
 
 ```text
 Signal:           Query complexity (representative)
-Notation:         c(q)  —  model-independent
-Type:             One member of the model-independent complexity family,
+Notation:         c(q)  —  query-derived
+Type:             One member of the query-derived complexity family,
                   selected by predefined D46 signal screening (not a paper experiment)
 
 Input:            Formatted query text (user_content — protocol layer 1)
@@ -402,7 +404,7 @@ Hypothesis:       RH1 / H1
 Status:           Selection protocol LOCKED (D57); winning formula pending D46 outcome
 ```
 
-RH1 tests whether a **representative** model-independent signal carries routing-relevant information—not whether one fixed statistic (e.g. Shannon entropy) is optimal a priori.
+RH1 tests whether a **representative query-derived** signal carries routing-relevant information—not whether one fixed statistic (e.g. Shannon entropy) is optimal a priori.
 
 ## D46 signal screening (frozen — D57, D60)
 
@@ -433,7 +435,7 @@ Maximize composite. If composite scores or bootstrap CIs overlap, choose the **s
 
 ## Tokenization for \(c(q)\) candidates (frozen — D58)
 
-**Model-independent ≠ architecture-agnostic.** Features use **only query text** with **no forward pass**; a tokenizer is deterministic preprocessing, not model-dependent inference.
+**Query-derived ≠ architecture-agnostic.** Features use **only query text** with **no forward pass**; a tokenizer is deterministic preprocessing, not model-derived inference.
 
 | Feature | Input representation |
 | ------- | -------------------- |
@@ -476,4 +478,4 @@ c(q) = [ pending — e.g. mattr(q) | text_shannon(q) | … ]
 | \(H(q, M_i)\), \(m(q, M_i)\) | Model-dependent | Prefill probes |
 | \(y_{\text{opp}}(q)\), bucket | Oracle (eval only) | `07` |
 
-**Complementarity (RH3 / Study III — D61):** Primary: model-dependent probes add beyond frozen \(c(q)\) — ladder c → c+H → c+H+m. Secondary: margin beyond entropy within dep family (appendix). Not a 7-model feature search.
+**Complementarity (RH3 / Study III — D61):** Primary: model-derived probes add beyond frozen \(c(q)\) — ladder c → c+H → c+H+m. Secondary: margin beyond entropy within model-derived branch (appendix). Not a 7-model feature search.

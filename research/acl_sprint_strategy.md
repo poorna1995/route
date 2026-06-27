@@ -19,25 +19,25 @@
 | **1** | Empirical characterization of **pre-decoding routing information** | ARC Llama — **done** |
 | **2** | **Two-property model:** task difficulty ≠ escalation recoverability | ARC — **done** (d≈0.03 vs d≈0.72) |
 | **3** | **Generalization:** architecture (Qwen) + domain (MMLU) | **To run** |
-| **4** | **Dynamics (RH2+):** trajectory vs final-layer static signals | **To build + run** |
+| **4** | **Model-derived extension (C3 / RH5):** layerwise evolution vs terminal | **To build + run** |
 | **5** | Routing evaluation (exploitation gap) | ARC — **done**; replicate lightly |
 
 **Router is validation, not the product.**
 
-### Signal taxonomy (paper-facing — three families)
+### Signal taxonomy (paper-facing — three information sources)
 
-Reviewers will ask *why logits?* Answer with a **taxonomy**, not a feature list.
+Organize by **where information comes from** (professor transcript), not extraction depth.
 
-| Family | What it measures | Signals (this paper) | Campaign |
-| ------ | ---------------- | -------------------- | -------- |
-| **Distributional** | Output distribution shape | $H_w$, $m_w$, $c(q)$ | C0 (done) |
-| **Relational** | Cross-model disagreement | $\Delta H$, $\Delta m_{\mathrm{gain}}$ | C0 (done) |
-| **Structural** | How confidence **evolves** inside the forward pass | `slope_margin`, `slope_entropy`, stabilization layer | C3 (to build) |
+| Information source | What it measures | Signals (this paper) | Campaign |
+| ------------------ | ---------------- | -------------------- | -------- |
+| **Query-derived** | Task difficulty from query text | `piece_count` / \(c(q)\) | C0 (done) |
+| **Model-derived** | Weak-model prefill confidence | $H_w$, $m_w$; **C3:** layerwise evolution | C0 (done); C3 (to build) |
+| **Cross-model** | Recoverability / disagreement | $\Delta H$, $\Delta m_{\mathrm{gain}}$ | C0 (done) |
+| *(Future) Perturbation-derived* | Paraphrase stability | — | Paper 2 |
 
-**One structural signal only** for ACL: **confidence dynamics** (layer-wise margin/entropy).  
-Defer: paraphrase drift, attention entropy, representation norm — Paper 2.
+**C3 (layerwise confidence evolution)** extends **model-derived** (terminal → layerwise)—not a fourth source. Concepts: [`c3_layerwise_concepts.md`](c3_layerwise_concepts.md).
 
-Even if structural signals do not beat AUROC, the contribution stands: *three classes of pre-inference routing information characterized*.
+Even if C3 layerwise signals do not beat terminal AUROC, the contribution stands: *pre-inference routing information characterized by source; difficulty \(\neq\) recoverability*.
 
 ### Theorem-like claim (say explicitly in intro + discussion)
 
@@ -147,13 +147,12 @@ See **§5 Infrastructure** below. Minimum deliverables:
 | ---- | --------------- | -------------- |
 | **G-C1** | Qwen 3B/7B oracle, ARC, n=50 | opportunity ∈ [15%, 55%], all four buckets present |
 | **G-C2** | Llama oracle, MMLU, n=50 | same |
-| **G-C3** | Layerwise probes, ARC CALIB, n=100 | CSV valid; no OOM; columns present |
+| **G-C3** | Layerwise probes, ARC CALIB, n=100 | CSV valid; terminal parity; columns present |
 
 | Fail | Action |
 | ---- | ------ |
 | 0% opportunity | Try Qwen 3B/8B or report as boundary (appendix) |
 | 100% too-hard | Drop dataset for that pool; do not force |
-| Dynamics OOM | Reduce layers to 3 checkpoints; bf16; batch_size=1 |
 
 ---
 
@@ -188,13 +187,13 @@ Compare **pattern invariants** (escalation separates, uncertainty does not) — 
 
 **Scientific output:** RH5 — does **structural** (layer trajectory) information add beyond **distributional** (final logits)?
 
-**Paper claim:** Third signal family characterized; maps to difficulty or escalation axis (or reports null).
+**Paper claim:** Model-derived extension characterized (layerwise vs terminal); maps to difficulty or escalation axis (or reports null). Not a fourth information source.
 
 | Comparison | Metric |
 | ---------- | ------ |
-| Final $H_w$ vs `slope_entropy` | AUROC, d(opp vs too-hard) |
-| Final $\Delta m_{\mathrm{gain}}$ vs `slope_margin` | same |
-| Joint: static escalation + dynamic | ΔAUROC, DeLong |
+| Final \(H_w\) vs layerwise entropy (JSONL only) | Exploratory — not headline |
+| Final \(\Delta m_{\mathrm{gain}}\) vs **`stabilization_layer`** | d(opp vs too-hard); primary scalar |
+| F7 trajectories + divergence L* | Primary RH5 evidence |
 
 **Publishable null:** “Dynamics do not beat final-layer escalation signal” — still tests RH5.
 
@@ -227,10 +226,10 @@ Rebuttal prep, figure polish, `doctor` on all campaigns, reproducibility manifes
 | ID | Hypothesis | Campaign | Evidence |
 | -- | ---------- | -------- | -------- |
 | RH1 | Pre-decoding dimensions predict opportunity | C0 | T2, F1 |
-| RH2 | Difficulty-side ≠ escalation-side | C0 | F6, d table |
+| RH2 | **Difficulty \(\neq\) recoverability** | C0 | F6, d table |
 | RH3 | Partial complementarity | C0 | T3 |
 | RH4 | Calibrated policy exploitation gap | C0 | T4 |
-| **RH5** | **Dynamic signals (layer trajectory) add information beyond final-layer static** | C3 | New table + figure |
+| **RH5** | **Layerwise confidence evolution adds information beyond terminal prefill (or null)** | C3 | F7 + RH5 JSON |
 | **RH6** | **Two-property structure replicates across model families** | C1 | Generalization table |
 | **RH7** | **Dimension structure generalizes across reasoning regimes (MMLU)** | C2 | Transfer table |
 
@@ -376,13 +375,14 @@ For C1 and C2, report **structural invariants**:
 | AUROC ordering | Escalation ≥ uncertainty ≥ complexity |
 | Recovery matrix | Highest opportunity cell = high $\Delta m_{\mathrm{gain}}$ |
 
-For C3, report **static vs dynamic**:
+For C3, report **terminal vs layerwise** (primary scalar: `stabilization_layer`):
 
 | Test | Pass for RH5 |
 | ---- | ------------ |
-| `slope_margin` AUROC > `entropy_w` AUROC | Partial support |
-| `slope_margin` d(opp vs too-hard) > `entropy_w` d | Strong support |
-| Joint model ΔAUROC significant | Full support |
+| F7 curves separate buckets | Primary |
+| d(`stabilization_layer`, opp vs too-hard) > d(\(H_w\)) | Strong support |
+| Partial ρ(`stabilization_layer`, opp \| \(m_w\)) > 0 | Non-redundancy |
+| `slope_margin` AUROC / effect size | Supplementary only — not a gate |
 | None of above | Null result — still publish RH5 as tested |
 
 ---
@@ -416,7 +416,6 @@ Appendix               — failed pilots, md variants, calibration
 | ---- | ---------- |
 | Qwen 3B/7B 0% opportunity | Screen G-C1; fallback Qwen 3B + Llama 8B cross-family |
 | MMLU loader delay | Week 1 infra priority; BoolQ as backup (screen exists) |
-| Dynamics OOM on 7B | Run C3 on Llama only (already planned) |
 | Dynamics null result | Frame as RH5 tested; paper still strong on RH2 |
 | Scope creep | Manifest whitelist; no new campaigns without D-register |
 | Time slip | Drop C2 before C1 or C3; never drop C0 narrative |

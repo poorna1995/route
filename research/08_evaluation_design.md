@@ -99,7 +99,7 @@ Before naming datasets, specify what each claim requires.
 
 | Hypothesis | Claim (summary)                                      | Evidence required                             | Main study?         |
 | ---------- | ---------------------------------------------------- | --------------------------------------------- | ------------------- |
-| **RH1**    | Representative model-independent signals informative | ρ, AUROC for \(c(q)\) vs \(y\_{\text{opp}}\)  | **Yes** (Study I)   |
+| **RH1**    | Representative **query-derived** signals informative | ρ, AUROC for \(c(q)\) vs \(y\_{\text{opp}}\)  | **Yes** (Study I)   |
 | **RH2**    | Model-dependent probes informative                   | ρ, AUROC for \(H, m\)                         | **Yes** (Study II)  |
 | **RH3**    | Families complementary                               | ΔAUROC across families                        | **Yes** (Study III) |
 | **RH4**    | Simple policy improves cost–quality                  | Accuracy + cost vs baselines                  | **Yes** (Study IV)  |
