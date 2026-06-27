@@ -42,6 +42,12 @@ experiments/**
 !experiments/README.md
 !experiments/**/
 !experiments/**/.gitkeep
+# Pinned CALIB inputs for C3 postprocess (RunPod git pull — not regenerable on pod)
+!experiments/M4/
+!experiments/M4/routing_opportunity/
+!experiments/M4/routing_opportunity/arc_validation_oracle.json
+!experiments/M5/
+!experiments/M5/arc_validation_features.csv
 
 # Analysis outputs (regenerable); keep frozen study manifests
 # Large files here: arc_merged*.csv (~1–1.5 MB), mmlu_merged.csv (~500 KB), routing JSON.
