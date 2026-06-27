@@ -127,7 +127,7 @@ def verify_terminal_logit_parity(
     query_id: str = "smoke",
     margin_tol: float = MARGIN_TOL_DEFAULT,
 ) -> TerminalParityResult:
-    """Smoke: logit-lens terminal path must match out.logits at last prompt token."""
+    """Smoke: terminal lm_head(last_hidden_state) must match out.logits at last prompt token."""
     built = build_chat_prompt(tokenizer, user_content)
     device = resolve_input_device(model)
     inputs = tokenizer(built["chat_prompt"], return_tensors="pt")
@@ -138,17 +138,13 @@ def verify_terminal_logit_parity(
 
     batch_idx = 0
     last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
-    hs = out.hidden_states
-    n_layers = int(model.config.num_hidden_layers)
-    if hs is None or len(hs) < n_layers + 1:
-        raise RuntimeError(
-            f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})"
-        )
+    lhs = out.last_hidden_state
+    if lhs is None:
+        raise RuntimeError("last_hidden_state missing from model forward output")
 
     logits_ref = out.logits[batch_idx, last_pos]
-    # Same index as _layer_logits final layer (not hs[-1] — tuple may include post-norm).
-    h_pre = hs[n_layers][batch_idx, last_pos, :]
-    logits_lens = model.lm_head(_final_norm(model)(h_pre))
+    # Gold path: same normed hidden state the CausalLM head uses (not manual norm on hs tuple).
+    logits_lens = model.lm_head(lhs[batch_idx, last_pos])
 
     margin_ref = extract_logits(logits_ref, tokenizer).margin
     margin_lens = extract_logits(logits_lens, tokenizer).margin
@@ -217,7 +213,7 @@ def run_terminal_parity_smoke(
         print(f"parity FAILED ({len(failures)}/{len(queries)} queries)")
         return 1
     print(f"parity PASSED ({len(queries)} queries)")
-    print("PASS: terminal lm_head(norm(h[-1])) matches out.logits")
+    print("PASS: terminal lm_head(last_hidden_state) matches out.logits")
     return 0
 
 
@@ -228,10 +224,15 @@ def _layer_logits(
     last_pos: int,
     layer_idx: int,
     n_layers: int,
+    *,
+    last_hidden_state: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
-    if layer_idx == n_layers - 1:
-        h = model.model.norm(h)
+    if layer_idx == n_layers - 1 and last_hidden_state is not None:
+        h = last_hidden_state[batch_idx, last_pos, :]
+    else:
+        h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
+        if layer_idx == n_layers - 1:
+            h = _final_norm(model)(h)
     return model.lm_head(h)
 
 
@@ -263,7 +264,18 @@ def probe_layerwise(
     margins: list[float] = []
     entropies: list[float] = []
     for i in range(n_layers):
-        metrics = extract_logits(_layer_logits(model, hs, batch_idx, last_pos, i, n_layers), tokenizer)
+        metrics = extract_logits(
+            _layer_logits(
+                model,
+                hs,
+                batch_idx,
+                last_pos,
+                i,
+                n_layers,
+                last_hidden_state=out.last_hidden_state,
+            ),
+            tokenizer,
+        )
         margins.append(metrics.margin)
         entropies.append(metrics.entropy)
 

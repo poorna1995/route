@@ -15,7 +15,7 @@ Subcommands:
   route-eval      Study IV hold-out routing evaluation (EXP-03 / RH4)
   compare-generalization  RH7 dimension transfer across merged regimes
   analyze-formation     RH5 layerwise divergence from JSONL traces
-  layerwise-parity      Pre-TEST: lm_head(norm(h_L)) vs out.logits smoke (Llama)
+  layerwise-parity      Pre-TEST: lm_head(last_hidden_state) vs out.logits smoke (Llama)
   summarize-c2    Summarize C2 oracle JSON for dataset screening
   verify-logprobs Feasibility check for full-vocabulary logits
 
@@ -1045,7 +1045,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "layerwise-parity",
-        help="Pre-TEST smoke: verify lm_head(norm(hidden_states[-1])) matches out.logits",
+        help="Pre-TEST smoke: verify lm_head(last_hidden_state) matches out.logits",
     )
     p.add_argument("--model", required=True)
     p.add_argument("--dataset", required=True)

@@ -73,7 +73,7 @@ run_parity() {
   _parity_one "$WEAK" "weak 1B" "$n"
   _parity_one "$STRONG" "strong 3B" "$n"
   echo ""
-  echo "PASS: terminal lm_head(norm(h[-1])) matches out.logits (both models)"
+  echo "PASS: terminal lm_head(last_hidden_state) matches out.logits (both models)"
 }
 
 run_smoke() {
