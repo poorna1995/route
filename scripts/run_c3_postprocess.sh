@@ -22,9 +22,9 @@ if [[ ! -x "$PY" ]]; then
 fi
 
 CAMPAIGN="${CAMPAIGN:-experiments/campaigns/C3_llama_confidence_formation/M5}"
-ORACLE_CALIB="${ORACLE_CALIB:-experiments/M4/routing_opportunity/llama_arc_validation.json}"
-ORACLE_TEST="${ORACLE_TEST:-experiments/M4/routing_opportunity/llama_arc_full.json}"
-FEATURES="${FEATURES:-experiments/M5/llama_arc_validation_query_features.csv}"
+ORACLE_CALIB="${ORACLE_CALIB:-experiments/M4/routing_opportunity/arc_validation_oracle.json}"
+ORACLE_TEST="${ORACLE_TEST:-experiments/M4/routing_opportunity/arc_test_oracle.json}"
+FEATURES="${FEATURES:-experiments/M5/arc_validation_features.csv}"
 COMPLEXITY="${COMPLEXITY:-analysis/selected_feature.json}"
 
 usage() {

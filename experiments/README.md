@@ -324,7 +324,17 @@ chmod +x scripts/run_c3_runpod.sh scripts/run_c3_postprocess.sh
 ./scripts/run_c3_runpod.sh parity          # 1B + 3B — inspect margin Δ summary
 ./scripts/run_c3_runpod.sh smoke             # 10 weak + 10 strong
 ./scripts/run_c3_runpod.sh extract calib all # CALIB
+**CPU postprocess** needs CALIB oracle + features (gitignored — copy from laptop or regenerate):
+
+```bash
+mkdir -p experiments/M4/routing_opportunity experiments/M5
+# From laptop (replace POD):
+# scp experiments/M4/routing_opportunity/arc_validation_oracle.json root@POD:/workspace/llm_routing/experiments/M4/routing_opportunity/
+# scp experiments/M5/arc_validation_features.csv root@POD:/workspace/llm_routing/experiments/M5/
+# scp analysis/selected_feature.json root@POD:/workspace/llm_routing/analysis/
+
 ./scripts/run_c3_postprocess.sh calib        # F7 + RH5 weak & strong → decision gate
+# Or without c(q): ./scripts/run_c3_postprocess.sh calib --allow-no-features
 # if interpretable:
 ./scripts/run_c3_runpod.sh extract test all
 ./scripts/run_c3_postprocess.sh test
