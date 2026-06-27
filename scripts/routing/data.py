@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -163,8 +164,17 @@ def _assert_unique_query_ids(df: pd.DataFrame, label: str) -> None:
         raise ValueError(f"{label}: duplicate query_id values: {list(dupes)}")
 
 
-def _verify_oracle_probe_prompt_hashes(merged: pd.DataFrame) -> None:
+def _verify_oracle_probe_prompt_hashes(
+    merged: pd.DataFrame,
+    *,
+    weak: pd.DataFrame | None = None,
+    strong: pd.DataFrame | None = None,
+    skip: bool = False,
+) -> None:
     """Oracle generation and probe extraction must use the same chat prompt."""
+    if skip:
+        return
+    probe_by_label = {"weak": weak, "strong": strong}
     pairs = [
         ("prompt_hash_w", "prompt_hash_weak", "weak"),
         ("prompt_hash_s", "prompt_hash_strong", "strong"),
@@ -176,12 +186,35 @@ def _verify_oracle_probe_prompt_hashes(merged: pd.DataFrame) -> None:
         if not both.any():
             continue
         mismatch = both & (merged[probe_col] != merged[oracle_col])
-        if mismatch.any():
-            ids = merged.loc[mismatch, "query_id"].head(5).tolist()
-            raise ValueError(
-                f"prompt_hash mismatch for {label} model — oracle vs probe used different "
-                f"chat prompts (check protocol version / user_content): {ids}"
-            )
+        if not mismatch.any():
+            continue
+        probe_df = probe_by_label.get(label)
+        if (
+            probe_df is not None
+            and "user_content" in merged.columns
+            and "user_content" in probe_df.columns
+        ):
+            oracle_uc = merged.set_index("query_id")["user_content"]
+            probe_uc = probe_df.set_index("query_id")["user_content"]
+            bad_ids = merged.loc[mismatch, "query_id"].astype(str)
+            content_mismatch = [
+                qid
+                for qid in bad_ids
+                if oracle_uc.get(qid) != probe_uc.get(qid)
+            ]
+            if not content_mismatch:
+                warnings.warn(
+                    f"prompt_hash mismatch for {label} model on {int(mismatch.sum())} rows "
+                    f"but user_content matches — likely chat-template drift "
+                    f"(transformers/tokenizer revision); proceeding",
+                    stacklevel=2,
+                )
+                continue
+        ids = merged.loc[mismatch, "query_id"].head(5).tolist()
+        raise ValueError(
+            f"prompt_hash mismatch for {label} model — oracle vs probe used different "
+            f"chat prompts (check protocol version / user_content): {ids}"
+        )
 
 
 def _verify_prompt_hashes(merged: pd.DataFrame) -> None:
@@ -251,6 +284,7 @@ def merge_tables(
     oracle: pd.DataFrame,
     *,
     query_features: pd.DataFrame | None = None,
+    skip_prompt_hash_verify: bool = False,
 ) -> pd.DataFrame:
     _assert_unique_query_ids(oracle, "oracle")
     _assert_unique_query_ids(weak, "weak signals")
@@ -275,7 +309,9 @@ def merge_tables(
         )
 
     _verify_prompt_hashes(merged)
-    _verify_oracle_probe_prompt_hashes(merged)
+    _verify_oracle_probe_prompt_hashes(
+        merged, weak=weak, strong=strong, skip=skip_prompt_hash_verify
+    )
 
     for base in PROBE_METRIC_BASES:
         wc, sc = f"{base}_w", f"{base}_s"

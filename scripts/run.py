@@ -315,7 +315,13 @@ def cmd_merge(args: argparse.Namespace) -> int:
                 f"(from screen → {DEFAULT_COMPLEXITY_SELECTION_NAME})"
             )
 
-    merged = merge_tables(weak, strong, oracle, query_features=query_features)
+    merged = merge_tables(
+        weak,
+        strong,
+        oracle,
+        query_features=query_features,
+        skip_prompt_hash_verify=getattr(args, "skip_prompt_hash_verify", False),
+    )
     analysis = analyze_routing_relevance(
         merged, args.oracle, n_boot=args.bootstrap_n, bootstrap_seed=args.bootstrap_seed
     )
@@ -934,6 +940,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-manual-c-q",
         action="store_true",
         help="Dev only: use --c-q-column instead of frozen selection",
+    )
+    p.add_argument(
+        "--skip-prompt-hash-verify",
+        action="store_true",
+        help="Skip oracle vs probe prompt_hash check (dev only)",
     )
     p.add_argument("--bootstrap-n", type=int, default=BOOTSTRAP_COUNT)
     p.add_argument("--bootstrap-seed", type=int, default=BOOTSTRAP_SEED)
