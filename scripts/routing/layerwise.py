@@ -120,9 +120,11 @@ def _final_norm(model):
 
 
 def _max_logit_delta(logits_ref: torch.Tensor, h: torch.Tensor, model) -> float:
-    return float((logits_ref - model.lm_head(h)).abs().max().item())
+    with torch.inference_mode():
+        return float((logits_ref - model.lm_head(h)).abs().max().item())
 
 
+@torch.inference_mode()
 def _terminal_hidden_vector(
     model,
     out,
@@ -163,8 +165,7 @@ def _terminal_hidden_vector(
     if inner is None:
         raise RuntimeError("cannot resolve terminal hidden state: missing model.model")
 
-    with torch.inference_mode():
-        base_out = inner(**inputs, output_hidden_states=False)
+    base_out = inner(**inputs, output_hidden_states=False)
     base_lhs = getattr(base_out, "last_hidden_state", None)
     if base_lhs is None and isinstance(base_out, tuple) and base_out:
         base_lhs = base_out[0]
@@ -190,19 +191,20 @@ def verify_terminal_logit_parity(
     with torch.inference_mode():
         out = model(**inputs, output_hidden_states=True)
 
-    batch_idx = 0
-    last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
-    logits_ref = out.logits[batch_idx, last_pos]
-    h_final = _terminal_hidden_vector(
-        model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
-    )
-    logits_lens = model.lm_head(h_final)
+        batch_idx = 0
+        last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
+        logits_ref = out.logits[batch_idx, last_pos]
+        h_final = _terminal_hidden_vector(
+            model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
+        )
+        logits_lens = model.lm_head(h_final)
 
-    margin_ref = extract_logits(logits_ref, tokenizer).margin
-    margin_lens = extract_logits(logits_lens, tokenizer).margin
-    margin_delta = abs(margin_ref - margin_lens)
-    max_logit_delta = float((logits_ref - logits_lens).abs().max().item())
-    passed = margin_delta <= margin_tol
+        margin_ref = extract_logits(logits_ref, tokenizer).margin
+        margin_lens = extract_logits(logits_lens, tokenizer).margin
+        margin_delta = abs(margin_ref - margin_lens)
+        max_logit_delta = float((logits_ref - logits_lens).abs().max().item())
+        passed = margin_delta <= margin_tol
+
     return TerminalParityResult(
         query_id=query_id,
         margin_from_logits=margin_ref,
@@ -279,13 +281,14 @@ def _layer_logits(
     *,
     terminal_hidden: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    if layer_idx == n_layers - 1 and terminal_hidden is not None:
-        h = terminal_hidden
-    else:
-        h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
-        if layer_idx == n_layers - 1:
-            h = _final_norm(model)(h)
-    return model.lm_head(h)
+    with torch.inference_mode():
+        if layer_idx == n_layers - 1 and terminal_hidden is not None:
+            h = terminal_hidden
+        else:
+            h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
+            if layer_idx == n_layers - 1:
+                h = _final_norm(model)(h)
+        return model.lm_head(h)
 
 
 def probe_layerwise(
@@ -305,49 +308,51 @@ def probe_layerwise(
     with torch.inference_mode():
         out = model(**inputs, output_hidden_states=True)
 
-    batch_idx = 0
-    last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
-    terminal = extract_logits(out.logits[batch_idx, last_pos], tokenizer)
-    n_layers = int(model.config.num_hidden_layers)
-    hs = out.hidden_states
-    if hs is None or len(hs) < n_layers + 1:
-        raise RuntimeError(f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})")
+        batch_idx = 0
+        last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
+        terminal = extract_logits(out.logits[batch_idx, last_pos], tokenizer)
+        n_layers = int(model.config.num_hidden_layers)
+        hs = out.hidden_states
+        if hs is None or len(hs) < n_layers + 1:
+            raise RuntimeError(
+                f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})"
+            )
 
-    terminal_hidden = _terminal_hidden_vector(
-        model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
-    )
-    margins: list[float] = []
-    entropies: list[float] = []
-    for i in range(n_layers):
-        metrics = extract_logits(
-            _layer_logits(
-                model,
-                hs,
-                batch_idx,
-                last_pos,
-                i,
-                n_layers,
-                terminal_hidden=terminal_hidden,
-            ),
-            tokenizer,
+        terminal_hidden = _terminal_hidden_vector(
+            model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
         )
-        margins.append(metrics.margin)
-        entropies.append(metrics.entropy)
+        margins: list[float] = []
+        entropies: list[float] = []
+        for i in range(n_layers):
+            metrics = extract_logits(
+                _layer_logits(
+                    model,
+                    hs,
+                    batch_idx,
+                    last_pos,
+                    i,
+                    n_layers,
+                    terminal_hidden=terminal_hidden,
+                ),
+                tokenizer,
+            )
+            margins.append(metrics.margin)
+            entropies.append(metrics.entropy)
 
-    if abs(margins[-1] - terminal.margin) > margin_tol:
-        raise RuntimeError(
-            f"terminal margin mismatch: layerwise={margins[-1]:.6f} logits={terminal.margin:.6f} "
-            f"(tol={margin_tol})"
+        if abs(margins[-1] - terminal.margin) > margin_tol:
+            raise RuntimeError(
+                f"terminal margin mismatch: layerwise={margins[-1]:.6f} logits={terminal.margin:.6f} "
+                f"(tol={margin_tol})"
+            )
+
+        slope, stab = formation_scalars(margins, stab_eps, stab_k)
+        trace = LayerTrace(
+            num_layers=n_layers,
+            margins=margins,
+            entropies=entropies,
+            slope_margin=slope,
+            stabilization_layer=stab,
         )
-
-    slope, stab = formation_scalars(margins, stab_eps, stab_k)
-    trace = LayerTrace(
-        num_layers=n_layers,
-        margins=margins,
-        entropies=entropies,
-        slope_margin=slope,
-        stabilization_layer=stab,
-    )
     return terminal, built, trace
 
 
