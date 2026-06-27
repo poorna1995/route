@@ -46,6 +46,7 @@ experiments/**
 !experiments/M4/
 !experiments/M4/routing_opportunity/
 !experiments/M4/routing_opportunity/arc_validation_oracle.json
+!experiments/M4/routing_opportunity/arc_test_oracle.json
 !experiments/M5/
 !experiments/M5/arc_validation_features.csv
 
