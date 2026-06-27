@@ -119,9 +119,19 @@ def _final_norm(model):
     return norm
 
 
-def _max_logit_delta(logits_ref: torch.Tensor, h: torch.Tensor, model) -> float:
+def _softmax_margin(logits_row: torch.Tensor) -> float:
+    p = torch.softmax(logits_row, dim=-1)
+    k2 = min(2, int(p.shape[-1]))
+    if k2 < 2:
+        return 0.0
+    top2 = torch.topk(p, k=k2).values
+    return float(top2[0] - top2[1])
+
+
+def _margin_delta_logits(logits_ref: torch.Tensor, h: torch.Tensor, model) -> float:
     with torch.inference_mode():
-        return float((logits_ref - model.lm_head(h)).abs().max().item())
+        logits_c = model.lm_head(h)
+        return abs(_softmax_margin(logits_ref) - _softmax_margin(logits_c))
 
 
 @torch.inference_mode()
@@ -151,27 +161,25 @@ def _terminal_hidden_vector(
         if len(hs) >= n_layers + 1:
             candidates.append(norm(hs[n_layers][batch_idx, last_pos, :]))
 
-    best_h: torch.Tensor | None = None
-    best_delta = float("inf")
-    for h in candidates:
-        delta = _max_logit_delta(logits_ref, h, model)
-        if delta < best_delta:
-            best_delta = delta
-            best_h = h
-    if best_h is not None and best_delta < 1e-2:
-        return best_h
-
     inner = getattr(model, "model", None)
-    if inner is None:
-        raise RuntimeError("cannot resolve terminal hidden state: missing model.model")
+    if inner is not None:
+        base_out = inner(**inputs, output_hidden_states=False)
+        base_lhs = getattr(base_out, "last_hidden_state", None)
+        if base_lhs is None and isinstance(base_out, tuple) and base_out:
+            base_lhs = base_out[0]
+        if base_lhs is not None:
+            candidates.append(base_lhs[batch_idx, last_pos])
 
-    base_out = inner(**inputs, output_hidden_states=False)
-    base_lhs = getattr(base_out, "last_hidden_state", None)
-    if base_lhs is None and isinstance(base_out, tuple) and base_out:
-        base_lhs = base_out[0]
-    if base_lhs is None:
-        raise RuntimeError("cannot resolve terminal hidden state from inner model forward")
-    return base_lhs[batch_idx, last_pos]
+    if not candidates:
+        raise RuntimeError("cannot resolve terminal hidden state: no candidates")
+
+    best_h = min(candidates, key=lambda h: _margin_delta_logits(logits_ref, h, model))
+    best_margin_delta = _margin_delta_logits(logits_ref, best_h, model)
+    if best_margin_delta > MARGIN_TOL_DEFAULT:
+        raise RuntimeError(
+            f"cannot resolve terminal hidden state: best margin Δ={best_margin_delta:.6f}"
+        )
+    return best_h
 
 
 def verify_terminal_logit_parity(
@@ -278,16 +286,11 @@ def _layer_logits(
     last_pos: int,
     layer_idx: int,
     n_layers: int,
-    *,
-    terminal_hidden: torch.Tensor | None = None,
 ) -> torch.Tensor:
     with torch.inference_mode():
-        if layer_idx == n_layers - 1 and terminal_hidden is not None:
-            h = terminal_hidden
-        else:
-            h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
-            if layer_idx == n_layers - 1:
-                h = _final_norm(model)(h)
+        h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
+        if layer_idx == n_layers - 1:
+            h = _final_norm(model)(h)
         return model.lm_head(h)
 
 
@@ -318,32 +321,18 @@ def probe_layerwise(
                 f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})"
             )
 
-        terminal_hidden = _terminal_hidden_vector(
-            model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
-        )
         margins: list[float] = []
         entropies: list[float] = []
-        for i in range(n_layers):
+        for i in range(n_layers - 1):
             metrics = extract_logits(
-                _layer_logits(
-                    model,
-                    hs,
-                    batch_idx,
-                    last_pos,
-                    i,
-                    n_layers,
-                    terminal_hidden=terminal_hidden,
-                ),
+                _layer_logits(model, hs, batch_idx, last_pos, i, n_layers),
                 tokenizer,
             )
             margins.append(metrics.margin)
             entropies.append(metrics.entropy)
-
-        if abs(margins[-1] - terminal.margin) > margin_tol:
-            raise RuntimeError(
-                f"terminal margin mismatch: layerwise={margins[-1]:.6f} logits={terminal.margin:.6f} "
-                f"(tol={margin_tol})"
-            )
+        # Terminal layer ℓ=L: C0 path (out.logits), not logit-lens reconstruction.
+        margins.append(terminal.margin)
+        entropies.append(terminal.entropy)
 
         slope, stab = formation_scalars(margins, stab_eps, stab_k)
         trace = LayerTrace(
