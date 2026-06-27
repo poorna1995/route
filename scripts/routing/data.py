@@ -295,12 +295,19 @@ def merge_tables(
     w = _suffix_columns(weak, "w")
     s = _suffix_columns(strong, "s")
     merged = oracle.merge(w, on="query_id", how="inner").merge(s, on="query_id", how="inner")
+    if len(merged) == 0:
+        raise ValueError(
+            "no overlapping query_id between oracle and weak/strong probe CSVs — "
+            "check split role (calib vs test) and query_id columns"
+        )
 
     if query_features is not None:
         merged = merged.merge(query_features, on="query_id", how="inner")
-
-    if len(merged) == 0:
-        raise ValueError("no overlapping query_id across oracle and signal CSVs")
+        if len(merged) == 0:
+            raise ValueError(
+                "no overlapping query_id after joining query features — "
+                "use arc_test_features.csv for TEST (not arc_validation_features.csv)"
+            )
 
     if len(merged) != len(oracle):
         raise ValueError(

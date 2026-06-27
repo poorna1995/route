@@ -24,7 +24,8 @@ fi
 CAMPAIGN="${CAMPAIGN:-experiments/campaigns/C3_llama_confidence_formation/M5}"
 ORACLE_CALIB="${ORACLE_CALIB:-experiments/M4/routing_opportunity/arc_validation_oracle.json}"
 ORACLE_TEST="${ORACLE_TEST:-experiments/M4/routing_opportunity/arc_test_oracle.json}"
-FEATURES="${FEATURES:-experiments/M5/arc_validation_features.csv}"
+FEATURES_CALIB="${FEATURES_CALIB:-experiments/M5/arc_validation_features.csv}"
+FEATURES_TEST="${FEATURES_TEST:-experiments/M5/arc_test_features.csv}"
 COMPLEXITY="${COMPLEXITY:-analysis/selected_feature.json}"
 
 usage() {
@@ -49,8 +50,9 @@ require_features() {
     echo "warning: --allow-no-features — merge without c(q)" >&2
     return
   fi
+  local features="$1"
   local missing=0
-  for f in "$FEATURES" "$COMPLEXITY"; do
+  for f in "$features" "$COMPLEXITY"; do
     if [[ ! -f "$f" ]]; then
       echo "missing required merge input: $f" >&2
       missing=1
@@ -112,7 +114,14 @@ run_role() {
     fi
   done
 
-  require_features
+  local features
+  case "$role" in
+    calib) features="$FEATURES_CALIB" ;;
+    test)  features="$FEATURES_TEST" ;;
+    *) echo "unknown role: $role" >&2; exit 1 ;;
+  esac
+
+  require_features "$features"
 
   echo "=== C3 merge (${role}) ==="
   merge_args=(
@@ -123,7 +132,7 @@ run_role() {
     --merged-csv "$merged"
   )
   if [[ "$ALLOW_NO_FEATURES" -eq 0 ]]; then
-    merge_args+=(--features-csv "$FEATURES" --complexity-selection "$COMPLEXITY")
+    merge_args+=(--features-csv "$features" --complexity-selection "$COMPLEXITY")
   fi
   "$PY" scripts/run.py merge "${merge_args[@]}"
 

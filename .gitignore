@@ -49,6 +49,7 @@ experiments/**
 !experiments/M4/routing_opportunity/arc_test_oracle.json
 !experiments/M5/
 !experiments/M5/arc_validation_features.csv
+!experiments/M5/arc_test_features.csv
 
 # Analysis outputs (regenerable); keep frozen study manifests
 # Large files here: arc_merged*.csv (~1–1.5 MB), mmlu_merged.csv (~500 KB), routing JSON.
