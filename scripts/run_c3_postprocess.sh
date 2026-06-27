@@ -7,7 +7,7 @@
 #   ./scripts/run_c3_postprocess.sh all
 #   ./scripts/run_c3_postprocess.sh calib --allow-no-features   # dev only
 #
-# Produces F7 + RH5 JSON for weak and strong models separately.
+# Produces F7 + RH5 JSON (Route A) and F8 + RH5-repr JSON (Route B, when traces include drift).
 #
 # Env: PY, CAMPAIGN, ORACLE_CALIB, ORACLE_TEST, FEATURES, COMPLEXITY
 #
@@ -93,6 +93,51 @@ _plot_and_rh5() {
   echo "  $rh5"
 }
 
+_has_repr_trace() {
+  local trace="$1"
+  "$PY" - "$trace" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    rec = json.loads(f.readline())
+sys.exit(0 if "drift" in rec else 1)
+PY
+}
+
+_plot_and_rh5_repr() {
+  local role="$1"
+  local pool="$2"
+  local merged="$3"
+  local trace="${CAMPAIGN}/layer_traces/${role}_${pool}.jsonl"
+  local f8="paper/figures/F8_representation_drift_${role}_${pool}.png"
+  local rh5r="analysis/c3_rh5_repr_${role}_${pool}.json"
+
+  if [[ ! -f "$trace" ]]; then
+    echo "missing trace: $trace" >&2
+    exit 1
+  fi
+  if ! _has_repr_trace "$trace"; then
+    echo "=== Route B skip (${role} ${pool}) — traces lack drift[]; re-extract with current layerwise.py ==="
+    return 0
+  fi
+
+  echo "=== F8 repr drift (${role} ${pool}) ==="
+  "$PY" scripts/run.py plot formation \
+    --layer-trace "$trace" \
+    --merged-csv "$merged" \
+    --trace-metric drift \
+    --output "$f8"
+
+  echo "=== RH5-repr analyze-formation (${role} ${pool}) ==="
+  "$PY" scripts/run.py analyze-formation \
+    --layer-trace "$trace" \
+    --merged-csv "$merged" \
+    --trace-metric drift \
+    --output "$rh5r"
+
+  echo "  $f8"
+  echo "  $rh5r"
+}
+
 run_role() {
   local role="${1:?calib|test}"
   local oracle
@@ -138,6 +183,8 @@ run_role() {
 
   _plot_and_rh5 "$role" weak "$merged"
   _plot_and_rh5 "$role" strong "$merged"
+  _plot_and_rh5_repr "$role" weak "$merged"
+  _plot_and_rh5_repr "$role" strong "$merged"
 
   echo ""
   echo "Wrote: $merged"

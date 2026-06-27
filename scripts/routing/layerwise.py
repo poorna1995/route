@@ -1,9 +1,11 @@
-"""Layerwise prefill probes — margin trajectories and formation scalars (C3 / RH5).
+"""Layerwise prefill probes — margin trajectories (Route A) and repr drift (Route B).
 
-Primary scalar: ``stabilization_layer``. ``slope_margin`` is secondary.
+Route A (RH5): logit-lens margin / entropy at each layer; ``stabilization_layer``,
+``slope_margin``.
 
-Probe statistics use raw ``softmax(logits)`` at each layer — the model's own
-output space. No logit temperature rescaling (document as limitation if asked).
+Route B (RH5-repr): adjacent hidden-state drift — ``total_representation_drift``,
+``mean_adjacent_cos``, ``repr_adjacent_std``. No LM head; computed from the same
+``hidden_states`` tuple as Route A.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from routing.constants import (
     MARGIN_TOL_DEFAULT,
@@ -37,6 +40,11 @@ class LayerTrace:
     entropies: list[float]
     slope_margin: float
     stabilization_layer: int
+    adjacent_cos: list[float]
+    drift: list[float]
+    total_representation_drift: float
+    mean_adjacent_cos: float
+    repr_adjacent_std: float
 
 
 @dataclass(frozen=True)
@@ -54,6 +62,34 @@ def depth_fraction_list(num_layers: int) -> list[float]:
     if num_layers <= 0:
         return []
     return [(i + 1) / num_layers for i in range(num_layers)]
+
+
+def drift_depth_fraction_list(num_layers: int) -> list[float]:
+    """Normalized depth at layer ℓ for transition ℓ→ℓ+1; length L−1."""
+    if num_layers <= 1:
+        return []
+    return [(i + 1) / num_layers for i in range(num_layers - 1)]
+
+
+def compute_representation_drift(
+    hidden_states: tuple,
+    batch_idx: int,
+    last_pos: int,
+    n_layers: int,
+) -> tuple[list[float], list[float], float, float, float]:
+    """Route B — adjacent cos(h_ℓ, h_{ℓ+1}) and per-step drift 1−cos."""
+    adjacent_cos: list[float] = []
+    with torch.inference_mode():
+        for i in range(n_layers - 1):
+            h_a = hidden_states[i + 1][batch_idx, last_pos, :]
+            h_b = hidden_states[i + 2][batch_idx, last_pos, :]
+            cos = float(F.cosine_similarity(h_a.unsqueeze(0), h_b.unsqueeze(0), dim=1).item())
+            adjacent_cos.append(cos)
+    drift = [1.0 - c for c in adjacent_cos]
+    total = float(sum(drift))
+    mean_cos = float(sum(adjacent_cos) / len(adjacent_cos)) if adjacent_cos else 0.0
+    std_drift = float(np.std(drift, ddof=0)) if drift else 0.0
+    return adjacent_cos, drift, total, mean_cos, std_drift
 
 
 def slope_margin(margins: list[float]) -> float:
@@ -302,6 +338,7 @@ def probe_layerwise(
     stab_eps: float = STAB_EPS_DEFAULT,
     stab_k: int = STAB_K_DEFAULT,
     margin_tol: float = MARGIN_TOL_DEFAULT,
+    repr_only: bool = False,
 ) -> tuple[ProbeMetrics, dict[str, Any], LayerTrace]:
     built = build_chat_prompt(tokenizer, user_content)
     device = resolve_input_device(model)
@@ -321,18 +358,26 @@ def probe_layerwise(
                 f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})"
             )
 
+        adjacent_cos, drift, total_drift, mean_adj_cos, std_drift = compute_representation_drift(
+            hs, batch_idx, last_pos, n_layers
+        )
+
         margins: list[float] = []
         entropies: list[float] = []
-        for i in range(n_layers - 1):
-            metrics = extract_logits(
-                _layer_logits(model, hs, batch_idx, last_pos, i, n_layers),
-                tokenizer,
-            )
-            margins.append(metrics.margin)
-            entropies.append(metrics.entropy)
-        # Terminal layer ℓ=L: C0 path (out.logits), not logit-lens reconstruction.
-        margins.append(terminal.margin)
-        entropies.append(terminal.entropy)
+        if repr_only:
+            # Intermediate margins omitted (no LM-head pass); NaN keeps F7 from fake zeros.
+            margins = [float("nan")] * (n_layers - 1) + [terminal.margin]
+            entropies = [float("nan")] * (n_layers - 1) + [terminal.entropy]
+        else:
+            for i in range(n_layers - 1):
+                metrics = extract_logits(
+                    _layer_logits(model, hs, batch_idx, last_pos, i, n_layers),
+                    tokenizer,
+                )
+                margins.append(metrics.margin)
+                entropies.append(metrics.entropy)
+            margins.append(terminal.margin)
+            entropies.append(terminal.entropy)
 
         slope, stab = formation_scalars(margins, stab_eps, stab_k)
         trace = LayerTrace(
@@ -341,6 +386,11 @@ def probe_layerwise(
             entropies=entropies,
             slope_margin=slope,
             stabilization_layer=stab,
+            adjacent_cos=adjacent_cos,
+            drift=drift,
+            total_representation_drift=total_drift,
+            mean_adjacent_cos=mean_adj_cos,
+            repr_adjacent_std=std_drift,
         )
     return terminal, built, trace
 
@@ -349,15 +399,32 @@ def trace_record(*, query_id: str, trace: LayerTrace, stab_eps: float, stab_k: i
     n = trace.num_layers
     stab = trace.stabilization_layer
     depth_fraction = depth_fraction_list(n)
+    drift_depth = drift_depth_fraction_list(n)
+
+    def _round_seq(values: list[float]) -> list[float | None]:
+        out: list[float | None] = []
+        for v in values:
+            if v != v:  # NaN
+                out.append(None)
+            else:
+                out.append(round(v, 6))
+        return out
+
     return {
         "query_id": query_id,
         "num_layers": n,
         "depth_fraction": [round(v, 6) for v in depth_fraction],
-        "margin": [round(v, 6) for v in trace.margins],
-        "entropy": [round(v, 6) for v in trace.entropies],
+        "drift_depth_fraction": [round(v, 6) for v in drift_depth],
+        "margin": _round_seq(trace.margins),
+        "entropy": _round_seq(trace.entropies),
         "slope_margin": round(trace.slope_margin, 6),
         "stabilization_layer": stab,
         "stabilization_frac": round(depth_fraction[stab - 1], 6) if n and 1 <= stab <= n else None,
+        "adjacent_cos": [round(v, 6) for v in trace.adjacent_cos],
+        "drift": [round(v, 6) for v in trace.drift],
+        "total_representation_drift": round(trace.total_representation_drift, 6),
+        "mean_adjacent_cos": round(trace.mean_adjacent_cos, 6),
+        "repr_adjacent_std": round(trace.repr_adjacent_std, 6),
         "stab_eps": stab_eps,
         "stab_k": stab_k,
     }
@@ -391,6 +458,9 @@ def make_layerwise_row(
     row["num_layers"] = trace.num_layers
     row["stabilization_layer"] = trace.stabilization_layer
     row["slope_margin"] = round(trace.slope_margin, 6)
+    row["total_representation_drift"] = round(trace.total_representation_drift, 6)
+    row["mean_adjacent_cos"] = round(trace.mean_adjacent_cos, 6)
+    row["repr_adjacent_std"] = round(trace.repr_adjacent_std, 6)
     return row
 
 
@@ -420,6 +490,7 @@ def run_layerwise_extraction(
     overwrite: bool = False,
     batch_size: int = 1,
     query_filter: set[str] | None = None,
+    repr_only: bool = False,
 ) -> int:
     if batch_size != 1:
         print(f"warning: layerwise uses batch_size=1 per query (got {batch_size}); ignoring for now")
@@ -428,7 +499,8 @@ def run_layerwise_extraction(
         _prepare_output_path(trace_path, overwrite=overwrite)
 
     model_obj, tokenizer, device_res = load_model_and_tokenizer(model, device=device, dtype=dtype)
-    print(f"device: {device_res}  layerwise  eps={stab_eps} k={stab_k} margin_tol={margin_tol}")
+    mode = "repr-only" if repr_only else "margin+repr"
+    print(f"device: {device_res}  layerwise ({mode})  eps={stab_eps} k={stab_k} margin_tol={margin_tol}")
 
     write_header = True
 
@@ -445,6 +517,7 @@ def run_layerwise_extraction(
             stab_eps=stab_eps,
             stab_k=stab_k,
             margin_tol=margin_tol,
+            repr_only=repr_only,
         )
         row = make_layerwise_row(
             query_id=q["id"],
@@ -461,8 +534,9 @@ def run_layerwise_extraction(
             append_trace(trace_path, trace_record(query_id=q["id"], trace=trace, stab_eps=stab_eps, stab_k=stab_k))
         print(
             f"{q['id']}: m={row['margin']:.4f} "
-            f"stab={row['stabilization_layer']}/{trace.num_layers} "
-            f"slope={row['slope_margin']:.4f}"
+            f"drift={row['total_representation_drift']:.4f} "
+            f"mean_cos={row['mean_adjacent_cos']:.4f} "
+            f"stab={row['stabilization_layer']}/{trace.num_layers}"
         )
 
     release_model(model_obj)

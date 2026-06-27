@@ -23,6 +23,7 @@ from routing.constants import (
     PROBE_FORMATION_BASES,
     PROBE_METHOD,
     PROBE_METRIC_BASES,
+    PROBE_REPR_BASES,
     SCREEN_TAG,
 )
 from routing.prompt_protocol import PROTOCOL_VERSION
@@ -336,6 +337,12 @@ def merge_tables(
         col = PROBE_DERIVED_SLOPE if base == "slope_margin" else PROBE_DERIVED_STAB
         merged[col] = merged[sc] - merged[wc]
 
+    for base in PROBE_REPR_BASES:
+        wc, sc = f"{base}_w", f"{base}_s"
+        if wc not in merged.columns or sc not in merged.columns:
+            continue
+        merged[f"delta_{base}"] = merged[sc] - merged[wc]
+
     return _attach_table_metadata(merged, weak=weak, strong=strong, query_features=query_features)
 
 
@@ -346,6 +353,8 @@ def list_signal_columns(merged: pd.DataFrame) -> list[str]:
     for base in PROBE_METRIC_BASES:
         candidates.extend([f"{base}_w", f"{base}_s"])
     for base in PROBE_FORMATION_BASES:
+        candidates.extend([f"{base}_w", f"{base}_s"])
+    for base in PROBE_REPR_BASES:
         candidates.extend([f"{base}_w", f"{base}_s"])
     candidates.extend([c for c in merged.columns if c.startswith("delta_")])
 

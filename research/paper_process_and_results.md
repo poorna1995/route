@@ -425,7 +425,7 @@ A CALIB-fit calibrated policy matches always-strong (69.2%) while an offline ora
 - That weak entropy alone should drive escalation.
 - Uniform transfer to every MMLU subject (abstract algebra is a counterexample).
 - Agent routing, Qwen architecture transfer (C1), or paraphrase stability — future work.
-- **C3 layerwise extension** — in progress (`c3_layerwise_concepts.md`, `c3_prefill_extensions_plan.md`); richer model-derived characterization, not a new information source.
+- **C3 layerwise extension** — **complete**; RH5 null on ARC (terminal-only separation). Full report: [`c3_end_to_end_report.md`](c3_end_to_end_report.md).
 
 ---
 
@@ -445,6 +445,10 @@ A CALIB-fit calibrated policy matches always-strong (69.2%) while an offline ora
 | `analysis/arc_route_eval_lambda0.json`        | RH4 policies                       |
 | `analysis/C2_dimension_transfer.json`         | RH7 cross-regime table             |
 | `analysis/c2_mmlu_summary.json`               | MMLU screening gate                |
+| `research/c3_end_to_end_report.md`            | C3 process + RH5 results           |
+| `analysis/c3_arc_{calib,test}_merged.csv`      | C3 master tables                   |
+| `analysis/c3_rh5_*_{weak,strong}.json`        | RH5 divergence + bucket medians    |
+| `paper/figures/F7_confidence_evolution_*.png` | Layerwise median margin (F7)       |
 | `paper/tables/T2_correlation.tex`             | RH1–RH2                            |
 | `paper/tables/T3_complementarity.tex`         | RH3                                |
 | `paper/tables/T4_routing.tex`                 | RH4                                |

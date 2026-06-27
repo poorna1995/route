@@ -720,13 +720,15 @@ def plot_layer_evolution(
     output: Path,
     *,
     dpi: int = 150,
+    trace_metric: str = "margin",
 ) -> None:
     from routing.formation_analysis import F7_BUCKETS, bucket_medians, load_traces, trace_depth_fraction
 
+    metric = "drift" if trace_metric == "drift" else "margin"
     traces = load_traces(trace_path)
     merged = pd.read_csv(merged_csv)
-    medians = bucket_medians(traces, merged)
-    xs = np.asarray(trace_depth_fraction(next(iter(traces.values()))), dtype=float)
+    medians = bucket_medians(traces, merged, metric=metric)
+    xs = np.asarray(trace_depth_fraction(next(iter(traces.values())), metric=metric), dtype=float)
 
     labels = {"easy": "Easy", "opportunity": "Opportunity", "too_hard": "Too hard"}
     colors = {"easy": SCATTER_COLORS["easy"], "opportunity": SCATTER_COLORS["opportunity"], "too_hard": SCATTER_COLORS["too_hard"]}
@@ -736,9 +738,14 @@ def plot_layer_evolution(
         y = medians[bucket]
         ax.plot(xs, y, label=labels[bucket], color=colors[bucket], linewidth=2)
 
-    ax.set_xlabel("Fraction of depth (ℓ / L)")
-    ax.set_ylabel(r"Median margin $m_\ell$")
-    ax.set_title("Layerwise Confidence Evolution Across Depth")
+    if metric == "drift":
+        ax.set_xlabel("Fraction of depth at transition start (ℓ / L)")
+        ax.set_ylabel(r"Median adjacent drift $1 - \cos(h_\ell, h_{\ell+1})$")
+        ax.set_title("Representation Drift Across Depth (Route B)")
+    else:
+        ax.set_xlabel("Fraction of depth (ℓ / L)")
+        ax.set_ylabel(r"Median margin $m_\ell$")
+        ax.set_title("Layerwise Confidence Evolution Across Depth (Route A)")
     ax.legend(frameon=False)
     ax.grid(True, alpha=0.25)
 

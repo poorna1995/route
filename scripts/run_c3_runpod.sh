@@ -15,7 +15,8 @@
 #   ./scripts/run_c3_runpod.sh extract calib all   # CALIB  — weak + strong
 #   ./scripts/run_c3_runpod.sh extract test all    # TEST   — after decision gate
 #
-# Env: DEVICE, DTYPE, MARGIN_TOL, STAB_EPS, STAB_K, SMOKE_N, BATCH_SIZE, CAMPAIGN, PY
+# Env: DEVICE, DTYPE, MARGIN_TOL, STAB_EPS, STAB_K, SMOKE_N, BATCH_SIZE, REPR_ONLY, CAMPAIGN, PY
+#   REPR_ONLY=1  skip intermediate LM-head (Route B drift + terminal margin only)
 #
 # CPU postprocess: ./scripts/run_c3_postprocess.sh calib|test|all
 #
@@ -41,6 +42,7 @@ STAB_EPS="${STAB_EPS:-0.02}"
 STAB_K="${STAB_K:-2}"
 SMOKE_N="${SMOKE_N:-10}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
+REPR_ONLY="${REPR_ONLY:-0}"
 
 SPLIT_ARGS=(--splits-json "$SPLITS")
 GPU_ARGS=(--device "$DEVICE" --dtype "$DTYPE")
@@ -115,12 +117,17 @@ run_extract() {
     [[ "$p" == strong ]] && model="$STRONG"
     local out_csv="${CAMPAIGN}/arc_${role}_${p}_layerwise.csv"
     local trace="${CAMPAIGN}/layer_traces/${role}_${p}.jsonl"
-    echo "--- ${stage} ${p} → ${out_csv} (batch_size=${BATCH_SIZE}) ---"
+    local repr_args=()
+    if [[ "$REPR_ONLY" == "1" ]]; then
+      repr_args=(--repr-only)
+    fi
+    echo "--- ${stage} ${p} → ${out_csv} (batch_size=${BATCH_SIZE} repr_only=${REPR_ONLY}) ---"
     "$PY" scripts/run.py probes \
       --model "$model" \
       --dataset arc_challenge \
       "${SPLIT_ARGS[@]}" --split-role "$role" \
       --layerwise --overwrite --batch-size "$BATCH_SIZE" \
+      "${repr_args[@]}" \
       --layer-trace "$trace" \
       --stab-eps "$STAB_EPS" --stab-k "$STAB_K" \
       --margin-tol "$MARGIN_TOL" \

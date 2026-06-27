@@ -34,6 +34,16 @@ PROBE_FORMATION_BASES = ("stabilization_layer", "slope_margin")
 PROBE_DERIVED_SLOPE = "delta_slope_margin"  # slope_margin_s − slope_margin_w
 PROBE_DERIVED_STAB = "delta_stabilization_layer"  # stabilization_layer_s − stabilization_layer_w
 
+# C3 Route B — adjacent hidden-state drift (representation geometry).
+PROBE_REPR_BASES = (
+    "total_representation_drift",
+    "mean_adjacent_cos",
+    "repr_adjacent_std",
+)
+PROBE_DERIVED_TOTAL_DRIFT = "delta_total_representation_drift"  # strong − weak
+PROBE_DERIVED_MEAN_ADJ_COS = "delta_mean_adjacent_cos"  # strong − weak
+PROBE_DERIVED_REPR_STD = "delta_repr_adjacent_std"  # strong − weak
+
 PROBE_METHOD = "prefill_probe"
 PROBE_METHOD_LAYERWISE = "prefill_probe_layerwise"
 STAB_EPS_DEFAULT = 0.02
@@ -250,7 +260,7 @@ PROBE_CSV_FIELDS = (
     "extraction_method",
 )
 
-PROBE_LAYERWISE_FIELDS = PROBE_CSV_FIELDS + PROBE_FORMATION_BASES + ("num_layers",)
+PROBE_LAYERWISE_FIELDS = PROBE_CSV_FIELDS + PROBE_FORMATION_BASES + PROBE_REPR_BASES + ("num_layers",)
 
 WEAK_COST = 1.0
 STRONG_COST = 3.0

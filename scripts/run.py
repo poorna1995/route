@@ -212,6 +212,7 @@ def cmd_probes(args: argparse.Namespace) -> int:
             overwrite=args.overwrite,
             batch_size=args.batch_size,
             query_filter=_query_filter_from_args(args),
+            repr_only=getattr(args, "repr_only", False),
         )
     if args.prompt is None and args.dataset is None:
         raise SystemExit("Provide --prompt or --dataset")
@@ -628,7 +629,13 @@ def cmd_plot(args: argparse.Namespace) -> int:
     elif args.figure == "formation":
         if not args.layer_trace or not args.merged_csv:
             raise SystemExit("--layer-trace and --merged-csv required for formation")
-        plot_layer_evolution(args.layer_trace, args.merged_csv, args.output, dpi=args.dpi)
+        plot_layer_evolution(
+            args.layer_trace,
+            args.merged_csv,
+            args.output,
+            dpi=args.dpi,
+            trace_metric=getattr(args, "trace_metric", "margin"),
+        )
     print(f"Wrote {args.output}")
     return 0
 
@@ -638,6 +645,7 @@ def cmd_analyze_formation(args: argparse.Namespace) -> int:
         trace_path=args.layer_trace,
         merged_csv=args.merged_csv,
         output=args.output,
+        trace_metric=getattr(args, "trace_metric", "margin"),
     )
     print(payload.get("interpretation", ""))
     print(f"Wrote {args.output}")
@@ -876,6 +884,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dtype", default=None)
     p.add_argument("--batch-size", type=int, default=1)
     p.add_argument("--layerwise", action="store_true", help="C3 layerwise margin trajectories")
+    p.add_argument(
+        "--repr-only",
+        action="store_true",
+        dest="repr_only",
+        help="Skip intermediate LM-head probes; terminal margin + Route B drift only (faster re-extract)",
+    )
     p.add_argument("--layer-trace", type=Path, default=None, dest="layer_trace", help="JSONL trace output")
     p.add_argument("--stab-eps", type=float, default=0.02, dest="stab_eps")
     p.add_argument("--stab-k", type=int, default=2, dest="stab_k")
@@ -1042,6 +1056,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--merged-csv", type=Path, default=None)
     p.add_argument("--layer-trace", type=Path, default=None, dest="layer_trace")
+    p.add_argument(
+        "--trace-metric",
+        choices=["margin", "drift"],
+        default="margin",
+        dest="trace_metric",
+        help="Curve metric for formation plot / analyze-formation (margin=Route A, drift=Route B)",
+    )
     p.add_argument("--complementarity-json", type=Path, default=None)
     p.add_argument("--splits-json", type=Path, default=None)
     p.add_argument("--output", type=Path, required=True)
@@ -1052,6 +1073,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--layer-trace", type=Path, required=True, dest="layer_trace")
     p.add_argument("--merged-csv", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument(
+        "--trace-metric",
+        choices=["margin", "drift"],
+        default="margin",
+        dest="trace_metric",
+        help="margin=Route A (logit-lens); drift=Route B (adjacent repr drift)",
+    )
     p.set_defaults(func=cmd_analyze_formation)
 
     p = sub.add_parser(

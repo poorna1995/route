@@ -81,9 +81,11 @@ Primary: **F7 + one observation sentence**. AUROC secondary.
 
 | In ACL scope                                  | Deferred                                    |
 | --------------------------------------------- | ------------------------------------------- |
-| Layerwise forward pass + JSONL traces         | Representation drift                        |
-| **`stabilization_layer`**, **`slope_margin`** | Paraphrase, Qwen C1                         |
-| F7 + divergence (fraction depth ℓ/L)          | AUROC gate before TEST                      |
+| Layerwise forward pass + JSONL traces         | Cosine-to-final thresholding                |
+| Route A: logit-lens margin + F7               | Paraphrase, Qwen C1                         |
+| Route B: adjacent repr drift + F8             | AUROC gate before TEST                      |
+| **`stabilization_layer`**, **`slope_margin`** | Replacing Route A with Route B              |
+| **`total_representation_drift`**, **`mean_adjacent_cos`** |                               |
 | Reuse C0 oracle, D46                          | Overwriting `experiments/M5/arc_test_*.csv` |
 
 ---
@@ -94,11 +96,11 @@ Primary: **F7 + one observation sentence**. AUROC secondary.
 
 **Missing (optional polish):** none for smoke/TEST pipeline.
 
-**Implemented:** `layerwise.py`, `--layerwise`, formation merge, `plot formation`, `analyze-formation`.
+**Implemented:** `layerwise.py`, `--layerwise`, `--repr-only`, Route B repr scalars, formation merge, `plot formation`, `analyze-formation` (`--trace-metric margin|drift`).
 
 **Invariants:** Same `build_chat_prompt()` / `prompt_hash` as C0.
 
-**CLI flags:** `--layerwise`, `--layer-trace`, `--stab-eps`, `--stab-k`, `--margin-tol`, `--overwrite`.
+**CLI flags:** `--layerwise`, `--layer-trace`, `--repr-only`, `--stab-eps`, `--stab-k`, `--margin-tol`, `--overwrite`, `--trace-metric`.
 
 ---
 
@@ -150,6 +152,42 @@ Also store `stabilization_frac` (= `depth_fraction[stabilization_layer − 1]`) 
 
 - `delta_slope_margin` = `slope_margin_s` − `slope_margin_w`
 - `delta_stabilization_layer` = `stabilization_layer_s` − `stabilization_layer_w`
+- `delta_total_representation_drift` = `total_representation_drift_s` − `total_representation_drift_w`
+- `delta_mean_adjacent_cos` = `mean_adjacent_cos_s` − `mean_adjacent_cos_w`
+- `delta_repr_adjacent_std` = `repr_adjacent_std_s` − `repr_adjacent_std_w`
+
+### 6.5 Route B — adjacent representation drift (RH5-repr)
+
+**Scientific question (distinct from Route A):**
+
+> When does the model's **internal representation** stop changing — not when the LM head can decode confidently?
+
+**Probe (no LM head):** at last prompt token, for ℓ = 1 … L−1:
+
+```text
+adj_cos[ℓ]  = cos(h_ℓ, h_{ℓ+1})     # pre-norm layer outputs from hidden_states
+drift[ℓ]    = 1 − adj_cos[ℓ]
+```
+
+**Headline scalars (CSV):**
+
+| Column | Definition |
+| ------ | ---------- |
+| `total_representation_drift` | Σ drift[ℓ] — total movement across depth |
+| `mean_adjacent_cos` | mean adj_cos[ℓ] — typical step stability (depth-normalized) |
+| `repr_adjacent_std` | std(drift[ℓ]) — non-uniform “still changing” |
+
+**Do not use:** cosine-to-final (`cos(h_ℓ, h_L)`) — nearly monotonic; poor bucket separation.
+
+**JSONL arrays:** `adjacent_cos`, `drift` (length L−1), `drift_depth_fraction`.
+
+**Figure F8:** median drift[ℓ] vs ℓ/L by bucket — `F8_representation_drift_{calib,test}_{weak,strong}.png`.
+
+**Analysis JSON:** `analysis/c3_rh5_repr_*_{weak,strong}.json` via `analyze-formation --trace-metric drift`.
+
+**Re-extract:** Existing campaign traces lack `drift[]`. Default extraction now writes Route A + B together. Faster re-run: `REPR_ONLY=1 ./scripts/run_c3_runpod.sh extract test all` (skips intermediate LM head; terminal margin preserved for merge).
+
+**Paper role:** Complementary ablation answering “is the Route A null because logit-lens is a poor readout?” — do **not** replace §5.7 Route A results.
 
 ---
 

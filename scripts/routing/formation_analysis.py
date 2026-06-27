@@ -4,20 +4,26 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
 from routing.constants import BUCKET_ORDER
-from routing.layerwise import depth_fraction_list
+from routing.layerwise import depth_fraction_list, drift_depth_fraction_list
 
 # F7 curves omit weak_only for readability.
 F7_BUCKETS = tuple(b for b in BUCKET_ORDER if b != "weak_only")
 
+TraceMetric = Literal["margin", "drift"]
 
-def trace_depth_fraction(rec: dict[str, Any]) -> list[float]:
-    """X-axis for F7 — stored in JSONL; derived for legacy traces."""
+
+def trace_depth_fraction(rec: dict[str, Any], *, metric: TraceMetric = "margin") -> list[float]:
+    """X-axis for layerwise curves — stored in JSONL; derived for legacy traces."""
+    if metric == "drift":
+        if "drift_depth_fraction" in rec:
+            return list(rec["drift_depth_fraction"])
+        return drift_depth_fraction_list(int(rec["num_layers"]))
     if "depth_fraction" in rec:
         return list(rec["depth_fraction"])
     return depth_fraction_list(int(rec["num_layers"]))
@@ -37,16 +43,27 @@ def load_traces(path: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
-def bucket_medians(traces: dict[str, dict], merged: pd.DataFrame) -> dict[str, list[float]]:
-    n_layers = int(next(iter(traces.values()))["num_layers"])
+def bucket_medians(
+    traces: dict[str, dict],
+    merged: pd.DataFrame,
+    *,
+    metric: TraceMetric = "margin",
+) -> dict[str, list[float]]:
+    sample = next(iter(traces.values()))
+    if metric not in sample:
+        raise ValueError(
+            f"trace missing {metric!r} — re-extract with Route B enabled "
+            f"(layerwise extraction after repr probe landed)"
+        )
+    n_points = len(sample[metric])
     medians: dict[str, list[float]] = {}
     for bucket in F7_BUCKETS:
         ids = set(merged.loc[merged["bucket"] == bucket, "query_id"].astype(str))
         rows = [traces[qid] for qid in ids if qid in traces]
         if not rows:
-            medians[bucket] = [float("nan")] * n_layers
+            medians[bucket] = [float("nan")] * n_points
             continue
-        stack = np.array([r["margin"] for r in rows], dtype=float)
+        stack = np.array([r[metric] for r in rows], dtype=float)
         medians[bucket] = np.nanmedian(stack, axis=0).tolist()
     return medians
 
@@ -99,27 +116,43 @@ def analyze_formation(
     trace_path: Path,
     merged_csv: Path,
     output: Path | None = None,
+    trace_metric: TraceMetric = "margin",
 ) -> dict[str, Any]:
     traces = load_traces(trace_path)
     merged = pd.read_csv(merged_csv)
-    depth_fraction = trace_depth_fraction(next(iter(traces.values())))
-    medians = bucket_medians(traces, merged)
+    sample = next(iter(traces.values()))
+    depth_fraction = trace_depth_fraction(sample, metric=trace_metric)
+    medians = bucket_medians(traces, merged, metric=trace_metric)
     div = divergence_layer(medians, depth_fraction=depth_fraction)
+
+    route = "prediction_margin" if trace_metric == "margin" else "representation_drift"
+    hypothesis = "RH5" if trace_metric == "margin" else "RH5-repr"
+    metric_label = "margin" if trace_metric == "margin" else "adjacent drift (1−cos)"
+
+    if div.get("fraction_depth") is not None:
+        n_points = div["n_layers"]
+        unit = "transition" if trace_metric == "drift" else "layer"
+        model_layers = int(sample.get("num_layers", n_points))
+        interpretation = (
+            f"Opportunity vs too-hard median {metric_label} diverge near fraction depth "
+            f"{div['fraction_depth']} ({unit} {div['layer_star']}/{n_points}; "
+            f"model L={model_layers})."
+        )
+    else:
+        interpretation = f"No clear divergence layer for {metric_label}."
 
     payload: dict[str, Any] = {
         "analysis": "layerwise_evolution",
-        "hypothesis": "RH5",
+        "hypothesis": hypothesis,
+        "route": route,
+        "trace_metric": trace_metric,
         "trace_path": str(trace_path),
         "merged_csv": str(merged_csv),
         "depth_fraction": depth_fraction,
         "bucket_medians": medians,
         "divergence": div,
-        "interpretation": (
-            f"Opportunity vs too-hard median margins diverge near fraction depth "
-            f"{div['fraction_depth']} (layer {div['layer_star']}/{div['n_layers']})."
-            if div.get("fraction_depth") is not None
-            else "No clear divergence layer."
-        ),
+        "model_num_layers": int(sample.get("num_layers", 0)),
+        "interpretation": interpretation,
     }
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)

@@ -342,7 +342,7 @@ mkdir -p experiments/M4/routing_opportunity experiments/M5
 
 Optional: `BATCH_SIZE=2` or `4` (layerwise still runs one query per forward until batched path lands).
 
-Artifacts: `experiments/campaigns/C3_llama_confidence_formation/M5/`. F7 outputs: `paper/figures/F7_confidence_evolution_{calib,test}_{weak,strong}.png`.
+Artifacts: `experiments/campaigns/C3_llama_confidence_formation/M5/`. F7 (Route A margin): `paper/figures/F7_confidence_evolution_{calib,test}_{weak,strong}.png`. F8 (Route B drift): `paper/figures/F8_representation_drift_{calib,test}_{weak,strong}.png` (after re-extract with Route B fields). Faster re-extract: `REPR_ONLY=1 ./scripts/run_c3_runpod.sh extract test all`.
 
 ---
 

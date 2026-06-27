@@ -20,6 +20,17 @@ C0 extracts **terminal** statistics (\(H_w\), \(m_w\)) at the last prompt token 
 
 **Do not claim before results:** “confidence is formed progressively” — that is **interpretation** for Discussion only if F7/RH5 support it.
 
+### 1.1 Two routes (A + B)
+
+| Route | Probe | Hypothesis | Figure |
+| ----- | ----- | ---------- | ------ |
+| **A — prediction space** | Logit-lens margin \(m_\ell\) | RH5 | F7 |
+| **B — representation space** | Adjacent drift \(1 - \cos(h_\ell, h_{\ell+1})\) | RH5-repr | F8 |
+
+Route A asks when the **vocabulary head** can decode; Route B asks how much the **hidden state still moves**. They are scientifically distinct. Route A results (terminal-only separation on ARC) are **locked**; Route B is a **complementary ablation** for the reviewer question “is logit-lens a poor readout?” — not a replacement.
+
+**Route B scalars:** `total_representation_drift`, `mean_adjacent_cos`, `repr_adjacent_std`. **Avoid** cosine-to-final thresholding (monotonic, weak separation).
+
 ---
 
 ## 2. Wording rules (ACL reviewer-safe)
