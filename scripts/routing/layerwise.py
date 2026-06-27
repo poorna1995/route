@@ -119,6 +119,60 @@ def _final_norm(model):
     return norm
 
 
+def _max_logit_delta(logits_ref: torch.Tensor, h: torch.Tensor, model) -> float:
+    return float((logits_ref - model.lm_head(h)).abs().max().item())
+
+
+def _terminal_hidden_vector(
+    model,
+    out,
+    *,
+    inputs: dict[str, torch.Tensor],
+    batch_idx: int,
+    last_pos: int,
+) -> torch.Tensor:
+    """Normed hidden at ``last_pos`` — same vector CausalLM feeds to ``lm_head``."""
+    lhs = getattr(out, "last_hidden_state", None)
+    if lhs is not None:
+        return lhs[batch_idx, last_pos]
+
+    logits_ref = out.logits[batch_idx, last_pos]
+    hs = out.hidden_states
+    n_layers = int(model.config.num_hidden_layers)
+    norm = _final_norm(model)
+
+    candidates: list[torch.Tensor] = []
+    if hs is not None:
+        if len(hs) >= 1:
+            # HF may append post-norm state as the final tuple entry.
+            candidates.append(hs[-1][batch_idx, last_pos, :])
+        if len(hs) >= n_layers + 1:
+            candidates.append(norm(hs[n_layers][batch_idx, last_pos, :]))
+
+    best_h: torch.Tensor | None = None
+    best_delta = float("inf")
+    for h in candidates:
+        delta = _max_logit_delta(logits_ref, h, model)
+        if delta < best_delta:
+            best_delta = delta
+            best_h = h
+    if best_h is not None and best_delta < 1e-2:
+        return best_h
+
+    inner = getattr(model, "model", None)
+    if inner is None:
+        raise RuntimeError("cannot resolve terminal hidden state: missing model.model")
+
+    with torch.inference_mode():
+        base_out = inner(**inputs, output_hidden_states=False)
+    base_lhs = getattr(base_out, "last_hidden_state", None)
+    if base_lhs is None and isinstance(base_out, tuple) and base_out:
+        base_lhs = base_out[0]
+    if base_lhs is None:
+        raise RuntimeError("cannot resolve terminal hidden state from inner model forward")
+    return base_lhs[batch_idx, last_pos]
+
+
 def verify_terminal_logit_parity(
     model,
     tokenizer,
@@ -138,13 +192,11 @@ def verify_terminal_logit_parity(
 
     batch_idx = 0
     last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
-    lhs = out.last_hidden_state
-    if lhs is None:
-        raise RuntimeError("last_hidden_state missing from model forward output")
-
     logits_ref = out.logits[batch_idx, last_pos]
-    # Gold path: same normed hidden state the CausalLM head uses (not manual norm on hs tuple).
-    logits_lens = model.lm_head(lhs[batch_idx, last_pos])
+    h_final = _terminal_hidden_vector(
+        model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
+    )
+    logits_lens = model.lm_head(h_final)
 
     margin_ref = extract_logits(logits_ref, tokenizer).margin
     margin_lens = extract_logits(logits_lens, tokenizer).margin
@@ -225,10 +277,10 @@ def _layer_logits(
     layer_idx: int,
     n_layers: int,
     *,
-    last_hidden_state: torch.Tensor | None = None,
+    terminal_hidden: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    if layer_idx == n_layers - 1 and last_hidden_state is not None:
-        h = last_hidden_state[batch_idx, last_pos, :]
+    if layer_idx == n_layers - 1 and terminal_hidden is not None:
+        h = terminal_hidden
     else:
         h = hidden_states[layer_idx + 1][batch_idx, last_pos, :]
         if layer_idx == n_layers - 1:
@@ -261,6 +313,9 @@ def probe_layerwise(
     if hs is None or len(hs) < n_layers + 1:
         raise RuntimeError(f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})")
 
+    terminal_hidden = _terminal_hidden_vector(
+        model, out, inputs=inputs, batch_idx=batch_idx, last_pos=last_pos
+    )
     margins: list[float] = []
     entropies: list[float] = []
     for i in range(n_layers):
@@ -272,7 +327,7 @@ def probe_layerwise(
                 last_pos,
                 i,
                 n_layers,
-                last_hidden_state=out.last_hidden_state,
+                terminal_hidden=terminal_hidden,
             ),
             tokenizer,
         )
