@@ -181,15 +181,22 @@ def resolve_hf_split_and_limit(
             or default_split
         )
         limit = int(splits.get("calib_size", len(splits["calib"])))
+        manifest_limit = limit
     elif split_role == "test":
         hf_split = (
             splits.get("eval_source_split")
             or splits.get("test_split")
             or default_split
         )
-        limit = int(splits.get("test_size", len(splits["test"])))
+        manifest_limit = int(splits.get("test_size", len(splits["test"])))
     else:
         raise ValueError(f"split_role must be 'calib' or 'test', got {split_role!r}")
+    # Smoke commands pass small --limit (e.g. 10); full runs pass a large limit or use manifest.
+    _SMOKE_CAP = 50
+    if default_limit <= _SMOKE_CAP:
+        limit = min(default_limit, manifest_limit)
+    else:
+        limit = manifest_limit
     return hf_split, limit
 
 

@@ -100,6 +100,9 @@ run_extract() {
     limit_args=(--limit "$limit")
   elif [[ -n "${LIMIT:-}" ]]; then
     limit_args=(--limit "$LIMIT")
+  else
+    # Full CALIB/TEST — manifest caps via splits.json (not smoke default 10)
+    limit_args=(--limit 99999)
   fi
 
   local stage="CALIB"

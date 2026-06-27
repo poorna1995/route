@@ -79,24 +79,24 @@ Logic lives in `routing/`; `run.py` is thin argument parsing only.
 
 ### Inference (core — always install)
 
-| Package | Role |
-| ------- | ---- |
-| **torch** | Model load, prefill logits, oracle `generate()` |
-| **transformers** | Llama / Qwen via Hugging Face |
-| **datasets** | ARC-Challenge, GSM8K loading (`routing.datasets.load_queries`) |
-| **huggingface_hub** | Model download; CLI login |
-| **accelerate** | HF ecosystem helper |
-| **numpy**, **pandas** | Arrays / merge steps |
+| Package               | Role                                                           |
+| --------------------- | -------------------------------------------------------------- |
+| **torch**             | Model load, prefill logits, oracle `generate()`                |
+| **transformers**      | Llama / Qwen via Hugging Face                                  |
+| **datasets**          | ARC-Challenge, GSM8K loading (`routing.datasets.load_queries`) |
+| **huggingface_hub**   | Model download; CLI login                                      |
+| **accelerate**        | HF ecosystem helper                                            |
+| **numpy**, **pandas** | Arrays / merge steps                                           |
 
 Declared in `pyproject.toml` `[project] dependencies`.
 
 ### Analysis (optional — install when computing ρ, AUROC, plots)
 
-| Package | Role |
-| ------- | ---- |
-| **scipy** | Spearman ρ, p-values |
-| **scikit-learn** | AUROC |
-| **matplotlib**, **seaborn** | Paper figures F1–F3 |
+| Package                     | Role                 |
+| --------------------------- | -------------------- |
+| **scipy**                   | Spearman ρ, p-values |
+| **scikit-learn**            | AUROC                |
+| **matplotlib**, **seaborn** | Paper figures F1–F3  |
 
 Install with: `uv sync --extra analysis`
 
@@ -106,12 +106,12 @@ Install with: `uv sync --extra analysis`
 
 ### Not required for v1 pilot
 
-| Package | Why skip |
-| ------- | -------- |
-| **vLLM / TGI** | Different serving stack; complicates full-vocab logprob protocol |
-| **bitsandbytes / GPTQ / AWQ** | Quantization can alter logprobs (bad for H, m science) |
-| **flash-attn** | Long-context optimization; ARC prompts are short |
-| **wandb / mlflow** | JSON + CSV + `analysis/` is sufficient |
+| Package                       | Why skip                                                         |
+| ----------------------------- | ---------------------------------------------------------------- |
+| **vLLM / TGI**                | Different serving stack; complicates full-vocab logprob protocol |
+| **bitsandbytes / GPTQ / AWQ** | Quantization can alter logprobs (bad for H, m science)           |
+| **flash-attn**                | Long-context optimization; ARC prompts are short                 |
+| **wandb / mlflow**            | JSON + CSV + `analysis/` is sufficient                           |
 
 Research needs **correct full-vocabulary prefill logits**, not maximum throughput at any cost.
 
@@ -119,10 +119,10 @@ Research needs **correct full-vocabulary prefill logits**, not maximum throughpu
 
 ## Hardware
 
-| Environment | Recommendation |
-| ----------- | -------------- |
-| **Smoke / debug (n≤10)** | Mac CPU or MPS acceptable |
-| **V2 configuration (n≈50)** | GPU strongly preferred |
+| Environment                           | Recommendation                          |
+| ------------------------------------- | --------------------------------------- |
+| **Smoke / debug (n≤10)**              | Mac CPU or MPS acceptable               |
+| **V2 configuration (n≈50)**           | GPU strongly preferred                  |
 | **Main characterization (n=150–200)** | **1× NVIDIA GPU, 16–24 GB VRAM** (CUDA) |
 
 CPU-only runs work but are very slow (~30s+ per oracle query on MacBook Air). For n=150–200, use a CUDA machine or short cloud GPU session (L4, T4, A10, etc.).
@@ -145,10 +145,10 @@ Match CUDA version to your driver (`cu124`, `cu121`, …) per [pytorch.org](http
 
 ### Dtype by device
 
-| Device | Flag |
-| ------ | ---- |
-| CUDA | `--device cuda --dtype bfloat16` |
-| Mac MPS | `--device mps --dtype float16` |
+| Device           | Flag                               |
+| ---------------- | ---------------------------------- |
+| CUDA             | `--device cuda --dtype bfloat16`   |
+| Mac MPS          | `--device mps --dtype float16`     |
 | CPU (smoke only) | `--device cpu` (expect heavy load) |
 
 ### Oracle runs — one model in memory at a time
@@ -248,12 +248,12 @@ Run oracle **once** per locked configuration; reuse the JSON for all signal anal
 
 ## Supported datasets (`prompt_protocol.load_queries`)
 
-| ID | Scientific question | Split | Notes |
-| -- | ------------------- | ----- | ----- |
-| `arc_challenge` | Science reasoning | `test` | Primary — locked |
-| `mmlu` | Broad factual knowledge | `test` | 3 subjects, stratified sample |
-| `boolq` | Reading comprehension | `validation` | C2 screening |
-| `gsm8k` | (legacy validation only) | `test` | Excluded from paper |
+| ID              | Scientific question      | Split        | Notes                         |
+| --------------- | ------------------------ | ------------ | ----------------------------- |
+| `arc_challenge` | Science reasoning        | `test`       | Primary — locked              |
+| `mmlu`          | Broad factual knowledge  | `test`       | 3 subjects, stratified sample |
+| `boolq`         | Reading comprehension    | `validation` | C2 screening                  |
+| `gsm8k`         | (legacy validation only) | `test`       | Excluded from paper           |
 
 **C2 candidate screening (GPU):**
 
@@ -281,25 +281,25 @@ Matches `research/WORKFLOW.md` and `research/MASTER.md`:
 
 ## CLI reference (`scripts/run.py`)
 
-| Subcommand | Stage | Output |
-| ---------- | ----- | ------ |
-| `verify-logprobs` | Feasibility (V1) | Terminal PASS/FAIL |
-| `oracle` | V2 oracle | JSON + buckets |
-| `features` | D46 screening input | CSV (candidates + tokenizer_id) |
-| `screen` | D46 pre-study calibration | `analysis/d46_signal_screen_*.json`, `analysis/selected_feature.json` |
-| `doctor` | Pre-flight artifact checks | terminal (+ optional JSON) |
-| `probes` | Probe extraction | CSV (H, m, max_prob, …) |
-| `merge` | Routing relevance | `analysis/*_routing_relevance.json`, merged CSV (`--complexity-selection`) |
-| `plot distributions` | Figure F1 | `paper/figures/F1_*.png` |
-| `plot roc` | Figure F2 | `paper/figures/F2_*.png` |
-| `plot scatter` | Figure F3 | `paper/figures/F3_*.png` |
-| `complementarity` | Study III complementarity | `analysis/*_complementarity.json` |
-| `route-eval` | **Study IV** hold-out routing (EXP-03) | `analysis/*_routing_holdout.json` |
-| `route-preview` | Median-heuristic sanity (D37) — not paper | preview JSON |
-| `summarize-c2` | C2 screening summary | `analysis/c2_*_summary.json` |
-| `screen_c2_candidates.sh` | Batch C2 on MMLU/BoolQ | oracle JSON + summaries |
-| `run_c3_runpod.sh` | **C3 GPU** — parity, smoke, layerwise extract | campaign CSV + JSONL |
-| `run_c3_postprocess.sh` | **C3 CPU** — merge, F7, RH5 JSON | `analysis/c3_*`, `paper/figures/F7_*` |
+| Subcommand                | Stage                                         | Output                                                                     |
+| ------------------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
+| `verify-logprobs`         | Feasibility (V1)                              | Terminal PASS/FAIL                                                         |
+| `oracle`                  | V2 oracle                                     | JSON + buckets                                                             |
+| `features`                | D46 screening input                           | CSV (candidates + tokenizer_id)                                            |
+| `screen`                  | D46 pre-study calibration                     | `analysis/d46_signal_screen_*.json`, `analysis/selected_feature.json`      |
+| `doctor`                  | Pre-flight artifact checks                    | terminal (+ optional JSON)                                                 |
+| `probes`                  | Probe extraction                              | CSV (H, m, max_prob, …)                                                    |
+| `merge`                   | Routing relevance                             | `analysis/*_routing_relevance.json`, merged CSV (`--complexity-selection`) |
+| `plot distributions`      | Figure F1                                     | `paper/figures/F1_*.png`                                                   |
+| `plot roc`                | Figure F2                                     | `paper/figures/F2_*.png`                                                   |
+| `plot scatter`            | Figure F3                                     | `paper/figures/F3_*.png`                                                   |
+| `complementarity`         | Study III complementarity                     | `analysis/*_complementarity.json`                                          |
+| `route-eval`              | **Study IV** hold-out routing (EXP-03)        | `analysis/*_routing_holdout.json`                                          |
+| `route-preview`           | Median-heuristic sanity (D37) — not paper     | preview JSON                                                               |
+| `summarize-c2`            | C2 screening summary                          | `analysis/c2_*_summary.json`                                               |
+| `screen_c2_candidates.sh` | Batch C2 on MMLU/BoolQ                        | oracle JSON + summaries                                                    |
+| `run_c3_runpod.sh`        | **C3 GPU** — parity, smoke, layerwise extract | campaign CSV + JSONL                                                       |
+| `run_c3_postprocess.sh`   | **C3 CPU** — merge, F7, RH5 JSON              | `analysis/c3_*`, `paper/figures/F7_*`                                      |
 
 ---
 
@@ -338,24 +338,24 @@ Artifacts: `experiments/campaigns/C3_llama_confidence_formation/M5/`. F7 outputs
 
 ## Locked candidate configuration (promising — not final)
 
-| Component | Value |
-| --------- | ----- |
-| Weak | `meta-llama/Llama-3.2-1B-Instruct` |
-| Strong | `meta-llama/Llama-3.2-3B-Instruct` |
-| Dataset | ARC-Challenge test, `seed=42` |
-| Oracle | greedy, `max_new_tokens=8` |
-| Signals | \(c(q)\) from D46 + prefill H, m |
-| Main n | Full official ARC **test** (1,172); CALIB = validation (~299) |
+| Component | Value                                                         |
+| --------- | ------------------------------------------------------------- |
+| Weak      | `meta-llama/Llama-3.2-1B-Instruct`                            |
+| Strong    | `meta-llama/Llama-3.2-3B-Instruct`                            |
+| Dataset   | ARC-Challenge test, `seed=42`                                 |
+| Oracle    | greedy, `max_new_tokens=8`                                    |
+| Signals   | \(c(q)\) from D46 + prefill H, m                              |
+| Main n    | Full official ARC **test** (1,172); CALIB = validation (~299) |
 
 ---
 
 ## Rough runtime expectations (n=200, 2 models)
 
-| Step | CPU Mac | CUDA GPU |
-| ---- | ------- | -------- |
-| Oracle (8 tokens) | hours–days | ~30–90 min |
-| Prefill signals (batched) | hours | ~5–15 min |
-| Analysis | minutes | minutes (can run on laptop) |
+| Step                      | CPU Mac    | CUDA GPU                    |
+| ------------------------- | ---------- | --------------------------- |
+| Oracle (8 tokens)         | hours–days | ~30–90 min                  |
+| Prefill signals (batched) | hours      | ~5–15 min                   |
+| Analysis                  | minutes    | minutes (can run on laptop) |
 
 ---
 

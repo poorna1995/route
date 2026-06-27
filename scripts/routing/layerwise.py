@@ -127,7 +127,7 @@ def verify_terminal_logit_parity(
     query_id: str = "smoke",
     margin_tol: float = MARGIN_TOL_DEFAULT,
 ) -> TerminalParityResult:
-    """Smoke: lm_head(norm(hidden_states[-1])) must match out.logits at last prompt token."""
+    """Smoke: logit-lens terminal path must match out.logits at last prompt token."""
     built = build_chat_prompt(tokenizer, user_content)
     device = resolve_input_device(model)
     inputs = tokenizer(built["chat_prompt"], return_tensors="pt")
@@ -139,12 +139,16 @@ def verify_terminal_logit_parity(
     batch_idx = 0
     last_pos = int(inputs["attention_mask"].sum(dim=1).item() - 1)
     hs = out.hidden_states
-    if hs is None or len(hs) < 2:
-        raise RuntimeError("hidden_states missing for terminal parity smoke")
+    n_layers = int(model.config.num_hidden_layers)
+    if hs is None or len(hs) < n_layers + 1:
+        raise RuntimeError(
+            f"hidden_states missing layers (got {len(hs) if hs else 0}, need {n_layers + 1})"
+        )
 
     logits_ref = out.logits[batch_idx, last_pos]
-    h_last = hs[-1][batch_idx, last_pos, :]
-    logits_lens = model.lm_head(_final_norm(model)(h_last))
+    # Same index as _layer_logits final layer (not hs[-1] — tuple may include post-norm).
+    h_pre = hs[n_layers][batch_idx, last_pos, :]
+    logits_lens = model.lm_head(_final_norm(model)(h_pre))
 
     margin_ref = extract_logits(logits_ref, tokenizer).margin
     margin_lens = extract_logits(logits_lens, tokenizer).margin

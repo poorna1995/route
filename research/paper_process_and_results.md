@@ -14,45 +14,45 @@ This document is the full account of what was run, in what order, and what was f
 
 ### Answer on ARC TEST (\(n{=}1{,}172\)) — **Partially**
 
-| Aspect | Result |
-| ------ | ------ |
-| Information exists? | Yes — opportunity 43.3%; best dimension AUROC \(\approx 0.61\) |
-| Dimensions differ? | Yes — **difficulty vs recoverability** |
-| Complementarity? | Partial — \(c + H_w\) adds \(\Delta\)AUROC \(+0.049\) (DeLong \(p{=}0.008\)) |
+| Aspect                            | Result                                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------------------- |
+| Information exists?               | Yes — opportunity 43.3%; best dimension AUROC \(\approx 0.61\)                            |
+| Dimensions differ?                | Yes — **difficulty vs recoverability**                                                    |
+| Complementarity?                  | Partial — \(c + H_w\) adds \(\Delta\)AUROC \(+0.049\) (DeLong \(p{=}0.008\))              |
 | Exploitable by calibrated policy? | No on TEST — policy matches always-strong (69.2%); oracle 74.4% leaves 5.2 pp unexploited |
 
 ### Answer on MMLU transfer (\(n{=}314\), RH7) — **Pattern holds pooled**
 
-| Aspect | Result |
-| ------ | ------ |
-| C2 gate | Pass — opportunity 25.8%; four buckets present |
-| Escalation invariant? | Yes pooled — \(\Delta m_{\mathrm{gain}}\) Cohen's \(d \approx 0.72\) (same as ARC) |
-| Uncertainty weak? | Mostly — \(H_w\) \(d \approx 0.18\) (stronger than ARC's 0.03, still \(\ll\) escalation) |
-| Subject nuance | US history strong; physics moderate; abstract algebra reverses (small \(n\)) |
+| Aspect                | Result                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------- |
+| C2 gate               | Pass — opportunity 25.8%; four buckets present                                           |
+| Escalation invariant? | Yes pooled — \(\Delta m\_{\mathrm{gain}}\) Cohen's \(d \approx 0.72\) (same as ARC)      |
+| Uncertainty weak?     | Mostly — \(H_w\) \(d \approx 0.18\) (stronger than ARC's 0.03, still \(\ll\) escalation) |
+| Subject nuance        | US history strong; physics moderate; abstract algebra reverses (small \(n\))             |
 
 ---
 
 ## 2. Locked experimental configuration
 
-| Component | Value |
-| --------- | ----- |
-| Weak model \(M_w\) | `meta-llama/Llama-3.2-1B-Instruct` |
-| Strong model \(M_s\) | `meta-llama/Llama-3.2-3B-Instruct` |
-| Prompt formatting | Chat template v1 (`prompt_protocol.py`) |
-| Oracle decoding | Greedy, `max_new_tokens=8` (MCQ letter) |
-| Seed | 42 |
-| Complexity \(c(q)\) | `piece_count` — D46 winner on ARC CALIB (`analysis/selected_feature.json`) |
-| Cost model (routing eval) | weak \(=1\), strong \(=3\) |
+| Component                 | Value                                                                      |
+| ------------------------- | -------------------------------------------------------------------------- |
+| Weak model \(M_w\)        | `meta-llama/Llama-3.2-1B-Instruct`                                         |
+| Strong model \(M_s\)      | `meta-llama/Llama-3.2-3B-Instruct`                                         |
+| Prompt formatting         | Chat template v1 (`prompt_protocol.py`)                                    |
+| Oracle decoding           | Greedy, `max_new_tokens=8` (MCQ letter)                                    |
+| Seed                      | 42                                                                         |
+| Complexity \(c(q)\)       | `piece_count` — D46 winner on ARC CALIB (`analysis/selected_feature.json`) |
+| Cost model (routing eval) | weak \(=1\), strong \(=3\)                                                 |
 
 ### Datasets and splits
 
-| Campaign | Dataset | CALIB | TEST | \(n\) TEST |
-| -------- | ------- | ----- | ---- | ---------- |
-| **C0 — ARC (primary)** | ARC-Challenge | Official validation (299) | Official test (1,172) | 1,172 |
-| **C2 — MMLU (transfer)** | MMLU `test` | None (reuse ARC D46) | Pooled subjects | 314 |
+| Campaign                 | Dataset       | CALIB                     | TEST                  | \(n\) TEST |
+| ------------------------ | ------------- | ------------------------- | --------------------- | ---------- |
+| **C0 — ARC (primary)**   | ARC-Challenge | Official validation (299) | Official test (1,172) | 1,172      |
+| **C2 — MMLU (transfer)** | MMLU `test`   | None (reuse ARC D46)      | Pooled subjects       | 314        |
 
 **MMLU subjects actually run (RunPod):** `high_school_us_history` (145), `abstract_algebra` (74), `high_school_physics` (95).  
-*Note:* Repo default loader lists `high_school_physics` + `logical_fallacies`; the oracle JSON is the source of truth for this run.
+_Note:_ Repo default loader lists `high_school_physics` + `logical_fallacies`; the oracle JSON is the source of truth for this run.
 
 **Why Instruct models:** Matches deployed multi-LLM routing; protocol uses `apply_chat_template`. See discussion in project notes — not optimal for calibration, but correct for the routing setting studied.
 
@@ -68,12 +68,12 @@ splits → oracle (GPU) → features (CPU) → screen D46 on CALIB (ARC only)
 
 **Supervision boundary**
 
-| Stage | Routing labels? | Role |
-| ----- | --------------- | ---- |
-| Signal extraction | **No** | Unsupervised at inference |
-| D46 screen | Oracle on CALIB only | Pick \(c(q)\) once |
-| Signal characterization | Oracle offline | Studies I–III |
-| Routing evaluation | CALIB only | Study IV |
+| Stage                   | Routing labels?      | Role                      |
+| ----------------------- | -------------------- | ------------------------- |
+| Signal extraction       | **No**               | Unsupervised at inference |
+| D46 screen              | Oracle on CALIB only | Pick \(c(q)\) once        |
+| Signal characterization | Oracle offline       | Studies I–III             |
+| Routing evaluation      | CALIB only           | Study IV                  |
 
 ---
 
@@ -162,7 +162,7 @@ Tokenizer-only complexity candidates (no forward pass):
 
 ### Step 6 — Prefill probes (GPU)
 
-One forward pass per model; entropy \(H\) and margin \(m\) at final prompt position; derived \(\Delta H\), \(\Delta m_{\mathrm{gain}}\).
+One forward pass per model; entropy \(H\) and margin \(m\) at final prompt position; derived \(\Delta H\), \(\Delta m\_{\mathrm{gain}}\).
 
 ```bash
 .venv/bin/python scripts/run.py probes \
@@ -269,12 +269,12 @@ Nested CALIB-fit / TEST-eval logistic ladder:
 
 ## 5. Scientific unit: latent routing dimensions
 
-| Latent dimension | Operationalization | Side |
-| ---------------- | ------------------ | ---- |
-| Task difficulty | `piece_count` / \(c(q)\) | Difficulty |
-| Model uncertainty | \(H_w\) | Difficulty |
-| Model disagreement | \(\Delta H = H_w - H_s\) | Escalation |
-| Escalation potential | \(\Delta m_{\mathrm{gain}} = m_s - m_w\) | Escalation |
+| Latent dimension     | Operationalization                        | Side       |
+| -------------------- | ----------------------------------------- | ---------- |
+| Task difficulty      | `piece_count` / \(c(q)\)                  | Difficulty |
+| Model uncertainty    | \(H_w\)                                   | Difficulty |
+| Model disagreement   | \(\Delta H = H_w - H_s\)                  | Escalation |
+| Escalation potential | \(\Delta m\_{\mathrm{gain}} = m_s - m_w\) | Escalation |
 
 AUROC and \(\rho\) summarize detectability for a **dimension** — not a feature leaderboard.
 
@@ -284,62 +284,62 @@ AUROC and \(\rho\) summarize detectability for a **dimension** — not a feature
 
 ### Oracle landscape (TEST, \(n{=}1{,}172\))
 
-| Bucket | Count | Rate |
-| ------ | ----- | ---- |
-| Easy | 304 | 25.9% |
+| Bucket          | Count   | Rate      |
+| --------------- | ------- | --------- |
+| Easy            | 304     | 25.9%     |
 | **Opportunity** | **507** | **43.3%** |
-| Weak-only | 61 | 5.2% |
-| Too-hard | 300 | 25.6% |
+| Weak-only       | 61      | 5.2%      |
+| Too-hard        | 300     | 25.6%     |
 
 Weak accuracy 36.7%; strong 69.2%; oracle upper bound 74.4%.
 
 ### RH1 — Predictive content (Study I–II)
 
-| Dimension | \(\rho_s\) | AUROC | AUPRC |
-| --------- | ---------- | ----- | ----- |
-| Task difficulty \(c(q)\) | +0.071 | 0.541 | 0.474 |
-| Model uncertainty \(H_w\) | +0.138 | 0.581 | 0.500 |
-| Model disagreement \(\Delta H\) | +0.174 | 0.602 | 0.559 |
-| Escalation potential \(\Delta m_{\mathrm{gain}}\) | +0.179 | **0.605** | 0.547 |
+| Dimension                                          | \(\rho_s\) | AUROC     | AUPRC |
+| -------------------------------------------------- | ---------- | --------- | ----- |
+| Task difficulty \(c(q)\)                           | +0.071     | 0.541     | 0.474 |
+| Model uncertainty \(H_w\)                          | +0.138     | 0.581     | 0.500 |
+| Model disagreement \(\Delta H\)                    | +0.174     | 0.602     | 0.559 |
+| Escalation potential \(\Delta m\_{\mathrm{gain}}\) | +0.179     | **0.605** | 0.547 |
 
 **Finding:** Modest but real signal; best AUROC \(\sim 0.61\), far from random, far from perfect.
 
 ### RH2 — Distinct dimensions (opportunity vs too-hard)
 
-| Dimension | Cohen's \(d\) |
-| --------- | ------------- |
-| \(c(q)\) | 0.09 |
-| \(H_w\) | **0.03** |
-| \(\Delta H\) | **0.82** |
-| \(\Delta m_{\mathrm{gain}}\) | **0.72** |
+| Dimension                     | Cohen's \(d\) |
+| ----------------------------- | ------------- |
+| \(c(q)\)                      | 0.09          |
+| \(H_w\)                       | **0.03**      |
+| \(\Delta H\)                  | **0.82**      |
+| \(\Delta m\_{\mathrm{gain}}\) | **0.72**      |
 
-**Recovery matrix:** Highest opportunity rate **57.2%** (\(n{=}353\)) in weak-uncertain / strong-rescues cell (median splits on \(H_w\), \(\Delta m_{\mathrm{gain}}\)).
+**Recovery matrix:** Highest opportunity rate **57.2%** (\(n{=}353\)) in weak-uncertain / strong-rescues cell (median splits on \(H*w\), \(\Delta m*{\mathrm{gain}}\)).
 
-**Finding:** **Difficulty** signals (query-derived, weak entropy) overlap; **recoverability** signals (cross-model \(\Delta m_{\mathrm{gain}}\)) separate routable from irrecoverable queries. Routing on \(H_w\) alone confuses opportunity with too-hard.
+**Finding:** **Difficulty** signals (query-derived, weak entropy) overlap; **recoverability** signals (cross-model \(\Delta m\_{\mathrm{gain}}\)) separate routable from irrecoverable queries. Routing on \(H_w\) alone confuses opportunity with too-hard.
 
 ### RH3 — Complementarity (Study III)
 
-| Model (CALIB fit → TEST AUROC) | AUROC [95% CI] |
-| ------------------------------ | -------------- |
-| \(c(q)\) only | 0.541 [0.509, 0.574] |
-| \(c + H_w\) | 0.590 [0.558, 0.622] |
-| \(c + H_w + m_w\) | 0.578 [0.546, 0.612] |
+| Model (CALIB fit → TEST AUROC) | AUROC [95% CI]       |
+| ------------------------------ | -------------------- |
+| \(c(q)\) only                  | 0.541 [0.509, 0.574] |
+| \(c + H_w\)                    | 0.590 [0.558, 0.622] |
+| \(c + H_w + m_w\)              | 0.578 [0.546, 0.612] |
 
-| Step | \(\Delta\)AUROC | DeLong \(p\) |
-| ---- | ------------- | ------------ |
-| \(c \to c + H_w\) | **+0.049** [+0.014, +0.085] | **0.008** |
-| \(c + H_w \to\) joint (+ \(m_w\)) | −0.013 | 0.16 |
+| Step                              | \(\Delta\)AUROC             | DeLong \(p\) |
+| --------------------------------- | --------------------------- | ------------ |
+| \(c \to c + H_w\)                 | **+0.049** [+0.014, +0.085] | **0.008**    |
+| \(c + H_w \to\) joint (+ \(m_w\)) | −0.013                      | 0.16         |
 
 **Finding:** Partial complementarity between query complexity and weak entropy; adding margin does not help further on ARC.
 
 ### RH4 — Routing evaluation (Study IV, \(\lambda{=}0\))
 
-| Policy | Accuracy | Avg. cost | Opp. recall (strong) |
-| ------ | -------- | --------- | -------------------- |
-| Always-weak | 31.1% | 1.00 | 0% |
-| Always-strong | 69.2% | 3.00 | 100% |
-| Calibrated policy | 69.2% | 3.00 | 100% |
-| Oracle (bound) | 74.4% | 1.87 | 100% |
+| Policy            | Accuracy | Avg. cost | Opp. recall (strong) |
+| ----------------- | -------- | --------- | -------------------- |
+| Always-weak       | 31.1%    | 1.00      | 0%                   |
+| Always-strong     | 69.2%    | 3.00      | 100%                 |
+| Calibrated policy | 69.2%    | 3.00      | 100%                 |
+| Oracle (bound)    | 74.4%    | 1.87      | 100%                 |
 
 **Headroom:** 5.2 pp (oracle − always-strong); calibrated policy exploits **0 pp** at \(\lambda{=}0\).
 
@@ -351,33 +351,33 @@ Weak accuracy 36.7%; strong 69.2%; oracle upper bound 74.4%.
 
 ### Oracle landscape (TEST, \(n{=}314\))
 
-| Bucket | Count | Rate |
-| ------ | ----- | ---- |
-| Easy | 53 | 16.9% |
+| Bucket          | Count  | Rate      |
+| --------------- | ------ | --------- |
+| Easy            | 53     | 16.9%     |
 | **Opportunity** | **81** | **25.8%** |
-| Weak-only | 38 | 12.1% |
-| Too-hard | 142 | 45.2% |
+| Weak-only       | 38     | 12.1%     |
+| Too-hard        | 142    | 45.2%     |
 
 Harder than ARC (45% too-hard vs 26%), but C2 gate passes.
 
 ### Dimension detectability (MMLU TEST)
 
-| Dimension | \(\rho_s\) | AUROC | Cohen's \(d\) (opp vs too-hard) |
-| --------- | ---------- | ----- | ------------------------------- |
-| \(c(q)\) | +0.115 | 0.576 | 0.44 |
-| \(H_w\) | +0.085 | 0.556 | 0.18 |
-| \(\Delta H\) | +0.197 | 0.630 | 0.78 |
-| \(\Delta m_{\mathrm{gain}}\) | +0.195 | 0.629 | **0.72** |
+| Dimension                     | \(\rho_s\) | AUROC | Cohen's \(d\) (opp vs too-hard) |
+| ----------------------------- | ---------- | ----- | ------------------------------- |
+| \(c(q)\)                      | +0.115     | 0.576 | 0.44                            |
+| \(H_w\)                       | +0.085     | 0.556 | 0.18                            |
+| \(\Delta H\)                  | +0.197     | 0.630 | 0.78                            |
+| \(\Delta m\_{\mathrm{gain}}\) | +0.195     | 0.629 | **0.72**                        |
 
 ### RH7 — Cross-regime pattern match
 
-| Regime | \(d(\Delta m_{\mathrm{gain}})\) | \(d(H_w)\) | Verdict |
-| ------ | ------------------------------- | ---------- | ------- |
-| ARC | 0.72 | 0.03 | matches template |
-| MMLU (pooled) | 0.72 | 0.18 | matches template |
-| MMLU / US history | 0.89 | 0.29 | strong escalation |
-| MMLU / physics | 0.38 | 0.14 | weaker |
-| MMLU / abstract algebra | −0.21 | −0.17 | pattern break |
+| Regime                  | \(d(\Delta m\_{\mathrm{gain}})\) | \(d(H_w)\) | Verdict           |
+| ----------------------- | -------------------------------- | ---------- | ----------------- |
+| ARC                     | 0.72                             | 0.03       | matches template  |
+| MMLU (pooled)           | 0.72                             | 0.18       | matches template  |
+| MMLU / US history       | 0.89                             | 0.29       | strong escalation |
+| MMLU / physics          | 0.38                             | 0.14       | weaker            |
+| MMLU / abstract algebra | −0.21                            | −0.17      | pattern break     |
 
 **Pooled summary (from `C2_dimension_transfer.json`):**
 
@@ -401,7 +401,7 @@ Before generation, routing-relevant information is measurable. On ARC TEST, 43.3
 
 ### Finding 2 — Dimensions differ (and partially transfer)
 
-Information is structured: **difficulty** (query-derived complexity, weak entropy) vs **recoverability** (cross-model disagreement, margin gain). On ARC, \(H_w\) barely separates opportunity from too-hard (\(d \approx 0.03\)); \(\Delta m_{\mathrm{gain}}\) does (\(d \approx 0.72\)). The same recoverability \(d\) appears on pooled MMLU.
+Information is structured: **difficulty** (query-derived complexity, weak entropy) vs **recoverability** (cross-model disagreement, margin gain). On ARC, \(H*w\) barely separates opportunity from too-hard (\(d \approx 0.03\)); \(\Delta m*{\mathrm{gain}}\) does (\(d \approx 0.72\)). The same recoverability \(d\) appears on pooled MMLU.
 
 ### Finding 3 — Exploitation gap (ARC)
 
@@ -411,11 +411,11 @@ A CALIB-fit calibrated policy matches always-strong (69.2%) while an offline ora
 
 ## 9. Infrastructure notes (reproducibility)
 
-| Environment | Work | Notes |
-| ----------- | ---- | ----- |
-| **GPU (RunPod)** | Oracle + probes | `export PYTHONPATH=/workspace/llm_routing/scripts:$PYTHONPATH`; HF token for Llama weights |
-| **Mac CPU** | Features, merge, interpret, doctor, compare-generalization | No GPU needed post-copy |
-| **Copy from pod** | `scp` oracle + probe CSVs | Quote remote globs for zsh |
+| Environment       | Work                                                       | Notes                                                                                      |
+| ----------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **GPU (RunPod)**  | Oracle + probes                                            | `export PYTHONPATH=/workspace/llm_routing/scripts:$PYTHONPATH`; HF token for Llama weights |
+| **Mac CPU**       | Features, merge, interpret, doctor, compare-generalization | No GPU needed post-copy                                                                    |
+| **Copy from pod** | `scp` oracle + probe CSVs                                  | Quote remote globs for zsh                                                                 |
 
 ---
 
@@ -431,26 +431,26 @@ A CALIB-fit calibrated policy matches always-strong (69.2%) while an offline ora
 
 ## 11. Artifact index
 
-| Artifact | Purpose |
-| -------- | ------- |
-| `analysis/splits.json` | ARC CALIB/TEST manifest |
-| `analysis/selected_feature.json` | Frozen \(c(q)\) = piece_count |
-| `experiments/M4/routing_opportunity/*.json` | Offline oracles |
-| `experiments/M5/*_{weak,strong,features}.csv` | Probes + complexity |
-| `analysis/arc_merged.csv` | ARC master table (\(n{=}1{,}172\)) |
-| `analysis/mmlu_merged.csv` | MMLU master table (\(n{=}314\)) |
-| `analysis/arc_interpretation.json` | RH2 diagnostics (ARC) |
-| `analysis/mmlu_interpretation.json` | RH2 diagnostics (MMLU) |
-| `analysis/arc_complementarity.json` | RH3 ladder |
-| `analysis/arc_route_eval_lambda0.json` | RH4 policies |
-| `analysis/C2_dimension_transfer.json` | RH7 cross-regime table |
-| `analysis/c2_mmlu_summary.json` | MMLU screening gate |
-| `paper/tables/T2_correlation.tex` | RH1–RH2 |
-| `paper/tables/T3_complementarity.tex` | RH3 |
-| `paper/tables/T4_routing.tex` | RH4 |
+| Artifact                                      | Purpose                            |
+| --------------------------------------------- | ---------------------------------- |
+| `analysis/splits.json`                        | ARC CALIB/TEST manifest            |
+| `analysis/selected_feature.json`              | Frozen \(c(q)\) = piece_count      |
+| `experiments/M4/routing_opportunity/*.json`   | Offline oracles                    |
+| `experiments/M5/*_{weak,strong,features}.csv` | Probes + complexity                |
+| `analysis/arc_merged.csv`                     | ARC master table (\(n{=}1{,}172\)) |
+| `analysis/mmlu_merged.csv`                    | MMLU master table (\(n{=}314\))    |
+| `analysis/arc_interpretation.json`            | RH2 diagnostics (ARC)              |
+| `analysis/mmlu_interpretation.json`           | RH2 diagnostics (MMLU)             |
+| `analysis/arc_complementarity.json`           | RH3 ladder                         |
+| `analysis/arc_route_eval_lambda0.json`        | RH4 policies                       |
+| `analysis/C2_dimension_transfer.json`         | RH7 cross-regime table             |
+| `analysis/c2_mmlu_summary.json`               | MMLU screening gate                |
+| `paper/tables/T2_correlation.tex`             | RH1–RH2                            |
+| `paper/tables/T3_complementarity.tex`         | RH3                                |
+| `paper/tables/T4_routing.tex`                 | RH4                                |
 
 ---
 
 ## 12. One-paragraph synthesis (Abstract / Discussion)
 
-On ARC-Challenge with Llama 3.2 1B/3B Instruct, unsupervised pre-inference signals carry modest but measurable routing-relevant information before full generation. **Difficulty and recoverability are distinct:** query-derived complexity and weak entropy track difficulty-like variation, while cross-model disagreement and margin gain separate routable from irrecoverable hard queries (Cohen's \(d \approx 0.72\) for \(\Delta m_{\mathrm{gain}}\) vs \(0.03\) for \(H_w\) on ARC). The three information sources are partially complementary for opportunity detection (\(\Delta\)AUROC \(+0.049\), DeLong \(p{=}0.008\)). A calibrated logistic policy does not beat always routing to the strong model on ARC TEST, leaving 5.2 percentage points of oracle headroom unexploited. **Transfer to MMLU** preserves the recoverability pattern at the pooled level (again \(d \approx 0.72\) for \(\Delta m_{\mathrm{gain}}\)) while subject-level variation warns against treating transfer as automatic. The answer to whether pre-inference signals can **support** routing is **partial**: information exists, is structured, and partially generalizes — but simple exploitation and universal cross-subject invariance are limited.
+On ARC-Challenge with Llama 3.2 1B/3B Instruct, unsupervised pre-inference signals carry modest but measurable routing-relevant information before full generation. **Difficulty and recoverability are distinct:** query-derived complexity and weak entropy track difficulty-like variation, while cross-model disagreement and margin gain separate routable from irrecoverable hard queries (Cohen's \(d \approx 0.72\) for \(\Delta m*{\mathrm{gain}}\) vs \(0.03\) for \(H_w\) on ARC). The three information sources are partially complementary for opportunity detection (\(\Delta\)AUROC \(+0.049\), DeLong \(p{=}0.008\)). A calibrated logistic policy does not beat always routing to the strong model on ARC TEST, leaving 5.2 percentage points of oracle headroom unexploited. **Transfer to MMLU** preserves the recoverability pattern at the pooled level (again \(d \approx 0.72\) for \(\Delta m*{\mathrm{gain}}\)) while subject-level variation warns against treating transfer as automatic. The answer to whether pre-inference signals can **support** routing is **partial**: information exists, is structured, and partially generalizes — but simple exploitation and universal cross-subject invariance are limited.

@@ -14,12 +14,12 @@ C3 **extends model-derived signals** with a richer characterization (terminal �
 
 **C0 already supports the main claim** (verified on disk):
 
-| Evidence | Source |
-| -------- | ------ |
-| Opportunity 43.3% (ARC TEST) | `analysis/arc_merged.csv` |
-| Escalation vs uncertainty: d(Δm_gain)≈**0.72**, d(H_w)≈**0.03** | `analysis/arc_interpretation.json` |
-| MMLU pooled pattern transfer | `analysis/C2_dimension_transfer.json` |
-| Exploitation gap 5.2 pp | `analysis/arc_route_eval_lambda0.json` |
+| Evidence                                                        | Source                                 |
+| --------------------------------------------------------------- | -------------------------------------- |
+| Opportunity 43.3% (ARC TEST)                                    | `analysis/arc_merged.csv`              |
+| Escalation vs uncertainty: d(Δm_gain)≈**0.72**, d(H_w)≈**0.03** | `analysis/arc_interpretation.json`     |
+| MMLU pooled pattern transfer                                    | `analysis/C2_dimension_transfer.json`  |
+| Exploitation gap 5.2 pp                                         | `analysis/arc_route_eval_lambda0.json` |
 
 ---
 
@@ -47,11 +47,11 @@ See [`c3_layerwise_concepts.md`](c3_layerwise_concepts.md) §3.1, §5 for litera
 
 ## 2. Paper-facing taxonomy
 
-| Information source | Examples (this paper) |
-| ------------------ | --------------------- |
-| **Query-derived** | `piece_count` / \(c(q)\) |
-| **Model-derived** | Terminal: \(H_w\), \(m_w\). **C3 extension:** layerwise evolution (`stabilization_layer` ⭐, `slope_margin`; F7) |
-| **Cross-model** | \(\Delta H\), \(\Delta m_{\mathrm{gain}}\) |
+| Information source | Examples (this paper)                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **Query-derived**  | `piece_count` / \(c(q)\)                                                                                         |
+| **Model-derived**  | Terminal: \(H_w\), \(m_w\). **C3 extension:** layerwise evolution (`stabilization_layer` ⭐, `slope_margin`; F7) |
+| **Cross-model**    | \(\Delta H\), \(\Delta m\_{\mathrm{gain}}\)                                                                      |
 
 ```text
 Model-derived → terminal statistics (C0) → layerwise evolution (C3)
@@ -61,13 +61,13 @@ Model-derived → terminal statistics (C0) → layerwise evolution (C3)
 
 ## 3. RH5 — evidence criteria (no AUROC gate)
 
-| # | Evidence | Example |
-| - | -------- | ------- |
-| 1 | **F7 geometry** | Median \(m_\ell\) curves separate easy / opportunity / too-hard |
-| 2 | **Divergence L\*** | Opp vs too-hard similar until fraction depth d*, then diverge |
-| 3 | **Effect size** | d(`stabilization_layer`) > d(\(H_w\)) ≈ 0.03 |
-| 4 | **Non-redundancy** | Partial ρ(scalar, opp \| terminal \(m_w\)) > 0 |
-| 5 | **Null (publishable)** | Evolution mirrors terminal — terminal probes suffice on ARC |
+| #   | Evidence               | Example                                                          |
+| --- | ---------------------- | ---------------------------------------------------------------- |
+| 1   | **F7 geometry**        | Median \(m\_\ell\) curves separate easy / opportunity / too-hard |
+| 2   | **Divergence L\***     | Opp vs too-hard similar until fraction depth d\*, then diverge   |
+| 3   | **Effect size**        | d(`stabilization_layer`) > d(\(H_w\)) ≈ 0.03                     |
+| 4   | **Non-redundancy**     | Partial ρ(scalar, opp \| terminal \(m_w\)) > 0                   |
+| 5   | **Null (publishable)** | Evolution mirrors terminal — terminal probes suffice on ARC      |
 
 **Emphasize `stabilization_layer`** in Results prose (when confidence stabilizes). **`slope_margin`** secondary only — do not gate RH5 on slope.
 
@@ -79,12 +79,12 @@ Primary: **F7 + one observation sentence**. AUROC secondary.
 
 ## 4. Scope lock
 
-| In ACL scope | Deferred |
-| ------------ | -------- |
-| Layerwise forward pass + JSONL traces | Representation drift |
-| **`stabilization_layer`**, **`slope_margin`** | Paraphrase, Qwen C1 |
-| F7 + divergence (fraction depth ℓ/L) | AUROC gate before TEST |
-| Reuse C0 oracle, D46 | Overwriting `experiments/M5/arc_test_*.csv` |
+| In ACL scope                                  | Deferred                                    |
+| --------------------------------------------- | ------------------------------------------- |
+| Layerwise forward pass + JSONL traces         | Representation drift                        |
+| **`stabilization_layer`**, **`slope_margin`** | Paraphrase, Qwen C1                         |
+| F7 + divergence (fraction depth ℓ/L)          | AUROC gate before TEST                      |
+| Reuse C0 oracle, D46                          | Overwriting `experiments/M5/arc_test_*.csv` |
 
 ---
 
@@ -123,8 +123,8 @@ For ℓ = L:
 
 **Smoke checks:**
 
-1. `|margin(logits_L) − margin(C0 csv)|` < ε for same queries  
-2. `|margin(logits_L) − margin(model.logits)|` < ε  
+1. `|margin(logits_L) − margin(C0 csv)|` < ε for same queries
+2. `|margin(logits_L) − margin(model.logits)|` < ε
 
 Default ε = **`margin_tol = 1e-3`** (bf16 RunPod Llama; exposed as `--margin-tol`).
 
@@ -132,10 +132,10 @@ Default ε = **`margin_tol = 1e-3`** (bf16 RunPod Llama; exposed as `--margin-to
 
 ### 6.2 Scalars (CSV)
 
-| Column | Role |
-| ------ | ---- |
+| Column                    | Role                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **`stabilization_layer`** | ⭐ Primary — when margin stabilizes (ε=0.02, K=2). Requires ≥1 observed transition; minimum ℓ = 2 when L ≥ 2 |
-| **`slope_margin`** | Secondary / exploratory — OLS slope of \(m_\ell\) vs ℓ; not headline RH5 evidence |
+| **`slope_margin`**        | Secondary / exploratory — OLS slope of \(m\_\ell\) vs ℓ; not headline RH5 evidence                           |
 
 Also store `stabilization_frac` (= `depth_fraction[stabilization_layer − 1]`) in JSONL or analysis output.
 
@@ -143,23 +143,23 @@ Also store `stabilization_frac` (= `depth_fraction[stabilization_layer − 1]`) 
 
 ### 6.3 Layer depth (1B: L=16, 3B: L=28)
 
-- F7 / divergence: per model separately, or x-axis = **ℓ/L**  
-- Never compare raw layer index across 1B vs 3B  
+- F7 / divergence: per model separately, or x-axis = **ℓ/L**
+- Never compare raw layer index across 1B vs 3B
 
 ### 6.4 Cross-model merge
 
-- `delta_slope_margin` = `slope_margin_s` − `slope_margin_w`  
-- `delta_stabilization_layer` = `stabilization_layer_s` − `stabilization_layer_w`  
+- `delta_slope_margin` = `slope_margin_s` − `slope_margin_w`
+- `delta_stabilization_layer` = `stabilization_layer_s` − `stabilization_layer_w`
 
 ---
 
 ## 7. Divergence analysis (post-hoc)
 
-On JSONL + oracle buckets: median \(m_\ell\) per bucket → dispersion vs ℓ → report **L\*** and **`fraction_depth = L*/L`**.
+On JSONL + oracle buckets: median \(m\_\ell\) per bucket → dispersion vs ℓ → report **L\*** and **`fraction_depth = L*/L`**.
 
 **Results sentence template:**
 
-> Opportunity and too-hard queries exhibit similar weak-model margin until approximately **fraction depth** d*, after which their confidence **trajectories diverge**.
+> Opportunity and too-hard queries exhibit similar weak-model margin until approximately **fraction depth** d\*, after which their confidence **trajectories diverge**.
 
 **Discussion only (if supported):** “formation” language.
 
@@ -169,7 +169,7 @@ On JSONL + oracle buckets: median \(m_\ell\) per bucket → dispersion vs ℓ �
 
 **Title:** **Layerwise Confidence Evolution Across Depth**
 
-Median \(m_\ell\) vs ℓ (or ℓ/L) — Easy · Opportunity · Too-hard (weak, ARC TEST).
+Median \(m\_\ell\) vs ℓ (or ℓ/L) — Easy · Opportunity · Too-hard (weak, ARC TEST).
 
 `paper/figures/F7_confidence_formation.png` (legacy filename ok).
 
@@ -177,16 +177,16 @@ Median \(m_\ell\) vs ℓ (or ℓ/L) — Easy · Opportunity · Too-hard (weak, A
 
 ## 9. Implementation checklist
 
-| Step | File | Task |
-| ---- | ---- | ---- |
-| 1 | `layerwise.py` | Margin series; **RMSNorm on final layer**; `stabilization_layer`; `slope_margin` |
-| 2 | `layerwise.py` | Dedicated module; reuses `extract_logits` from `model_dependent.py` |
-| 3 | `constants.py` | `PROBE_FORMATION_BASES` |
-| 4 | `run.py` | `--layerwise`, trace dir, ε, K |
-| 5 | `data.py` | Merge formation + deltas |
-| 6 | `plots.py` | F7: `depth_fraction` vs median margin (always ℓ/L axis) |
-| 7 | `formation_analysis.py` | Divergence + RH5 JSON (fraction depth) |
-| 8 | `tests/test_layerwise.py` | Synthetic stabilization + slope |
+| Step | File                      | Task                                                                             |
+| ---- | ------------------------- | -------------------------------------------------------------------------------- |
+| 1    | `layerwise.py`            | Margin series; **RMSNorm on final layer**; `stabilization_layer`; `slope_margin` |
+| 2    | `layerwise.py`            | Dedicated module; reuses `extract_logits` from `model_dependent.py`              |
+| 3    | `constants.py`            | `PROBE_FORMATION_BASES`                                                          |
+| 4    | `run.py`                  | `--layerwise`, trace dir, ε, K                                                   |
+| 5    | `data.py`                 | Merge formation + deltas                                                         |
+| 6    | `plots.py`                | F7: `depth_fraction` vs median margin (always ℓ/L axis)                          |
+| 7    | `formation_analysis.py`   | Divergence + RH5 JSON (fraction depth)                                           |
+| 8    | `tests/test_layerwise.py` | Synthetic stabilization + slope                                                  |
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Implementation plan:** [`c3_prefill_extensions_plan.md`](c3_prefill_extensions_plan.md)  
 > **Campaign folder (legacy name):** `C3_llama_confidence_formation/` — internal paths only.  
-> **Paper vocabulary:** prefer **layerwise confidence evolution** before results; reserve **confidence formation** for Discussion *if* results support it.
+> **Paper vocabulary:** prefer **layerwise confidence evolution** before results; reserve **confidence formation** for Discussion _if_ results support it.
 
 ---
 
@@ -12,7 +12,7 @@
 
 C0 extracts **terminal** statistics (\(H_w\), \(m_w\)) at the last prompt token after a full forward pass. C3 uses the **same forward pass** with `output_hidden_states=True` to measure how margin (and optionally entropy) **evolve across transformer depth** at that token, then asks:
 
-> **RH5:** *Does layerwise evolution of model confidence provide routing-relevant information beyond terminal prefill confidence?*
+> **RH5:** _Does layerwise evolution of model confidence provide routing-relevant information beyond terminal prefill confidence?_
 
 **Measurable question (Methods / Results):**
 
@@ -24,12 +24,12 @@ C0 extracts **terminal** statistics (\(H_w\), \(m_w\)) at the last prompt token 
 
 ## 2. Wording rules (ACL reviewer-safe)
 
-| Phase | Use | Avoid |
-| ----- | --- | ----- |
+| Phase                           | Use                                                                               | Avoid                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | **Before / during experiments** | layerwise confidence evolution · confidence trajectories · evolution across depth | confidence is formed progressively · formation (as fact) |
-| **Methods** | we **characterize** / **investigate** evolution | we **show** confidence forms |
-| **Results** | curves differ · trajectories diverge at L* · d(stabilization_layer) | queries **form** confidence differently |
-| **Discussion (if supported)** | confidence **appears to form** progressively for opportunity queries | stating formation as established literature |
+| **Methods**                     | we **characterize** / **investigate** evolution                                   | we **show** confidence forms                             |
+| **Results**                     | curves differ · trajectories diverge at L\* · d(stabilization_layer)              | queries **form** confidence differently                  |
+| **Discussion (if supported)**   | confidence **appears to form** progressively for opportunity queries              | stating formation as established literature              |
 
 **Campaign code name** `confidence_formation` is fine on disk; **paper prose** follows the table above.
 
@@ -45,12 +45,12 @@ C0 extracts **terminal** statistics (\(H_w\), \(m_w\)) at the last prompt token 
 
 **What we claim vs what we do not claim:**
 
-| Do **not** claim | Do claim |
-| ---------------- | -------- |
+| Do **not** claim                                      | Do claim                                                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Layer ℓ **is** the model's true next-token prediction | Hidden state at layer ℓ → **LM head** → softmax → **probe statistics** (margin, entropy) |
-| Intermediate layers are "correct" early answers | Depth-indexed **observables** for routing characterization (RH5) |
+| Intermediate layers are "correct" early answers       | Depth-indexed **observables** for routing characterization (RH5)                         |
 
-Reviewer concern *"LM head on intermediate layers is theoretically shaky"* is fair — and it is exactly the **logit lens** convention. LayerSkip, early-exit work, and related layer-analysis methods (e.g. TIDE) project intermediate hidden states through the shared head for analysis or early stopping. **This is not a reason to redesign the paper** — name the convention and move on.
+Reviewer concern _"LM head on intermediate layers is theoretically shaky"_ is fair — and it is exactly the **logit lens** convention. LayerSkip, early-exit work, and related layer-analysis methods (e.g. TIDE) project intermediate hidden states through the shared head for analysis or early stopping. **This is not a reason to redesign the paper** — name the convention and move on.
 
 ```text
 h_ℓ  →  lm_head  →  logits_ℓ  →  margin_ℓ, entropy_ℓ     (probe — not "prediction at layer ℓ")
@@ -77,10 +77,10 @@ Llama applies **final RMSNorm** (`model.norm`) before `lm_head` on the **last** 
 
 **Implementation rule:**
 
-| Layer | Logits computation |
-| ----- | ------------------ |
-| **Final (terminal, must match C0)** | `logits = lm_head(model.norm(h_L))` **or** use `model(**inputs).logits` directly |
-| **Intermediate ℓ < L** | `logits_ℓ = lm_head(h_ℓ)` — standard early-exit convention; do **not** apply final `model.norm` to early layers |
+| Layer                               | Logits computation                                                                                              |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Final (terminal, must match C0)** | `logits = lm_head(model.norm(h_L))` **or** use `model(**inputs).logits` directly                                |
+| **Intermediate ℓ < L**              | `logits_ℓ = lm_head(h_ℓ)` — standard early-exit convention; do **not** apply final `model.norm` to early layers |
 
 **Smoke test (required before TEST):**
 
@@ -126,10 +126,10 @@ For ℓ = 1 … L:
 
 ### 3.5 Layer counts — never compare raw indices across pool models
 
-| Model | Transformer layers (`num_hidden_layers`) | Source |
-| ----- | ---------------------------------------- | ------ |
-| Llama 3.2 **1B** | **16** | [Meta torchtune builders](https://github.com/meta-pytorch/torchtune/blob/main/torchtune/models/llama3_2/_model_builders.py) |
-| Llama 3.2 **3B** | **28** | same |
+| Model            | Transformer layers (`num_hidden_layers`) | Source                                                                                                                      |
+| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Llama 3.2 **1B** | **16**                                   | [Meta torchtune builders](https://github.com/meta-pytorch/torchtune/blob/main/torchtune/models/llama3_2/_model_builders.py) |
+| Llama 3.2 **3B** | **28**                                   | same                                                                                                                        |
 
 **Methods rule:**
 
@@ -161,7 +161,7 @@ Official model overview: [Llama 3.2 MODEL_CARD](https://raw.githubusercontent.co
 
 ### 4.2 `slope_margin` (secondary)
 
-**Definition:** OLS slope of \(m_\ell\) vs layer index ℓ = 1…L.
+**Definition:** OLS slope of \(m\_\ell\) vs layer index ℓ = 1…L.
 
 **Role:** Exploratory summary of overall rate of margin change. **Weaker and less interpretable than `stabilization_layer`** for routing — report only as supplement; do not gate RH5 on slope AUROC or effect size.
 
@@ -207,11 +207,11 @@ LayerSkip → intermediate logits are meaningful
 
 **Example:** [The Diminishing Returns of Early-Exit Decoding in Modern LLMs](https://arxiv.org/html/2603.23701v1) (arXiv:2603.23701).
 
-| Early-exit literature | This paper (C3) |
-| --------------------- | --------------- |
+| Early-exit literature              | This paper (C3)                                                       |
+| ---------------------------------- | --------------------------------------------------------------------- |
 | Can we **stop computation early**? | Can we **characterize routing-relevant information before decoding**? |
-| Latency / cost | Signal characterization |
-| Logit similarity across layers | Trajectories vs oracle buckets |
+| Latency / cost                     | Signal characterization                                               |
+| Logit similarity across layers     | Trajectories vs oracle buckets                                        |
 
 **Discussion note:** Newer LLMs may show less layer redundancy → **null RH5 is publishable** (“terminal probes suffice on ARC”).
 
@@ -229,13 +229,13 @@ Use `03_literature_gap.md`: RouteLLM, RouterBench, He/Plaut prefill uncertainty.
 
 ### Supported if any hold (no AUROC gate)
 
-| # | Evidence | Example |
-| - | -------- | ------- |
-| 1 | **F7 geometry** | Median \(m_\ell\) curves separate easy / opportunity / too-hard |
-| 2 | **Divergence L\*** | Opp and too-hard similar until ~fraction depth d*, then diverge |
-| 3 | **Effect size** | d(`stabilization_layer`, opp vs too-hard) > d(\(H_w\)) ≈ 0.03 |
-| 4 | **Non-redundancy** | Partial ρ(`stabilization_layer`, opp \| terminal \(m_w\)) > 0, CI excludes 0 |
-| 5 | **Null (publishable)** | Trajectories mirror terminal — terminal probes suffice on ARC |
+| #   | Evidence               | Example                                                                      |
+| --- | ---------------------- | ---------------------------------------------------------------------------- |
+| 1   | **F7 geometry**        | Median \(m\_\ell\) curves separate easy / opportunity / too-hard             |
+| 2   | **Divergence L\***     | Opp and too-hard similar until ~fraction depth d\*, then diverge             |
+| 3   | **Effect size**        | d(`stabilization_layer`, opp vs too-hard) > d(\(H_w\)) ≈ 0.03                |
+| 4   | **Non-redundancy**     | Partial ρ(`stabilization_layer`, opp \| terminal \(m_w\)) > 0, CI excludes 0 |
+| 5   | **Null (publishable)** | Trajectories mirror terminal — terminal probes suffice on ARC                |
 
 **Primary deliverable:** F7 + one observation sentence. AUROC secondary.
 
@@ -243,7 +243,7 @@ Use `03_literature_gap.md`: RouteLLM, RouterBench, He/Plaut prefill uncertainty.
 
 - **Title:** **Layerwise Confidence Evolution Across Depth**
 - **X-axis:** `depth_fraction` from JSONL (ℓ/L) — **always**, never raw layer index (comparable 16L vs 28L)
-- **Y-axis:** median \(m_\ell\) at last prompt token
+- **Y-axis:** median \(m\_\ell\) at last prompt token
 - **Curves:** Easy · Opportunity · Too-hard — **weak and strong separately** (`F7_*_{weak,strong}.png`)
 - **File:** `paper/figures/F7_confidence_evolution.png`
 
@@ -265,10 +265,10 @@ Aligns with professor guidance: one problem, hypothesis-driven experiments, pape
 
 ## 8. Claim map (C6 optional)
 
-| Claim | Evidence |
-| ----- | -------- |
-| Layerwise evolution adds routing information beyond terminal | F7, RH5 JSON, optional d(`stabilization_layer`) |
-| C3 is a richer **model-derived** characterization | Methods taxonomy — not a fourth information source |
+| Claim                                                        | Evidence                                           |
+| ------------------------------------------------------------ | -------------------------------------------------- |
+| Layerwise evolution adds routing information beyond terminal | F7, RH5 JSON, optional d(`stabilization_layer`)    |
+| C3 is a richer **model-derived** characterization            | Methods taxonomy — not a fourth information source |
 
 See [`claims_evidence_matrix.md`](claims_evidence_matrix.md).
 
@@ -276,18 +276,18 @@ See [`claims_evidence_matrix.md`](claims_evidence_matrix.md).
 
 ## 9. Verified reference list
 
-| Resource | URL | Use |
-| -------- | --- | --- |
-| HF `CausalLMOutput` / `hidden_states` | https://huggingface.co/docs/transformers/main/main_classes/output | Implementation API |
-| HF output tracing | https://huggingface.co/docs/transformers/en/model_output_tracing | Hook / collection behavior |
-| Logit lens (intermediate LM-head probe) | §3.1 — Methods one-liner; not claiming ℓ = final prediction |
-| LayerSkip (ACL 2024) | https://aclanthology.org/2024.acl-long.681.pdf | Same machinery; motivation only |
-| Early-exit / logit similarity | https://arxiv.org/html/2603.23701v1 | Related work; intermediate logits via LM head |
-| Llama 3.2 model card | https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama3_2/MODEL_CARD.md | Pool models |
-| Llama 3.2 layer configs | https://github.com/meta-pytorch/torchtune/blob/main/torchtune/models/llama3_2/_model_builders.py | 16 vs 28 layers |
-| Project C0 protocol | `scripts/routing/model_dependent.py`, `05_computation_protocol.md` | Terminal probe parity |
-| Project C3 plan | `c3_prefill_extensions_plan.md` | Commands, checklist, artifacts |
-| | `scripts/routing/layerwise.py` | Probes, scalars, JSONL traces, `verify_terminal_logit_parity` |
-| | `scripts/run.py layerwise-parity` | Pre-TEST terminal parity smoke |
-| | `scripts/routing/formation_analysis.py` | RH5 divergence analysis |
-| | `scripts/run.py` | `--layerwise`, `analyze-formation`, `plot formation` |
+| Resource                                | URL                                                                                              | Use                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| HF `CausalLMOutput` / `hidden_states`   | https://huggingface.co/docs/transformers/main/main_classes/output                                | Implementation API                                            |
+| HF output tracing                       | https://huggingface.co/docs/transformers/en/model_output_tracing                                 | Hook / collection behavior                                    |
+| Logit lens (intermediate LM-head probe) | §3.1 — Methods one-liner; not claiming ℓ = final prediction                                      |
+| LayerSkip (ACL 2024)                    | https://aclanthology.org/2024.acl-long.681.pdf                                                   | Same machinery; motivation only                               |
+| Early-exit / logit similarity           | https://arxiv.org/html/2603.23701v1                                                              | Related work; intermediate logits via LM head                 |
+| Llama 3.2 model card                    | https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama3_2/MODEL_CARD.md     | Pool models                                                   |
+| Llama 3.2 layer configs                 | https://github.com/meta-pytorch/torchtune/blob/main/torchtune/models/llama3_2/_model_builders.py | 16 vs 28 layers                                               |
+| Project C0 protocol                     | `scripts/routing/model_dependent.py`, `05_computation_protocol.md`                               | Terminal probe parity                                         |
+| Project C3 plan                         | `c3_prefill_extensions_plan.md`                                                                  | Commands, checklist, artifacts                                |
+|                                         | `scripts/routing/layerwise.py`                                                                   | Probes, scalars, JSONL traces, `verify_terminal_logit_parity` |
+|                                         | `scripts/run.py layerwise-parity`                                                                | Pre-TEST terminal parity smoke                                |
+|                                         | `scripts/routing/formation_analysis.py`                                                          | RH5 divergence analysis                                       |
+|                                         | `scripts/run.py`                                                                                 | `--layerwise`, `analyze-formation`, `plot formation`          |
