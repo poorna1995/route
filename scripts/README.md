@@ -51,3 +51,21 @@ python run.py prepare --run experiments/runs/<run_id>
 ```
 
 Partition IDs are frozen into the run's `setting.yaml` automatically.
+
+## RunPod troubleshooting
+
+**`Permission denied` / `401` / model download fails at `from_pretrained`:**
+
+1. Create a [HF read token](https://huggingface.co/settings/tokens).
+2. Accept model licenses: [Llama-3.2-3B-Instruct](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct), [Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct).
+3. On the pod:
+   ```bash
+   export HF_TOKEN=hf_...
+   huggingface-cli login --token "$HF_TOKEN"
+   ```
+4. If download fails inside `xet_get`, disable XET (default on RunPod via `setup_env.sh`):
+   ```bash
+   export HF_HUB_DISABLE_XET=1
+   ```
+
+**Pipeline check without GPU weights:** `python run.py all --smoke --mock`

@@ -9,6 +9,12 @@ cd "$(dirname "$0")"
 # shellcheck disable=SC1091
 source scripts/setup_env.sh
 
+if [[ -z "${HF_TOKEN:-}" ]] && [[ -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
+  echo "runpod.sh: set HF_TOKEN (Hugging Face read token) before oracle runs." >&2
+  echo "  Accept Llama licenses on huggingface.co, then: export HF_TOKEN=hf_..." >&2
+  exit 1
+fi
+
 MODE="${1:-smoke}"
 SETTING="experiments/candidates/arc.yaml"
 

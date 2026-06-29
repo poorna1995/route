@@ -22,6 +22,8 @@ _on_runpod() {
 
 if _on_runpod; then
   export HF_HOME="${HF_HOME:-/workspace/.cache/huggingface}"
+  # XET backend can fail on some pods; classic download is more reliable.
+  export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
   VENV="${LLM_ROUTING_VENV:-/workspace/.venv-llm-routing}"
   SYSTEM_SITE_PACKAGES=1
 else
@@ -32,6 +34,9 @@ fi
 
 export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$HF_HOME/datasets}"
 export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/hub}"
+if [[ -n "${HF_TOKEN:-}" ]]; then
+  export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+fi
 mkdir -p "$HF_HOME" "$HF_DATASETS_CACHE"
 
 MARKER="$VENV/.llm_routing_deps_hash"

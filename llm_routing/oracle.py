@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+import os
 import time
 from typing import Any
 
@@ -10,6 +11,23 @@ import torch
 
 from llm_routing.corpus import Query, QueryResult
 from llm_routing.prompts import build_messages, grade_query, parse_answer
+
+
+def hf_token() -> str | None:
+    """HF read token for gated models (Llama). Set HF_TOKEN on RunPod."""
+    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or None
+
+
+def _load_kwargs(model_id: str) -> dict[str, Any]:
+    token = hf_token()
+    if token is None and model_id.startswith("meta-llama/"):
+        raise RuntimeError(
+            "HF_TOKEN is not set. Gated Llama weights require a Hugging Face read token.\n"
+            "  1. Accept licenses: meta-llama/Llama-3.2-3B-Instruct and Llama-3.1-8B-Instruct\n"
+            "  2. export HF_TOKEN=hf_...\n"
+            "  3. Re-run (or: huggingface-cli login --token \"$HF_TOKEN\")"
+        )
+    return {"token": token} if token else {}
 
 
 def run_model_mock(
@@ -53,9 +71,13 @@ def run_model(
     dtype = torch.bfloat16 if device == "cuda" else torch.float32
     max_tokens = int(protocol["decoding"].get("max_tokens", 16))
 
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    hf_kw = _load_kwargs(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, **hf_kw)
     model = AutoModelForCausalLM.from_pretrained(
-        model_id, torch_dtype=dtype, device_map="auto" if device == "cuda" else None,
+        model_id,
+        torch_dtype=dtype,
+        device_map="auto" if device == "cuda" else None,
+        **hf_kw,
     )
     if device != "cuda":
         model.to(device)
