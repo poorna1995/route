@@ -1,0 +1,31 @@
+\subsection{Routing policy}
+\label{sec:routing-policy}
+
+Given frozen $x(q)$, we form a scalar \textbf{routing score} and a threshold \textbf{policy}.
+This subsection is the \textbf{only} place in the paper where $s(q)$ and $\pi(q)$ are defined (nomenclature §2.1).
+
+\begin{equation}
+  s(q) = \lambda^\top x(q) = \sum_{i=1}^{d} \lambda_i\, x_i(q).
+  \label{eq:score}
+\end{equation}
+
+Higher $s(q)$ indicates stronger evidence of routing need ($r(q)=1$); escalate to $\Mhi$.
+
+\begin{equation}
+  \pi(q) =
+  \begin{cases}
+    \Mhi, & s(q) > \tau \\
+    \Mlo, & \text{otherwise.}
+  \end{cases}
+  \label{eq:policy}
+\end{equation}
+
+\paragraph{Fitting $(\lambda,\tau)$ on calib (layer~3).}
+\begin{itemize}
+  \item \textbf{4a Rule routing:} hand-specified $\lambda$ (e.g., single-feature weights); sweep $\tau$ on calib; lock for test.
+  \item \textbf{4b Learned routing:} fit $\lambda$ on calib (e.g., logistic regression targeting $r(q)$); tune $\tau$; lock for test.
+\end{itemize}
+
+\textbf{H4:} Learned weighting outperforms the best hand-designed rule on the \textbf{same} $x(q)$, judged by Pareto position on test (Section~\ref{sec:results-routing}).
+
+Elsewhere we refer to Equations~\eqref{eq:score}--\eqref{eq:policy} without restating them.

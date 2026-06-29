@@ -1,0 +1,6 @@
+setting:
+  corpus:
+    dataset: HellaSwag
+    source: registry_default
+  meta:
+    status: draft

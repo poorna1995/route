@@ -1,35 +1,25 @@
-# Paper
+# Paper — ACL v1
 
-Compressed output of `research/`. Venue-specific files live here.
+Maps to [`../research/program.md`](../research/program.md) and [`../research/nomenclature.md`](../research/nomenclature.md).
 
-```
-paper/
-├── acl.tex              # main LaTeX draft
-├── references.bib       # BibTeX
-├── draft/               # §1–§8 LaTeX drafts (canonical prose; edit here)
-├── tables/              # T1–T4 (.tex fragments)
-└── figures/             # F1–F5 specs + PDFs (after experiments)
-```
-
-## Build (after installing acl.sty)
+## Build
 
 ```bash
 cd paper
-pdflatex acl
-bibtex acl
-pdflatex acl
-pdflatex acl
+pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
-Until `acl.sty` is installed, `acl.tex` uses `geometry` + `natbib` as a fallback.
+## Section map
 
-## Writing
+| Paper section | File | Program / stage |
+| ------------- | ---- | --------------- |
+| Introduction | `sections/01_introduction.tex` | §0, §1 |
+| Related Work | `sections/02_related_work.tex` | §2, literature |
+| Problem Definition | `sections/03_problem_definition.tex` | §2–§3 |
+| Method | `sections/04_*.tex` | §4–§8; Stages 5–8 |
+| Experimental Setup | `sections/05_experimental_setup.tex` | §0.7, §13; Stages 1–4 |
+| Results — H1–H3 | `sections/06a_results_signal_analysis.tex` | §5–§6, §10; Stage 6 |
+| Results — H4 | `sections/06b_results_routing.tex` | §9, §10; Stage 9 |
+| Discussion / Conclusion | `sections/07_*.tex`, `08_*.tex` | §14 |
 
-| Location | Purpose |
-| -------- | ------- |
-| `draft/01--08_*.tex` | **Edit all sections here** (`\input` from `acl.tex`) |
-| `tables/T1--T4` | Result tables (fill after GPU runs) |
-
-**Locked narrative:** (1) pre-inference unsupervised signals → (2) three information sources (query-derived | model-derived | cross-model) → (3) characterization (I–III) → (4) routing evaluation (IV). C3 = layerwise extension within model-derived. SCOPE: contrast for timing/utility reporting only—not a template.
-
-Outline: `research/11_paper_outline.md`
+Intro, Related Work, and Problem Definition are draft-complete (2026-06-28). Setup and results fill in after Stages 1–9.

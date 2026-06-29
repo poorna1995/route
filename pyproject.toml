@@ -1,31 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "llm-routing"
 version = "0.1.0"
-description = "Unsupervised pre-inference signal characterization for LLM routing (research pilot)"
-readme = "research/README.md"
-requires-python = ">=3.12"
+description = "LLM routing signal analysis and oracle pipeline"
+readme = "experiments/README.md"
+requires-python = ">=3.10"
 dependencies = [
-    "torch>=2.5",
-    "transformers>=5.0",
-    "datasets>=3.0",
-    "accelerate>=1.0",
-    "huggingface_hub>=0.26",
-    "numpy>=2.0",
-    "pandas>=2.0",
+    "datasets>=2.18.0",
+    "pyyaml>=6.0",
+    "huggingface_hub>=0.23.0",
 ]
 
 [project.optional-dependencies]
-analysis = [
-    "scipy>=1.11",
-    "scikit-learn>=1.4",
-    "matplotlib>=3.8",
-    "seaborn>=0.13",
+# ML stack without torch — use on RunPod images that already ship PyTorch.
+ml = [
+    "transformers>=4.43.0",
+    "accelerate>=0.33.0",
+]
+# Only install when torch is not already available (local CPU/GPU dev).
+gpu = [
+    "torch>=2.1.0",
+]
+dev = [
+    "pytest>=8.0",
+]
+all = [
+    "llm-routing[gpu,ml,dev]",
 ]
 
-[tool.uv]
-dev-dependencies = []
-
-# Default PyPI torch is CPU on macOS / varies by platform.
-# On a CUDA Linux machine, install GPU torch once, then sync the rest:
-#   uv pip install torch --index-url https://download.pytorch.org/whl/cu124
-#   uv sync --extra analysis
+[tool.setuptools.packages.find]
+include = ["llm_routing*"]

@@ -1,0 +1,18 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Signal understanding vs.\ routing.}
+Our pipeline deliberately separates H1--H3 (do signals predict $r(q)$?) from H4 (does a policy improve accuracy--cost?).
+Informative signals can coexist with poor routing if $(\lambda,\tau)$ do not exploit them; good routing with unpromising H1--H3 would suggest policy fit dominates.
+
+\paragraph{Supervised vs.\ unsupervised contrast.}
+We do not claim unsupervised signals replace supervised routers in general.
+We characterize \textbf{what routing-relevant information exists} in signals defined without routing training data, then test simple combination rules.
+End-to-end supervised systems (RouteLLM, GraphRouter, AgentRouter) remain strong baselines for deployment.
+
+\paragraph{Limitations.}
+Fixed model pool with distinct capabilities; primary pair $(\Mlo,\Mhi)$; single primary benchmark (locked at Stage~3); signal inventory follows the locked protocol (Table~\ref{tab:setup}).
+Agent routing and dynamic pools are future work.
+
+\paragraph{Negative results.}
+Failure of H2--H4, or weak $\Delta$AUROC across types, is publishable when analysis and routing are reported separately with frozen vocabulary and splits.

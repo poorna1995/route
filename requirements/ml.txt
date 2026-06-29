@@ -1,0 +1,2 @@
+# ML stack without torch — for RunPod images that already ship PyTorch.
+-e ".[ml]"

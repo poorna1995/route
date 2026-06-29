@@ -1,170 +1,77 @@
-% =============================================================================
-% Literature bibliography — synced with research/14_literature_record.md
-% Tier IDs: T1-01..09 (routing), T2-01..06,10,13 (signals / contrast)
-% =============================================================================
-
-% --- Tier-1: Routing & benchmarks ---
-
 @inproceedings{ong2024routellm,
   title     = {{RouteLLM}: Learning to Route {LLM}s with Preference Data},
   author    = {Ong, Isaac and Albalak, Alon and Wu, Sean and He, Jeff and Beltagy, Iz and Koyejo, Sanmi and Wang, William Yang and Neubig, Graham and Hajishirzi, Hannaneh and Lamb, Alex and Schmaltz, Allen and others},
   booktitle = {International Conference on Learning Representations},
-  year      = {2025},
-  note      = {arXiv:2406.18665; T1-01}
-}
-
-@article{chen2023frugalgpt,
-  title   = {{FrugalGPT}: How to Use Large Language Models While Reducing Cost and Improving Performance},
-  author  = {Chen, Lingjiao and Zaharia, Matei and Zou, James},
-  journal = {Transactions on Machine Learning Research},
-  year    = {2024},
-  note    = {arXiv:2305.05176; T1-02}
+  year      = {2025}
 }
 
 @inproceedings{ding2024hybrid,
   title     = {Hybrid {LLM}: Cost-Efficient and Quality-Aware Query Routing},
   author    = {Ding, Wenqi and Zhou, Wei and Hong, Wenhao and Wang, Zhangyue and Zhou, Ming and Chen, Yuxiao and others},
   booktitle = {International Conference on Learning Representations},
-  year      = {2024},
-  note      = {arXiv:2404.14618; T1-03}
+  year      = {2024}
 }
 
 @inproceedings{feng2025graphrouter,
   title     = {{GraphRouter}: A Graph-based Router for {LLM} Selections},
   author    = {Feng, Zhiyu and others},
   booktitle = {International Conference on Learning Representations},
-  year      = {2025},
-  note      = {arXiv:2410.03834; T1-04}
+  year      = {2025}
 }
 
 @inproceedings{hu2024routerbench,
   title     = {{RouterBench}: A Benchmark for Multi-{LLM} Routing System},
   author    = {Hu, Nathan and Longpre, Shayne and Chen, Lingjiao and others},
   booktitle = {International Conference on Machine Learning},
-  year      = {2024},
-  note      = {arXiv:2403.12031; T1-05}
+  year      = {2024}
+}
+
+@article{chen2024frugalgpt,
+  title   = {{FrugalGPT}: How to Use Large Language Models While Reducing Cost and Improving Performance},
+  author  = {Chen, Lingjiao and Zaharia, Matei and Zou, James},
+  journal = {Transactions on Machine Learning Research},
+  year    = {2024}
 }
 
 @inproceedings{guha2024smoothie,
   title     = {{Smoothie}: Label-Free Routing for {LLM} Selection},
   author    = {Guha, Neel and Chen, Mayee F. and Chow, Trevor and Khare, Ishan S. and R{\'e}, Christopher},
   booktitle = {Advances in Neural Information Processing Systems},
-  year      = {2024},
-  note      = {arXiv:2412.04692; T1-06}
+  year      = {2024}
 }
 
-@inproceedings{niu2026cascal,
-  title     = {Routing with Generated Data},
-  author    = {Niu, Tianyi and others},
-  booktitle = {Proceedings of the Association for Computational Linguistics},
-  year      = {2026},
-  note      = {arXiv:2601.09692; T1-07 (CASCAL/RGD)}
-}
-
-@inproceedings{jitkrittum2025uniroute,
-  title     = {{UniRoute}: Universal Model Routing for Efficient {LLM} Inference},
-  author    = {Jitkrittum, Wittawat and others},
-  booktitle = {International Conference on Learning Representations},
-  year      = {2026},
-  note      = {arXiv:2502.08773; ICLR 2026 Poster; T1-08}
-}
-
-@article{cao2026scope,
-  title   = {Models Under {SCOPE}: Scalable and Controllable Routing via Pre-hoc Reasoning},
-  author  = {Cao, Qi and Zhang, Shuhao and Zhou, Ruizhe and Zhang, Ruiyi and Qin, Peijia and Xie, Pengtao},
-  journal = {arXiv preprint arXiv:2601.22323},
-  year    = {2026},
-  note    = {SCOPE; T1-09}
-}
-
-% --- Tier-2: Uncertainty, calibration, contrast ---
-
-@article{kadavath2022language,
+@article{kadavath2022know,
   title   = {Language Models (Mostly) Know What They Know},
   author  = {Kadavath, Saurav and Conerly, Tom and Askell, Amanda and Henighan, Tom and Drain, Dawn and Perez, Ethan and Chen, Andy and others},
   journal = {arXiv preprint arXiv:2207.05221},
-  year    = {2022},
-  note    = {T2-01}
+  year    = {2022}
 }
 
-@article{he2023uncertainty,
-  title   = {Uncertainty Calibration of Aligned Language Models},
-  author  = {He, Xuefeng and others},
-  journal = {arXiv preprint arXiv:2310.11732},
-  year    = {2023},
-  note    = {T2-02}
-}
-
-@article{plaut2024chat,
+@article{plaut2024calibration,
   title   = {Chat {LLM} Probabilities Are Miscalibrated but Still Useful for Detecting Correct {LLM} Responses},
   author  = {Plaut, Adam and others},
   journal = {arXiv preprint arXiv:2402.13213},
-  year    = {2024},
-  note    = {T2-03}
+  year    = {2024}
+}
+
+@article{he2023calibration,
+  title   = {Uncertainty Calibration of Aligned Language Models},
+  author  = {He, Xuefeng and others},
+  journal = {arXiv preprint arXiv:2310.11732},
+  year    = {2023}
+}
+
+@inproceedings{zhang2026agentrouter,
+  title     = {{AgentRouter}: A Knowledge-Graph-Guided {LLM} Router for Collaborative Multi-Agent Question Answering},
+  author    = {Zhang, Zheyuan and Shi, Kaiwen and Yuan, Zhengqing and Wang, Zehong and Ma, Tianyi and Murugesan, Keerthiram and Galassi, Vincent and Zhang, Chuxu and Ye, Yanfang},
+  booktitle = {Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  year      = {2026},
+  pages     = {788--809}
 }
 
 @article{kuhn2023semantic,
   title   = {Semantic Uncertainty: Linguistic Invariances for Uncertainty Estimation in Natural Language Generation},
   author  = {Kuhn, Lorenz and Gal, Yarin and Farquhar, Sebastian},
   journal = {arXiv preprint arXiv:2302.09664},
-  year    = {2023},
-  note    = {T2-04}
-}
-
-@inproceedings{su2025cprouter,
-  title     = {{CP-Router}: An Uncertainty-Aware Router Between {LLM} and {LRM}},
-  author    = {Su, Jiayuan and Lin, Fulin and Feng, Zhaopeng and Zheng, Han and Wang, Teng and Xiao, Zhenyu and Zhao, Xinlong and Liu, Zuozhu and Cheng, Lu and Wang, Hongwei},
-  booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
-  year      = {2026},
-  note      = {arXiv:2505.19970; T2-05}
-}
-
-@article{kotte2026ucci,
-  title   = {{UCCI}: Calibrated Uncertainty for Cost-Optimal {LLM} Cascade Routing},
-  author  = {Kotte, Varun},
-  journal = {arXiv preprint arXiv:2605.18796},
-  year    = {2026},
-  note    = {T2-06}
-}
-
-@article{lugoloobi2026failures,
-  title   = {{LLM}s Encode Their Failures: Predicting Success from Pre-Generation Activations},
-  author  = {Lugoloobi, Daniel and others},
-  journal = {arXiv preprint arXiv:2602.09924},
-  year    = {2026},
-  note    = {T2-10}
-}
-
-@article{mu2025ragrouting,
-  title   = {Unsupervised Query Routing for Retrieval-Augmented Generation},
-  author  = {Mu, Feiteng and others},
-  journal = {arXiv preprint arXiv:2501.07793},
-  year    = {2025},
-  note    = {T2-13}
-}
-
-% --- Datasets & benchmarks (this study) ---
-
-@article{clark2018think,
-  title   = {Think you have Solved Question Answering? Try {ARC}, the {AI2} Reasoning Challenge},
-  author  = {Clark, Peter and Cowhey, Isaac and Etzioni, Oren and Khot, Tushar and Sabharwal, Ashish and Schoenick, Carissa and Tafjord, Oyvind},
-  journal = {arXiv preprint arXiv:1803.05457},
-  year    = {2018}
-}
-
-@inproceedings{hendrycks2021measuring,
-  title     = {Measuring Massive Multitask Language Understanding},
-  author    = {Hendrycks, Dan and Burns, Collin and Basart, Steven and Zou, Andy and Mazeika, Mantas and Song, Dawn and Steinhardt, Jacob},
-  booktitle = {International Conference on Learning Representations},
-  year      = {2021}
-}
-
-% --- Supporting (Hybrid LLM dataset; cited in screening appendix) ---
-
-@inproceedings{jiang2023mixinstruct,
-  title     = {{MixInstruct}: A Benchmark for Instruction-Following Evaluation},
-  author    = {Jiang, Haoming and others},
-  booktitle = {Findings of the Association for Computational Linguistics},
-  year      = {2023},
-  note      = {Used by Hybrid LLM (T1-03)}
+  year    = {2023}
 }

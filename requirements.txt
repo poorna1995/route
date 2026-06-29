@@ -1,0 +1,6 @@
+# Prefer: source scripts/setup_env.sh  (RunPod-aware, skips redundant torch install)
+# Or pick a profile:
+#   pip install -r requirements/base.txt   # corpus / prepare only
+#   pip install -r requirements/ml.txt     # RunPod (torch already in image)
+#   pip install -r requirements/full.txt   # local GPU/CPU with torch download
+-r requirements/full.txt

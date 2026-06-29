@@ -1,0 +1,21 @@
+\section{Method}
+\label{sec:method}
+
+Our method follows five **pipeline steps** (Figure~\ref{fig:pipeline}): signal extraction, signal analysis, signal selection, routing policy, and evaluation---corresponding to execution Stages 5--9 after the setting is locked (Stages 1--4).
+Signal analysis and routing evaluation are \textbf{separate} scientific claims: H1--H3 test prediction of $r(q)$; H4 tests deployable routing quality.
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox{0.92\linewidth}{\centering\vspace{2.2em}
+    \textbf{Pipeline (placeholder)}\\
+    Signals $\to$ Analysis $\to$ Selection $\to$ Policy $\to$ Evaluation\\
+    \small calib: layers 1--3 \;|\; test: evaluation only
+  \vspace{2.2em}}}
+  \caption{Pipeline aligned with the research program. Signal analysis uses calib labels; routing metrics use test only.}
+  \label{fig:pipeline}
+\end{figure}
+
+\input{sections/04a_signal_extraction}
+\input{sections/04b_signal_analysis}
+\input{sections/04c_signal_selection}
+\input{sections/04d_routing_policy}

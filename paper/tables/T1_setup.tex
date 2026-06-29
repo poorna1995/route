@@ -1,21 +1,22 @@
-% T1: Locked experimental configuration
 \begin{table}[t]
   \centering
   \small
-  \begin{tabular}{ll}
+  \begin{tabular}{@{}ll@{}}
     \toprule
-    \textbf{Component} & \textbf{Locked value} \\
+    \textbf{Component} & \textbf{Setting} \\
     \midrule
-    Weak model ($M_w$)   & Llama-3.2-1B-Instruct \\
-    Strong model ($M_s$) & Llama-3.2-3B-Instruct \\
-    Primary dataset      & ARC-Challenge \citep{clark2018think} \\
-    CALIB split          & Official validation ($n{=}299$) \\
-    TEST split           & Official test ($n{=}1{,}172$) \\
-    Prompt formatting     & Deterministic chat template (\texttt{prompt\_protocol.py}) \\
-    Random seed          & 42 \\
-    $c(q)$ selection     & \texttt{piece\_count} (CALIB screening) \\
+    Model pool $\Mpool$ & \textsc{TBD --- M3 lock} \\
+    Deployment scenario & \textsc{TBD --- narrow\_gap / wide\_gap} \\
+    Primary pair $\Mlo$, $\Mhi$ & \textsc{TBD --- lower / higher capability members} \\
+    Cost ratio $\kappa$ & \textsc{TBD --- $c(\Mhi)/c(\Mlo)$ from locked pool} \\
+    Task / benchmark & \textsc{TBD --- M3 lock} \\
+    Evaluation corpus $C$ & \textsc{TBD --- M1 HF splits; see program \S13} \\
+    Splits ($H$, $R_c$, $R_t$) & \textsc{TBD --- M1 partition; M3 IDs} \\
+    Prompt + decoding & \textsc{TBD --- system + dataset templates; frozen M3} \\
+    Signal types & query-derived, model-response, cross-model comparative \\
+    Concrete signal list & \textsc{TBD --- locked at M3} \\
     \bottomrule
   \end{tabular}
-  \caption{Locked experimental configuration. Screening exclusions in appendix.}
+  \caption{Experimental setting (\textbf{not locked}). Fill after M3 freeze (research/program.md \S0.7, \S13). Pool, primary pair, protocol, and evaluation-corpus partition locked together.}
   \label{tab:setup}
 \end{table}

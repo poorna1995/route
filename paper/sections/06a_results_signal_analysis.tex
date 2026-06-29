@@ -1,0 +1,19 @@
+\subsection{Signal analysis (H1--H3)}
+\label{sec:results-signals}
+
+We report whether unsupervised signals predict routing need on calib before any routing policy claims.
+
+\input{tables/T2_signal_analysis}
+
+\paragraph{H1 --- Query-derived.}
+\textsc{[AUROC / AUPRC vs.\ $r(q)$ with query-derived features only. TBD.]}
+
+\paragraph{H2 --- Model-response.}
+\textsc{[$\Delta$AUROC over H1 when adding model-response features for pool members. TBD.]}
+
+\paragraph{H3 --- Cross-model comparative.}
+\textsc{[$\Delta$AUROC over H2 when adding comparative features. TBD.]}
+
+\paragraph{Summary.}
+H1--H3 answer \emph{informativeness}: signals may predict $r(q)$ strongly, weakly, or not at all.
+A negative H3 with positive H1--H2 is a valid outcome---comparative structure may add little beyond per-model uncertainty.

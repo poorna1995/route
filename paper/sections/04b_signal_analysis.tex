@@ -1,0 +1,21 @@
+\subsection{Signal analysis}
+\label{sec:signal-analysis}
+
+\textbf{Purpose.} Test which unsupervised signals predict routing need $r(q)$---independent of routing policy quality.
+
+\textbf{Split.} Calibration set only; compare features to offline $r(q)$ from Equation~\eqref{eq:routing-need}.
+
+\paragraph{Statistics.}
+\begin{itemize}
+  \item \textbf{Univariate:} Spearman $\rho$, AUROC / AUPRC per feature vs.\ $r(q)$.
+  \item \textbf{Nested ablations (H1--H3):} incremental $\Delta$AUROC when adding each signal type (query-derived $\to$ +model-response $\to$ +cross-model comparative).
+  \item \textbf{Optional:} stratified views over $(y_{\mathrm{lo}},y_{\mathrm{hi}})$ buckets (Table~\ref{tab:buckets}).
+\end{itemize}
+
+We do \textbf{not} report $\pi(q)$ or accuracy--cost at this stage.
+Results appear in Section~\ref{sec:results-signals} (Table~\ref{tab:signal-analysis}).
+
+\paragraph{Hypotheses (motivated by signal assumptions, Section~\ref{sec:signal-extraction}).}
+\textbf{H1:} Query-derived signals predict $r(q)$ (complexity $\to$ routing need).
+\textbf{H2:} Model-response signals improve prediction beyond query-derived alone (uncertainty $\to$ error).
+\textbf{H3:} Cross-model comparative signals improve prediction beyond model-response alone (disagreement $\to$ opportunity).

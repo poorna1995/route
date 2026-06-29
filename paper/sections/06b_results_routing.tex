@@ -1,0 +1,26 @@
+\subsection{Routing (H4)}
+\label{sec:results-routing}
+
+Using frozen $x(q)$ and $(\lambda,\tau)$ fit on calib, we evaluate routing on \textbf{test} only.
+
+\input{tables/T4_routing_pareto}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox{0.75\linewidth}{\centering\vspace{2em}
+    \textbf{Pareto plot (placeholder)}\\
+    Acc vs.\ Cost
+  \vspace{2em}}}
+  \caption{Accuracy--cost Pareto on test. \textsc{[TBD.]}}
+  \label{fig:pareto}
+\end{figure}
+
+\paragraph{H4 --- Learned vs.\ rule routing.}
+We compare 4b (learned $\lambda$) against the best 4a hand rule on the same $x(q)$.
+\textbf{Success:} 4b Pareto-dominates best 4a, or achieves higher $\mathrm{Acc}$ at the same $\mathrm{Cost}$.
+\textbf{Null:} learned weights $\approx$ best rule, or policies $\approx$ always-$\Mhi$---report honestly.
+
+\paragraph{Oracle gap.}
+\textsc{[Optional: $\mathrm{Acc}(\pi^*)-\mathrm{Acc}(\pi)$ routing ceiling. TBD.]}
+
+Routing results are reported \textbf{separately} from signal analysis (Section~\ref{sec:results-signals}).

@@ -1,0 +1,48 @@
+# Schema template — research/program.md §0.7. M3 → copy winner to setting.frozen.yaml (self-contained).
+setting:
+  corpus:
+    dataset: ARC-Challenge
+    source: registry_default
+
+  partition:
+    method: random_split
+    seed: 42
+    selection_holdout_n: 150 # M1/M2 — fixed pilot size
+    test_n: 150 # M3 — winning benchmark only
+    ids: {}
+
+  pool:
+    deployment_scenario: homogeneous_pool # homogeneous_pool | heterogeneous_pool | api_router | edge_cloud
+    M_lo: meta-llama/Llama-3.2-3B-Instruct
+    M_hi: meta-llama/Llama-3.1-8B-Instruct
+    kappa: null
+
+  protocol:
+    protocol_version: mcq_letter_v1
+    system_prompt: |
+      You answer multiple-choice questions.
+
+      Rules:
+      - Read the question and all options carefully.
+      - Reply with exactly one line containing only the letter label of the correct option (A, B, C, …).
+      - Do not include explanation, punctuation, or any other text.
+    user_template: |
+      {question}
+
+      {choices}
+
+      Answer:
+    decoding:
+      temperature: 0.0
+      max_tokens: 16
+    grading:
+      method: mcq
+
+  gates:
+    min_accuracy_gap: 0.03 # Gate C: min Acc(M_hi) - Acc(M_lo)
+    opportunity_min: 0.05 # Gate D: min P(opportunity bucket)
+    too_hard_max: 0.70 # Gate D: max P(too_hard bucket)
+
+  meta:
+    status: frozen
+    ids_frozen: false

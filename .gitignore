@@ -1,76 +1,12 @@
-# Python
+old_llm_routing/
 .venv/
 __pycache__/
 *.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Secrets — never commit
-.env
-.env.*
-*.pem
-credentials.json
-
-# Model / dataset caches (can be GB+; never commit)
-.cache/
-.huggingface/
-models/
-checkpoints/
-
-# Large binary / tensor artifacts (regenerable; catch-all outside analysis/experiments)
-*.parquet
-*.pkl
-*.pickle
-*.pt
-*.pth
-*.ckpt
-*.safetensors
-*.npy
-*.npz
-*.h5
-*.hdf5
-*.jsonl
-
-# Experiment artifacts (regenerate on GPU/CPU runs)
-# Includes M4/M5 oracles, signal CSVs, C3 campaigns (experiments/campaigns/**).
-experiments/**
-!experiments/README.md
-!experiments/**/
-!experiments/**/.gitkeep
-# Pinned CALIB inputs for C3 postprocess (RunPod git pull — not regenerable on pod)
-!experiments/M4/
-!experiments/M4/routing_opportunity/
-!experiments/M4/routing_opportunity/arc_validation_oracle.json
-!experiments/M4/routing_opportunity/arc_test_oracle.json
-!experiments/M5/
-!experiments/M5/arc_validation_features.csv
-!experiments/M5/arc_test_features.csv
-
-# Analysis outputs (regenerable); keep frozen study manifests
-# Large files here: arc_merged*.csv (~1–1.5 MB), mmlu_merged.csv (~500 KB), routing JSON.
-analysis/*
-!analysis/.gitkeep
-!analysis/splits.json
-!analysis/dataset_shortlist.json
-!analysis/selected_feature.json
-
-# LaTeX build
-paper/**/*.aux
-paper/**/*.log
-paper/**/*.out
-paper/**/*.bbl
-paper/**/*.blg
-paper/**/*.synctex.gz
-paper/**/*.pdf
-
-# OS / editors
 .DS_Store
-.idea/
-.vscode/
-*.swp
-*~
+data/cache/
+experiments/corpora/
+experiments/corpora/_test_arc/
+experiments/runs/
+research/archive/
+llm_routing.egg-info/

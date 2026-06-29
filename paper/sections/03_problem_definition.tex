@@ -1,0 +1,91 @@
+\section{Problem Definition}
+\label{sec:problem}
+
+\subsection{Routing setting}
+\label{sec:routing-setting}
+
+We consider a fixed \textbf{model pool} $\Mpool=\{M_1,\ldots,M_K\}$ whose members have \textbf{distinct, documented capabilities}---they are not interchangeable.
+At Stage~3 we designate a \textbf{primary pair} for threshold routing: $\Mlo$ (lower capability, lower cost) and $\Mhi$ (higher capability, higher cost), with $\mathrm{cap}(\Mlo)<\mathrm{cap}(\Mhi)$.
+The pool may contain additional members for comparative signals; the primary pair defines routing need and the main policy.
+
+For each query $q$, pool members run under a frozen prompting and decoding protocol; we write $y(q,M)\in\{0,1\}$ for correctness under an \textbf{objective} task metric (Section~\ref{sec:experimental-setup}).
+Let $y_{\mathrm{lo}}=y(q,\Mlo)$ and $y_{\mathrm{hi}}=y(q,\Mhi)$.
+
+Our goal is \textbf{appropriate model selection}: route to $\Mlo$ when it suffices, and escalate to $\Mhi$ only when additional capability is likely to improve correctness---subject to inference cost.
+We evaluate routing policies by task accuracy and average model cost on a held-out \textbf{test} split; an offline \textbf{oracle} upper bound is defined below for evaluation only.
+
+\subsection{Routing need}
+
+Escalation to $\Mhi$ is warranted when the lower-capability member fails but the higher-capability member would succeed.
+We define \textbf{routing need}:
+\begin{equation}
+  r(q) = \mathbb{1}\big[\, y(q,\Mlo)=0 \;\wedge\; y(q,\Mhi)=1 \,\big].
+  \label{eq:routing-need}
+\end{equation}
+Queries fall into four buckets according to $(y_{\mathrm{lo}},y_{\mathrm{hi}})$:
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}llcl@{}}
+    \toprule
+    \textbf{Bucket} & $(y_{\mathrm{lo}}, y_{\mathrm{hi}})$ & $r(q)$ & \textbf{Oracle route} \\
+    \midrule
+    easy         & $(1,1)$ & 0 & $\Mlo$ \\
+    opportunity  & $(0,1)$ & \textbf{1} & $\Mhi$ \\
+    lo\_only     & $(1,0)$ & 0 & $\Mlo$ \\
+    too\_hard    & $(0,0)$ & 0 & $\Mlo$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Query buckets and routing need. \emph{Opportunity} queries have $r(q)=1$.}
+  \label{tab:buckets}
+\end{table}
+
+We also write the correctness gap $\Delta(q)=y_{\mathrm{hi}}-y_{\mathrm{lo}}$; routing need corresponds to $\Delta(q)=+1$.
+For \textbf{evaluation only}, the \textbf{oracle} policy $\pi^*(q)$ routes to the cheapest correct pool member: $\Mlo$ if $y_{\mathrm{lo}}=1$; else $\Mhi$ if $y_{\mathrm{hi}}=1$; else $\Mlo$.
+The oracle uses offline labels and is not a deployable router.
+
+Routing need $r(q)$ is computed offline for analysis and policy fit; it is \textbf{never} an input to signal extraction (Section~\ref{sec:signal-extraction}).
+
+\subsection{What ``unsupervised'' means}
+\label{sec:unsupervised-def}
+
+\textbf{Unsupervised} describes \textbf{how signals are obtained} (layer~1), not the absence of all labels in the paper.
+We use three \textbf{supervision layers}:
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}clcc@{}}
+    \toprule
+    \textbf{Layer} & \textbf{Program §} & Uses $r(q)$? & \textbf{Unsupervised?} \\
+    \midrule
+    1 --- Signal extraction   & Section~\ref{sec:signal-extraction} & No  & Yes \\
+    2 --- Signal analysis     & Section~\ref{sec:signal-analysis}   & Yes, calib only & Analysis supervised; signals not \\
+    3 --- Policy fit          & Section~\ref{sec:routing-policy}      & Yes, calib only & Combination supervised; definitions not \\
+    \bottomrule
+  \end{tabular}
+  \caption{Three supervision layers. ``Unsupervised signals'' refers to layer~1 only.}
+  \label{tab:layers}
+\end{table}
+
+At layer~1, each feature $x_i(q)$ is computed from query text and/or model responses only---no routing preferences, no routing classifier training data.
+\textbf{Model-response} signals require running pool members on $q$; ``unsupervised'' refers to \textbf{routing supervision}, not compute.
+At layers~2--3, we use offline $r(q)$ on \textbf{calib} to score informativeness (H1--H3) and to fit policy parameters $(\lambda,\tau)$ (H4); all reported routing metrics use locked parameters on \textbf{test} only.
+
+Combining signals with calib labels follows the advisor formulation: unsupervised \emph{features}, supervised \emph{weights}.
+This differs from supervised routers that learn routing inputs from preference datasets end-to-end, and from claims of ``zero labels'' in the entire system.
+
+We do \textbf{not} mean classical unsupervised routing (e.g., clustering queries with no oracle on calib) as our method, nor every paper that uses the word ``unsupervised'' for synthetic judge scores in retrieval pipelines.
+
+\subsection{Research questions}
+
+\begin{enumerate}
+  \item[RQ1.] What \textbf{query-derived}, \textbf{model-response}, and \textbf{cross-model comparative} signals can we estimate without routing labels at extraction time?
+  \item[RQ2.] Which signals predict routing need $r(q)$ on calib? \textbf{(H1--H3)}
+  \item[RQ3.] After freezing $x(q)$, do learned weights outperform hand-designed rules on the same features? \textbf{(H4)}
+\end{enumerate}
+
+Signal analysis (RQ2) and routing evaluation (RQ3) are \textbf{separate} claims: informative signals can fail to improve Pareto routing, and good routing performance can arise primarily from policy fit rather than signal structure.
+Routing quality is judged by $\mathrm{Acc}(\pi)$ and $\mathrm{Cost}(\pi)$ on test with \textbf{Pareto} dominance as the primary comparison (Section~\ref{sec:experimental-setup}).
+The routing score $s(q)$ and policy $\pi(q)$ are defined once in Section~\ref{sec:routing-policy}.
