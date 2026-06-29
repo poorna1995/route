@@ -21,7 +21,7 @@
 
 **One sentence:** We study whether **unsupervised signals** — query-derived, model-response, and cross-model comparative — can **enable routing decisions** in a fixed **model pool** with distinct capabilities, and whether **learned combination weights** on calib improve over hand-written rules, in contrast to **supervised** routers trained on preferences or outcomes.
 
-**30 s pitch:** Supervised routing dominates the field. We pre-specify unsupervised statistics at extraction time, test whether they predict **routing need** \(r(q)\), freeze \(x(q)\), fit a threshold policy via nomenclature §2.1, and judge routing on **accuracy–cost Pareto** curves — reporting signal analysis and routing evaluation as **separate** claims.
+**30 s pitch:** Supervised routing dominates the field. We pre-specify **model-independent** query signals (and model-dependent response/comparative signals) at extraction time, test whether they predict **routing need** \(r(q)\) in a fixed homogeneous MCQ pair, freeze \(x(q)\), fit a threshold policy via nomenclature §2.1, and judge routing on **accuracy–cost Pareto** curves — reporting nested H1→H2→H3 signal analysis and H4 routing evaluation as **separate** claims.
 
 ### 0.2 Motivation
 
@@ -236,11 +236,23 @@ This paper studies **unsupervised routing signals**, not benchmark leaderboard s
 
 **Paper sentence (locked):** *We treat the publicly labeled evaluation portion of each benchmark as an evaluation corpus \(C\). Before experimentation, we partition \(C\) into three disjoint subsets: a selection holdout \(H\) for experimental-setting selection only, a calibration split \(R_c\) for signal analysis and policy fitting, and a test split \(R_t\) for final routing evaluation. No example is reused across these stages.*
 
-**Example (ARC-Challenge, Option 1 — sizes pre-specified in M1, not fixed by methodology):**
+**Example (ARC-Challenge, Option 1 — policy pre-specified in M1; instance sizes at M3 on winner):**
 
-| Native (excluded from \(C\)) | Evaluation corpus \(C\) | After partition |
-| ---------------------------- | ----------------------- | --------------- |
-| train (1,119) — few-shot only | validation + test = **1,471** | \(H\)=150 · \(R_t\)=150 · \(R_c\)=1,171 |
+| Native (excluded from \(C\)) | Evaluation corpus \(C\) | After partition (winner) |
+| ---------------------------- | ----------------------- | ------------------------ |
+| train (1,119) — few-shot only | validation + test = **1,471** | \(H\)=150 · \(R_t\)=264 · \(R_c\)=1,057 |
+
+**Partition policy (locked in M1):**
+
+| Split | Symbol | Role | Size rule |
+| ----- | ------ | ---- | --------- |
+| Selection holdout | \(H\) | M2 benchmark selection only | `selection_holdout_n` = **150** (fixed, all benchmarks) |
+| Test | \(R_t\) | H4 one-shot evaluation | \(\mathrm{clamp}(\mathrm{round}(0.20 \times \lvert C \setminus H \rvert),\, 150,\, 1000)\) |
+| Calib | \(R_c\) | φ(q), novelty, H1–H3, \((\lambda,\tau)\) fit | **remainder** — maximize development data |
+
+**Timing:** M1/M2 materialize **\(H\) only** per candidate. M3 on the **winning** benchmark assigns \(R_c, R_t\) from the same shuffle (fixed `seed`); resolved `test_n` is written into the frozen setting for reproducibility.
+
+**Development vs test (locked):** Everything on \(R_c\) — feature engineering, novelty statistics, z-scores, threshold tuning, H1–H3. **No parameter changes** after freeze. \(R_t\) is used **once** for H4 (accuracy, cost, Pareto, CIs).
 
 Native HF split names do not appear in the partition rule — only in M1 config for loading \(C\). Under Option 1, \(H\), \(R_c\), and \(R_t\) are a **single random partition** of \(C\) (fixed seed); do not assign splits by native HF split name unless using Option 2.
 
@@ -408,8 +420,8 @@ Three types — nested for H1–H3 ablations:
 
 | Type | Input needed | Role in ablation |
 | ---- | ------------ | ---------------- |
-| **Query-derived** | Query text only | H1 baseline set |
-| **Model-response** | One model × query (logits, entropy, confidence, …) | H2 adds to H1 |
+| **Query-derived** | Query text only (**model-independent** — no pool forward pass) | H1 baseline set |
+| **Model-response** | One pool member × query (logits, entropy, confidence, …) | H2 adds to H1 |
 | **Cross-model comparative** | Both pool members (Δ entropy, disagreement, …) | H3 adds to H2 |
 
 Concrete feature list is chosen at Stage **3** lock and documented in `paper/tables/T1_setup.tex`. Conceptual examples and assumptions: §5.
@@ -714,15 +726,57 @@ Concept only --- concrete signal list is chosen at **Stage 3** lock (§13); not 
 
 | Signal type | Needs | Examples |
 | ----------- | ----- | -------- |
-| **Query-derived** | Query text only | Complexity, length, lexical/syntactic cues, ambiguity |
-| **Model-response** | One model × query | Entropy Q\|Mᵢ, confidence, log-prob, paraphrase stability |
-| **Cross-model comparative** | Compare pool members | ΔH, confidence gap, disagreement |
+| **Query-derived** | Query text only (**model-independent**) | Complexity, length, lexical/syntactic cues, ambiguity |
+| **Model-response** | One pool member × query | Entropy Q\|Mᵢ, confidence, log-prob, paraphrase stability |
+| **Cross-model comparative** | Compare pool members on same query | ΔH, confidence gap, disagreement |
 
 **Cross-model comparative** distinguishes between-model signals from within-model model-response signals.
 
-Why three types: query-derived needs no model run; model-response is within-model; cross-model comparative is between-model.
+Why three types: query-derived is **model-independent** (no pool inference at extraction); model-response is within-model; cross-model comparative is between-model. The **pool** is fixed for the study (homogeneous MCQ pair); do not describe H1 features as *pool-independent*.
 
 **Pipeline output:** candidate features (layer 1, §2). Selection: §7 after §6.
+
+### Query-derived pipeline (Stage 5 — architecture frozen)
+
+Query-derived signals are a **deterministic preprocessing map** \(q \mapsto \phi(q)\) organized around **four routing hypotheses**, not ad-hoc feature families. Detail: [`research/query_derived_spec.md`](query_derived_spec.md); manifest: `experiments/query_derived_defaults.yaml` (draft until M3 lock).
+
+\[
+\phi(q) = \big[\,\phi_{\text{load}},\; \phi_{\text{ambiguity}},\; \phi_{\text{semantic}},\; \phi_{\text{novelty}}\,\big]
+\]
+
+| Property | Hypothesis | Source |
+| -------- | ---------- | ------ |
+| **Load** | How much must the model process? | Prompt statistics + lexical density |
+| **Ambiguity** | How distinguishable are the options? | MCQ overlap / length spread |
+| **Semantic** | Where does the query lie in semantic space? | Frozen sentence encoder \(u(q)\) |
+| **Novelty** | How unusual vs the calibration corpus? | PCA, centroid, kNN, LOF, retrieval density (fit on \(R_c\) only) |
+
+```text
+Canonical prompt
+        │
+        ▼
+Load + Ambiguity descriptors     (extraction — per query)
+        │
+        ▼
+Frozen semantic embedding u(q)   (extraction — saved to disk)
+        │
+        ▼
+Calibration-only engineering   (fit on R_c only)
+        │
+        ▼
+Novelty descriptors              (apply to calib + test)
+        │
+        ▼
+φ(q)  (+ optional z-score in implementation)
+```
+
+| Phase | Uses \(R_c\)? | Uses \(r(q)\)? |
+| ----- | ------------- | --------------- |
+| **Extraction** | No | No |
+| **Engineering** | Fit only | No |
+| **Scaling** (impl.) | \(\mu,\sigma\) only | No |
+
+**Stage 6 block ablation:** test each property alone (load / ambiguity / semantic / novelty), then combinations — see `query_derived_spec.md`. CLI: `python run.py query-derived --run …`.
 
 ---
 
@@ -1013,21 +1067,22 @@ M1 declares which native splits compose \(C\) (implementation only). The **parti
 | **TruthfulQA MCQ** | validation only (817) | — |
 | **HellaSwag** | validation only (10,042) | train |
 
-**Example partition (fixed counts — same M2 pilot cost on every benchmark):**
+**Example partition (policy in `experiments/phase_a_defaults.yaml`; IDs at M3 on winner):**
 
 | Split | Symbol | Role | Size |
 | ----- | ------ | ---- | ---- |
-| Selection holdout | \(H\) | M2 pilot only | `selection_holdout_n` = **150** (all benchmarks) |
-| Test | \(R_t\) | H4 only | `test.n` = **150** |
-| Calib | \(R_c\) | H1–H3, \((\lambda,\tau)\) fit | \|C\| − 150 − 150 (remainder) |
+| Selection holdout | \(H\) | M2 pilot only | **150** (fixed, all benchmarks) |
+| Test | \(R_t\) | H4 only | \(\mathrm{clamp}(0.20 \times \lvert C \setminus H \rvert,\, 150,\, 1000)\) |
+| Calib | \(R_c\) | H1–H3, \((\lambda,\tau)\) fit, φ / novelty | \(\lvert C \rvert - \lvert H \rvert - \lvert R_t \rvert\) |
 
-| Benchmark | \|C\| | \|H\| | \|R_t\| | \|R_c\| |
+| Benchmark | \(\lvert C \rvert\) | \(\lvert H \rvert\) | \(\lvert R_t \rvert\) | \(\lvert R_c \rvert\) |
 | --------- | ----- | ----- | ------- | ------- |
-| ARC | 1,471 | 150 | 150 | 1,171 |
+| ARC | 1,471 | 150 | 264 | 1,057 |
 | TruthfulQA | 817 | 150 | 150 | 517 |
-| HellaSwag | 10,042 | 150 | 150 | 9,742 |
+| HellaSwag | 10,042 | 150 | 1,000 | 8,892 |
+| MMLU (val+test) | ~15,573 | 150 | 1,000 | ~14,423 |
 
-M2 oracle cost = **150 × 2 models** per benchmark — not percentage-dependent.
+M2 oracle cost = **150 × 2 models** per benchmark — independent of \(R_t\) rule.
 
 All three drawn from \(C\) via one random partition (fixed `seed`). **No query in \(H\) may appear in \(R_c\) or \(R_t\).**
 

@@ -8,7 +8,9 @@ setting:
     method: random_split
     seed: 42
     selection_holdout_n: 150 # M1/M2 — fixed pilot size
-    test_n: 150 # M3 — winning benchmark only
+    test_fraction: 0.20
+    test_min: 150
+    test_max: 1000
     ids: {}
 
   pool:

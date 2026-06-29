@@ -97,8 +97,8 @@ def holdout_size(setting: dict[str, Any], corpus_size: int) -> int:
     return resolve_holdout_size(corpus_size, setting["partition"])
 
 
-def test_size(setting: dict[str, Any]) -> int:
-    return resolve_test_size(setting["partition"])
+def test_size(setting: dict[str, Any], *, eval_pool_n: int) -> int:
+    return resolve_test_size(setting["partition"], eval_pool_n=eval_pool_n)
 
 
 def eval_partition_complete(setting: dict[str, Any]) -> bool:
@@ -124,8 +124,16 @@ def freeze_partition_ids(setting: dict[str, Any], partition: dict[str, list[str]
     return updated
 
 
-def freeze_eval_partition(setting: dict[str, Any], partition: dict[str, list[str]]) -> dict[str, Any]:
+def freeze_eval_partition(
+    setting: dict[str, Any],
+    partition: dict[str, list[str]],
+    *,
+    resolved_test_n: int,
+) -> dict[str, Any]:
     updated = freeze_partition_ids(setting, partition)
+    part = dict(updated["partition"])
+    part["test_n"] = resolved_test_n
+    updated["partition"] = part
     meta = dict(updated.get("meta") or {})
     meta["eval_ids_frozen"] = True
     updated["meta"] = meta

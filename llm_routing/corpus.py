@@ -185,14 +185,28 @@ def resolve_holdout_size(corpus_size: int, partition_cfg: dict[str, Any]) -> int
     return sel_n
 
 
-def resolve_test_size(partition_cfg: dict[str, Any]) -> int:
-    """M3: fixed test split size (policy locked in Phase A defaults)."""
+def resolve_test_size(partition_cfg: dict[str, Any], *, eval_pool_n: int) -> int:
+    """M3: |R_t| from |C\\H|. Frozen test_n in setting overrides the policy rule."""
     if "test_n" in partition_cfg:
         return int(partition_cfg["test_n"])
+    if "test_fraction" in partition_cfg:
+        frac = float(partition_cfg["test_fraction"])
+        tmin = int(partition_cfg.get("test_min", 150))
+        tmax = int(partition_cfg.get("test_max", 1000))
+        raw = round(frac * eval_pool_n)
+        test_n = max(tmin, min(tmax, raw))
+        if test_n >= eval_pool_n:
+            raise ValueError(
+                f"|C\\H|={eval_pool_n} too small for test rule "
+                f"(fraction={frac}, min={tmin}, max={tmax} → {test_n})"
+            )
+        return test_n
     block = partition_cfg.get("eval") or partition_cfg.get("test")
-    if isinstance(block, dict):
-        return int(block.get("test_n", block.get("n")))
-    raise KeyError("partition.test_n required for M3 eval split")
+    if isinstance(block, dict) and "test_n" in block:
+        return int(block["test_n"])
+    raise KeyError(
+        "partition.test_fraction (+ test_min/test_max) or partition.test_n required for M3"
+    )
 
 
 def _shuffled_ids(corpus: list[Query], seed: int) -> list[str]:
@@ -262,6 +276,37 @@ def validate_partition(corpus: list[Query], partition: dict[str, list[str]]) -> 
         raise ValueError("partition overlap")
 
 
+def eval_query_ids(
+    partition: dict[str, list[str]],
+    *,
+    query_ids: list[str] | None = None,
+) -> tuple[list[str], set[str], set[str]]:
+    """Return (R_c ∪ R_t) IDs in stable order; reject holdout leakage."""
+    if not partition.get("calib") or not partition.get("test"):
+        raise ValueError("M3 eval partition required — run: python run.py lock-eval --run <run_dir>")
+
+    holdout = set(partition["selection_holdout"])
+    calib = set(partition["calib"])
+    test = set(partition["test"])
+    if holdout & calib or holdout & test or calib & test:
+        raise ValueError("partition overlap between holdout, calib, and test")
+
+    eval_ids = partition["calib"] + partition["test"]
+    if holdout & set(eval_ids):
+        raise ValueError("selection holdout leaked into eval query set")
+
+    if query_ids is None:
+        return eval_ids, calib, test
+
+    extra = set(query_ids) - calib - test
+    if extra:
+        sample = next(iter(extra))
+        if sample in holdout:
+            raise ValueError(f"query_ids include selection holdout ID {sample!r}")
+        raise ValueError(f"query_ids include unknown ID {sample!r}")
+    return query_ids, calib, test
+
+
 def save_corpus(
     out_dir: Path,
     corpus: list[Query],
@@ -285,12 +330,19 @@ def save_corpus(
             f.write("\n")
 
 
+def _iter_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Read JSONL without str.splitlines() — U+0085 in field values must not split records."""
+    rows: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
 def load_corpus_artifacts(out_dir: Path) -> tuple[list[Query], dict[str, Any], dict[str, list[str]] | None]:
-    corpus = [
-        Query.from_dict(json.loads(line))
-        for line in (out_dir / "corpus.jsonl").read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    corpus = [Query.from_dict(row) for row in _iter_jsonl(out_dir / "corpus.jsonl")]
     manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
     part_path = out_dir / "partition.json"
     partition = json.loads(part_path.read_text(encoding="utf-8")) if part_path.exists() else None
@@ -320,8 +372,4 @@ def write_jsonl(path: Path, rows: list[Any], to_dict) -> None:
 def read_jsonl(path: Path, from_dict) -> list:
     if not path.exists():
         return []
-    return [
-        from_dict(json.loads(line))
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    return [from_dict(row) for row in _iter_jsonl(path)]

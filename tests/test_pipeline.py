@@ -84,7 +84,9 @@ class TestPipeline(unittest.TestCase):
     def test_phase_a_defaults_merge(self) -> None:
         setting = load_setting(ROOT / "experiments/candidates/arc.yaml")
         self.assertEqual(setting["partition"]["selection_holdout_n"], 150)
-        self.assertEqual(setting["partition"]["test_n"], 150)
+        self.assertEqual(setting["partition"]["test_fraction"], 0.20)
+        self.assertEqual(setting["partition"]["test_min"], 150)
+        self.assertEqual(setting["partition"]["test_max"], 1000)
         self.assertIn("selection", setting)
 
     def test_selection_report(self) -> None:

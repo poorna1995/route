@@ -12,6 +12,7 @@ from typing import Any
 from llm_routing.corpus import (
     Query,
     QueryResult,
+    eval_query_ids,
     load_corpus,
     load_corpus_artifacts,
     partition_eval,
@@ -38,6 +39,7 @@ from llm_routing.setting import (
     save_setting,
     test_size,
 )
+from llm_routing.query_derived import run_query_derived
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_ROOT = ROOT / "experiments" / "runs"
@@ -375,8 +377,8 @@ def stage_lock_eval(run: Run) -> None:
     corpus, _, partition = load_corpus_artifacts(run.corpus_dir)
     holdout = partition["selection_holdout"]
     part_cfg = setting["partition"]
-    test_n = test_size(setting)
     n_rest = len(corpus) - len(holdout)
+    test_n = test_size(setting, eval_pool_n=n_rest)
     print(f"[lock-eval] |C\\H|={n_rest}  R_t={test_n}  R_c={n_rest - test_n}")
 
     full = partition_eval(
@@ -386,7 +388,7 @@ def stage_lock_eval(run: Run) -> None:
         seed=int(part_cfg.get("seed", 42)),
         test_n=test_n,
     )
-    save_setting(run.setting_path, freeze_eval_partition(setting, full))
+    save_setting(run.setting_path, freeze_eval_partition(setting, full, resolved_test_n=test_n))
     save_corpus(
         run.corpus_dir,
         corpus,
@@ -451,6 +453,104 @@ def stage_scorecard(run: Run) -> dict[str, Any]:
     print(f"\n[scorecard] lo={report['acc_lo']:.1%} hi={report['acc_hi']:.1%} gap={report['acc_gap']:+.1%}")
     print(f"[scorecard] buckets={report['buckets']}  C={report['gate_c_pass']}  D={report['gate_d_pass']}")
     return report
+
+
+def stage_query_derived(
+    run: Run,
+    *,
+    mock_embed: bool = False,
+    limit: int | None = None,
+    allow_full_corpus: bool = False,
+) -> Path:
+    """Stage 5: query-derived φ(q) on R_c ∪ R_t only (holdout excluded)."""
+    _, _, partition = load_corpus_artifacts(run.corpus_dir)
+    if partition and partition.get("calib") and partition.get("test"):
+        query_ids, n_calib, n_test = (
+            eval_query_ids(partition)[0],
+            len(partition["calib"]),
+            len(partition["test"]),
+        )
+        print(f"[query-derived] split=calib+test  |R_c|={n_calib}  |R_t|={n_test}  holdout excluded")
+    elif allow_full_corpus:
+        corpus, _, _ = load_corpus_artifacts(run.corpus_dir)
+        query_ids = [q.query_id for q in corpus]
+        print("[query-derived] WARNING: full corpus (smoke only — not for analysis)")
+    else:
+        raise ValueError(
+            f"M3 lock-eval required before query-derived — run: python run.py lock-eval --run {run.root}"
+        )
+    if limit:
+        query_ids = query_ids[:limit]
+
+    print(f"[query-derived] n={len(query_ids)}  mock_embed={mock_embed}")
+    out = run_query_derived(
+        run.root,
+        query_ids=query_ids,
+        mock_embed=mock_embed,
+        allow_full_corpus=allow_full_corpus,
+    )
+    run.stage_done(
+        "query_derived",
+        n=len(query_ids),
+        mock_embed=mock_embed,
+        output=str(out.relative_to(run.root)),
+    )
+    print(f"[query-derived] → {out}")
+    return out
+
+
+CANDIDATES_DIR = ROOT / "experiments" / "candidates"
+QUERY_DERIVED_INDEX = RUNS_ROOT / "query_derived_index.json"
+
+
+def list_candidate_settings() -> list[Path]:
+    return sorted(CANDIDATES_DIR.glob("*.yaml"))
+
+
+def stage_query_derived_all(
+    *,
+    mock_embed: bool = False,
+    limit: int | None = None,
+    force_partition: bool = False,
+    smoke: bool = False,
+) -> Path:
+    """Prepare + lock-eval + query-derived for every benchmark candidate."""
+    if smoke and limit is None:
+        limit = 5
+    index_runs: list[dict[str, Any]] = []
+
+    for setting_path in list_candidate_settings():
+        setting = load_setting(setting_path)
+        dataset = setting["corpus"]["dataset"]
+        tag = setting_path.stem
+        run = Run.create(setting_path, name=f"phi-{tag}")
+        print(f"\n=== {dataset} ({run.run_id}) ===")
+        stage_prepare(run, force_partition=force_partition)
+        stage_lock_eval(run)
+        out = stage_query_derived(
+            run,
+            mock_embed=mock_embed,
+            limit=limit,
+            allow_full_corpus=False,
+        )
+        meta = json.loads((run.signals_dir / "query_derived_meta.json").read_text(encoding="utf-8"))
+        index_runs.append(
+            {
+                "dataset": dataset,
+                "run_id": run.run_id,
+                "run_root": str(run.root.relative_to(ROOT)),
+                "output": str(out.relative_to(ROOT)),
+                "n_queries": meta["n_queries"],
+                "n_calib": meta.get("n_calib"),
+                "n_test": meta.get("n_test"),
+                "holdout_excluded": meta.get("holdout_excluded", True),
+            }
+        )
+
+    report = {"timestamp": _utc_now(), "mock_embed": mock_embed, "limit": limit, "runs": index_runs}
+    _write_json(QUERY_DERIVED_INDEX, report)
+    print(f"\n[query-derived-all] {len(index_runs)} datasets → {QUERY_DERIVED_INDEX}")
+    return QUERY_DERIVED_INDEX
 
 
 def run_all(
