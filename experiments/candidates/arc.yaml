@@ -1,4 +1,4 @@
-# M1 candidate — corpus only; Phase A defaults from experiments/phase_a_defaults.yaml
+# M1 candidate — corpus only; Phase A defaults from experiments/defaults.yaml
 setting:
   corpus:
     dataset: ARC-Challenge

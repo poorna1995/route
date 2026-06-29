@@ -1,19 +1,21 @@
 \subsection{Signal analysis (H1--H3)}
 \label{sec:results-signals}
 
-We report whether unsupervised signals predict routing need on calib before any routing policy claims.
+We report whether each signal layer predicts oracle $r(q)$ on calib before any \textbf{binary routing} policy claims.
+H1--H3 are \textbf{parallel layer tests}: each asks whether \emph{that layer's features alone} help predict $r(q)$, not whether one layer beats another and not whether $\phi{+}\psi$ combination defines H3 (H3 = $\chi$ alone; combinations support Stage~7 selection).
 
 \input{tables/T2_signal_analysis}
 
-\paragraph{H1 --- Query-derived.}
+\paragraph{H1 --- Model-independent ($\phi$).}
 \textsc{[AUROC / AUPRC vs.\ $r(q)$ with query-derived features only. TBD.]}
 
-\paragraph{H2 --- Model-response.}
-\textsc{[$\Delta$AUROC over H1 when adding model-response features for pool members. TBD.]}
+\paragraph{H2 --- Model-dependent ($\psi$).}
+\textsc{[AUROC / AUPRC vs.\ $r(q)$ with model-response features from $\Mlo$ only. TBD.]}
 
-\paragraph{H3 --- Cross-model comparative.}
-\textsc{[$\Delta$AUROC over H2 when adding comparative features. TBD.]}
+\paragraph{H3 --- Cross-model ($\chi$).}
+\textsc{[AUROC / AUPRC vs.\ $r(q)$ with cross-model comparative features only. TBD.]}
 
 \paragraph{Summary.}
-H1--H3 answer \emph{informativeness}: signals may predict $r(q)$ strongly, weakly, or not at all.
-A negative H3 with positive H1--H2 is a valid outcome---comparative structure may add little beyond per-model uncertainty.
+H1--H3 answer \emph{informativeness per layer}: each block may predict $r(q)$ strongly, weakly, or not at all.
+A positive H2 with a weak H1 is valid---model-dependent uncertainty may carry routing information without query-side cues.
+Combination models ($\phi{+}\psi$, $\phi{+}\psi{+}\chi$) inform frozen $x(q)$ selection but are not substitutes for the layer hypotheses.

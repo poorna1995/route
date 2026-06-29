@@ -24,11 +24,18 @@ ml = [
 gpu = [
     "torch>=2.1.0",
 ]
+semantic = [
+    "numpy>=1.26.0",
+    "scikit-learn>=1.4.0",
+    "sentence-transformers>=3.0.0",
+]
 dev = [
     "pytest>=8.0",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.4.0",
 ]
 all = [
-    "llm-routing[gpu,ml,dev]",
+    "llm-routing[gpu,ml,semantic,dev]",
 ]
 
 [tool.setuptools.packages.find]

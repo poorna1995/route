@@ -23,3 +23,7 @@ pdflatex main && bibtex main && pdflatex main && pdflatex main
 | Discussion / Conclusion | `sections/07_*.tex`, `08_*.tex` | §14 |
 
 Intro, Related Work, and Problem Definition are draft-complete (2026-06-28). Setup and results fill in after Stages 1–9.
+
+**Paper voice (locked):** **binary LLM routing** / **model selection** — not *cascade paper*. Oracle \(r(q)\) = appropriate-model label. See [`../research/nomenclature.md`](../research/nomenclature.md) §1 and [`../research/program.md`](../research/program.md) §0.1a.
+
+**Signal taxonomy (locked):** model-independent query-derived (H1) → model-dependent model-response (H2) → cross-model comparative (H3); H1–H3 = parallel tests of φ, ψ, χ **each alone**; φ+ψ combination = Stage 7 only.

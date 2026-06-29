@@ -26,7 +26,11 @@ MODELS=(
 
 for model in "${MODELS[@]}"; do
   echo "[prefetch] $model"
-  huggingface-cli download "$model" "${TOKEN_ARGS[@]}" --resume-download
+  if command -v hf >/dev/null 2>&1; then
+    hf download "$model" "${TOKEN_ARGS[@]}"
+  else
+    huggingface-cli download "$model" "${TOKEN_ARGS[@]}" --resume-download
+  fi
 done
 
 echo "[prefetch] done — cache at $HF_HOME"

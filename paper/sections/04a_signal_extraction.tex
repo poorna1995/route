@@ -1,27 +1,36 @@
 \subsection{Signal extraction}
 \label{sec:signal-extraction}
 
-We inventory \textbf{unsupervised} candidate features---no $r(q)$ at extraction time---organized into three types.
-Each type rests on a \textbf{signal assumption} (why it might predict routing need); hypotheses H1--H3 test these assumptions empirically.
+We inventory \textbf{unsupervised} candidate features---no $r(q)$ at extraction time---organized into three \textbf{signal layers} (Section~\ref{sec:intro}).
+Each layer rests on a \textbf{signal assumption} (why it might predict oracle $r(q)$); H1--H3 test whether each layer helps \textbf{binary routing} on its own.
+
+\paragraph{Signal layers.}
+\begin{enumerate}
+  \item \textbf{Model-independent} --- \emph{query-derived} signals (H1).
+  \item \textbf{Model-dependent} --- \emph{model-response} signals (H2).
+  \item \textbf{Cross-model} --- \emph{cross-model comparative} signals (H3).
+\end{enumerate}
 
 \paragraph{Signal assumptions.}
 \begin{itemize}
-  \item \textbf{Query-derived:} More complex or ambiguous queries are more likely to require a higher-capability pool member $\Rightarrow$ \textbf{H1}.
-  \item \textbf{Model-response:} Higher model uncertainty reflects higher probability of error on that query $\Rightarrow$ \textbf{H2}.
-  \item \textbf{Cross-model comparative:} Differences between pool members on the same query reveal routing opportunities $\Rightarrow$ \textbf{H3}.
+  \item \textbf{Query-derived (model-independent):} More complex or ambiguous queries are more likely to require a higher-capability pool member $\Rightarrow$ \textbf{H1}.
+  \item \textbf{Model-response (model-dependent):} Higher model uncertainty reflects higher probability of error on that query $\Rightarrow$ \textbf{H2}.
+  \item \textbf{Cross-model comparative (cross-model):} Differences between pool members on the same query reveal routing opportunities $\Rightarrow$ \textbf{H3}.
 \end{itemize}
 Assumptions are priors, not claims; a rejected hypothesis means the assumption failed for our locked setting.
 
-\paragraph{Query-derived.}
-Computed from query text only (no model forward pass): e.g., lexical/syntactic complexity, length, ambiguity cues.
+\paragraph{Query-derived (model-independent).}
+Computed from query text only---no forward pass through any \textbf{routing-pool} member at extraction (a fixed sentence encoder for semantic features is allowed; it is not a member of $\mathcal{P}$): e.g., lexical/syntactic complexity, length, ambiguity cues.
 
-\paragraph{Model-response.}
-Computed from one model on $q$: e.g., token entropy $H(q\mid M_i)$, confidence, log-probability, paraphrase stability under rephrasings of the same intent.
+\paragraph{Model-response (model-dependent).}
+Computed from one pool member on $q$: e.g., token entropy $H(q\mid M_i)$, confidence, log-probability.
+On our locked MCQ protocol, $\psi$ uses \textbf{choice-letter logits} at the answer token (entropy, MSP, margin over $\{A,B,C,D\}$); open-ended protocols would use different extractors (sequence log-probability, sample-based uncertainty) under the same layer.
 
-\paragraph{Cross-model comparative.}
+\paragraph{Cross-model comparative (cross-model).}
 Computed by comparing pool members on the same $q$, typically from model-response quantities already computed: e.g., entropy gap $\Delta H$, confidence gap, answer disagreement.
+\textbf{H3} tests $\chi(q)$ \emph{alone}---not whether $\phi{+}\psi$ beats $\phi$ (combination analysis belongs in signal selection, Section~\ref{sec:signal-selection}).
 
 Table~\ref{tab:setup} lists concrete signals once the setting is locked (Stages 1--3).
-Signal definitions depend on the frozen prompt protocol; implementation details are documented at lock time.
+\textbf{Layers are universal;} concrete features are \textbf{protocol-dependent implementations} for the locked Experimental Setting $\mathcal{S}$.
 
 The output of this stage is a raw signal inventory per query---not yet selected into $x(q)$.

@@ -7,23 +7,23 @@ HybridLLM trains a query encoder with supervision from model quality scores~\cit
 GraphRouter routes among models and agents with graph-based supervised training~\citep{feng2025graphrouter}.
 AgentRouter formulates multi-agent QA as knowledge-graph--guided routing, training a heterogeneous GNN with soft supervision from per-agent performance~\citep{zhang2026agentrouter}.
 RouterBench provides benchmarks for comparing supervised routers~\citep{hu2024routerbench}.
-These systems \emph{learn} routing inputs from preference data, outcome labels, or structured supervision; our contrast is at \textbf{signal extraction}: we pre-specify unsupervised statistics and ask whether they predict routing need before any routing-specific representation learning.
+These systems \emph{learn} routing inputs from preference data, outcome labels, or structured supervision; our contrast is at \textbf{signal extraction}: we pre-specify unsupervised statistics and ask whether they predict oracle $r(q)$ (appropriate model choice) before any routing-specific representation learning.
 
-\paragraph{Cost-aware and cascade routing.}
-FrugalGPT and related work cascade or select models using feedback from generations or external scorers~\citep{chen2024frugalgpt}.
+\paragraph{Routing vs.\ cascading (related work).}
+Surveys distinguish \textbf{routing}---choose one model per query---from \textbf{cascading}---sequentially invoke models with feedback~\citep{chen2024frugalgpt}.
+FrugalGPT and related work use cascades or scorers after partial generations; we study \textbf{binary model selection} from pre-specified signals, not a new cascade algorithm.
 Smoothie combines multiple model outputs with label-free weighting over candidates~\citep{guha2024smoothie}.
 Such methods often require post-generation information, multiple samples, or reward models; we focus on \textbf{pre-decision signals} from query text and model responses in a fixed capability-differentiated pool, and we report accuracy--cost \textbf{Pareto} curves rather than accuracy alone.
 
 \paragraph{Uncertainty and confidence signals.}
 Work on calibration and self-evaluation shows that LLM probabilities can relate to correctness~\citep{kadavath2022know,plaut2024calibration,he2023calibration}.
 Semantic uncertainty uses multiple samples to estimate confidence~\citep{kuhn2023semantic}.
-These lines motivate \textbf{model-response} and \textbf{cross-model comparative} signals but do not systematically test nested unsupervised signal types against \textbf{routing need} $r(q)$---$\Mlo$ fails, $\Mhi$ succeeds---nor separate signal informativeness (H1--H3) from deployable routing quality (H4).
+These lines motivate \textbf{model-dependent} model-response and \textbf{cross-model} comparative signals but do not systematically test model-independent, model-dependent, and cross-model layers \textbf{in parallel} against oracle $r(q)$---$\Mlo$ fails, $\Mhi$ succeeds---nor separate signal informativeness (H1--H3) from deployable \textbf{binary routing} quality (H4).
 
-\paragraph{Positioning.}
-Table~\ref{tab:contrast} summarizes how our setting differs from typical supervised routers.
-Prior routing is largely \textbf{supervised at the router}: labels or preferences \emph{define} what the router measures and predicts.
-We ask whether \textbf{unsupervised signals}---query-derived, model-response, and cross-model comparative---carry information about $r(q)$ and whether simple threshold policies built from them improve the accuracy--cost trade-off relative to always using one model.
-We cite supervised systems as field context; reproducing them is out of scope (Section~\ref{sec:discussion}).
+\paragraph{Positioning and survey taxonomy.}
+Recent routing surveys distinguish systems by \textbf{when} routing occurs (before vs.\ during vs.\ after generation), \textbf{what information} the router may use (query only, single-model outputs, multiple models), and \textbf{how} the routing score is formed (rules, uncertainty, learned models).
+Table~\ref{tab:contrast} summarizes our contrast with supervised routers; our signal layers (Section~\ref{sec:signal-extraction}) align with the information axis: model-independent $\phi$ (query-side), model-dependent $\psi$ (weak-model-side), cross-model $\chi$ (multi-model-side).
+We separate the routing \textbf{objective} (oracle $r(q)$: was $\Mhi$ appropriate?) from the routing \textbf{mechanism} ($\pi(q)$: select pool member from $x(q)$) and evaluate under accuracy--cost Pareto curves.
 
 \begin{table}[t]
   \centering
@@ -37,7 +37,7 @@ We cite supervised systems as field context; reproducing them is out of scope (S
     Labels \textbf{define} the router end-to-end &
     Labels used \textbf{only on calib}: signal analysis + $(\lambda,\tau)$ fit \\
     Signal source: learned representations from routing data &
-    Query-derived, model-response, cross-model comparative (Section~\ref{sec:signal-extraction}) \\
+    Query-derived (model-independent), model-response (model-dependent), cross-model comparative (Section~\ref{sec:signal-extraction}) \\
     Evaluation: routing accuracy or win rate &
     \textbf{Pareto} over task $\mathrm{Acc}(\pi)$ and $\mathrm{Cost}(\pi)$ on test \\
     \bottomrule

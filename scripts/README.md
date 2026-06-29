@@ -9,7 +9,8 @@
 | *(core)* | datasets, pyyaml, huggingface_hub | prepare / corpus stages |
 | `ml` | transformers, accelerate | RunPod (torch already in image) |
 | `gpu` | torch | local dev without system torch |
-| `dev` | pytest | tests |
+| `dev` | pytest, numpy, scikit-learn | tests + geometry smoke |
+| `semantic` | sentence-transformers, scikit-learn, numpy | Stage 5 real embeddings |
 
 **RunPod (fast path):**
 
@@ -49,6 +50,7 @@ pip install -r requirements/dev.txt  # full + pytest
 ```bash
 python run.py new --setting experiments/candidates/arc.yaml --name arc-pilot
 python run.py prepare --run experiments/runs/<run_id>
+python run.py query-derived --run experiments/runs/<run_id> --mock-embed  # Stage 5: model-independent / H1
 ```
 
 Partition IDs are frozen into the run's `setting.yaml` automatically.

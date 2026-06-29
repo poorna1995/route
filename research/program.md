@@ -1,6 +1,6 @@
 # Research program
 
-> **ACL v1:** unsupervised routing + weight learning in a **fixed pool of models with distinct capabilities**.  
+> **ACL v1:** unsupervised signals for **binary LLM routing** + weight learning in a **fixed pool of models with distinct capabilities**. Not a cascade paper — see §0.1a.  
 > **Vocabulary frozen 2026-06-28** — [`nomenclature.md`](nomenclature.md). No term changes unless compelling technical reason.  
 > **Related work:** [`literature_record.md`](literature_record.md)  
 > Prior experiments retired — see nomenclature §6. **Benchmark, pool, and protocol not locked** (§13): chosen via reproducible Stages **1–3**, then frozen before oracle runs.
@@ -19,9 +19,27 @@
 
 **Working title:** *Routing from Unsupervised Signals in a Fixed LLM Pool*
 
-**One sentence:** We study whether **unsupervised signals** — query-derived, model-response, and cross-model comparative — can **enable routing decisions** in a fixed **model pool** with distinct capabilities, and whether **learned combination weights** on calib improve over hand-written rules, in contrast to **supervised** routers trained on preferences or outcomes.
+**One sentence:** We study whether **unsupervised signals** can **guide binary LLM routing** — selecting the appropriate model from a fixed capability-differentiated pool — and whether **learned combination weights** on calib improve over hand-written rules, in contrast to **supervised** routers trained on preferences or outcomes.
 
-**30 s pitch:** Supervised routing dominates the field. We pre-specify **model-independent** query signals (and model-dependent response/comparative signals) at extraction time, test whether they predict **routing need** \(r(q)\) in a fixed homogeneous MCQ pair, freeze \(x(q)\), fit a threshold policy via nomenclature §2.1, and judge routing on **accuracy–cost Pareto** curves — reporting nested H1→H2→H3 signal analysis and H4 routing evaluation as **separate** claims.
+**30 s pitch:** Supervised routing dominates the field. We pre-specify **model-independent**, **model-dependent**, and **cross-model** signals, test whether each layer predicts oracle \(r(q)\) (was \(M_{\mathrm{hi}}\) the appropriate choice?) on calib, freeze \(x(q)\), fit **binary model-selection** policy \(\pi(q)\) from signals only (nomenclature §2.1), and judge **accuracy–cost Pareto** on test. **Contribution:** unsupervised signal extraction, signal analysis, and routing — **not** a new cascade algorithm. Our pool has two models (3B, 8B), so routing reduces to a binary decision.
+
+### 0.1a Paper voice: routing vs cascade (locked)
+
+| Say (contribution) | Do not say (headline) |
+| ------------------ | --------------------- |
+| **Binary LLM routing** · **Model selection** · **Select the appropriate pool member** | *Unsupervised cascade* · *Cascade paper* · *Escalate to the stronger model* (as contribution) |
+| \(\pi(q)\) chooses \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) from \(x(q)\) | Sequential multi-model invoke as **our** method |
+| Oracle \(r(q)\) = routing need / escalation utility (technical label) | \(r(q)\) is not the deployable router |
+
+**Deployment picture (professor / paper):**
+
+```text
+Query → compute signals x(q) → π(q) → select M_lo or M_hi → run that model
+```
+
+**Not our contribution:** FrugalGPT-style **cascades** (sequential invoke with feedback) — cite as related work only. Same \(\pi(q)\) math can implement binary selection; we do not propose a new cascading algorithm.
+
+Full voice table: [`nomenclature.md`](nomenclature.md) §1.
 
 ### 0.2 Motivation
 
@@ -29,9 +47,9 @@ Multi-LLM systems must trade **quality** against **inference cost**. Recent rout
 
 > *What routing-relevant information exists in signals computed **without** routing supervision at extraction time?*
 
-Uncertainty and calibration work asks whether models “know what they know,” but routing papers rarely run **nested ablations** over signal types against a single **routing-need** target, nor separate **informativeness** from **deployable routing quality**.
+Uncertainty and calibration work studies whether models ``know what they know,'' but routing papers rarely run **parallel layer tests** (model-independent, model-dependent, cross-model) against a single **appropriate-model oracle** \(r(q)\), nor separate **informativeness** from **deployable routing quality**.
 
-**Setting:** A fixed **model pool** \(\mathcal{M}=\{M_1,\ldots,M_K\}\) whose members have **distinct, documented capabilities** (not interchangeable). For each query \(q\), pool members run under a **frozen** prompt and decoding protocol. The router selects one member per query; cost scales with the chosen model.
+**Setting:** A fixed **model pool** \(\mathcal{M}=\{M_1,\ldots,M_K\}\) whose members have **distinct, documented capabilities** (not interchangeable). For each query \(q\), the router **selects one pool member** to answer; cost scales with the chosen model. In v1, \(|\mathcal{P}|=2\) (3B, 8B) — **binary model selection**.
 
 ### 0.3 Primary question and sub-questions
 
@@ -52,7 +70,7 @@ Uncertainty and calibration work asks whether models “know what they know,” 
 | ID | Question | Hypotheses |
 | -- | -------- | ---------- |
 | **RQ1** | What unsupervised signal types can we measure at layer 1? | — (descriptive; Stage **5**) |
-| **RQ2** | Which signals predict routing need \(r(q)\) on calib? | **H1–H3** (Stage **6**) |
+| **RQ2** | Which signals predict oracle \(r(q)\) (appropriate model choice) on calib? | **H1–H3** (Stage **6**) |
 | **RQ3** | After freezing \(x(q)\), do learned weights outperform hand-designed rules? | **H4** (Stage **9**) |
 
 **Critical separation:** RQ2 (informativeness) and RQ3 (routing) are **independent** scientific claims. Either may succeed or fail without implying the other (§0.12).
@@ -92,18 +110,24 @@ Full definition and contrast table: §2.
 
 **Primary routing pair (v1):** Stage 3 designates two pool members with ordered capability: **\(M_{\mathrm{lo}}\)** (lower capability, lower cost) and **\(M_{\mathrm{hi}}\)** (higher capability, higher cost), with \(\mathrm{cap}(M_{\mathrm{lo}}) < \mathrm{cap}(M_{\mathrm{hi}})\). Write \(y_{\mathrm{lo}}=y(q,M_{\mathrm{lo}})\), \(y_{\mathrm{hi}}=y(q,M_{\mathrm{hi}})\). The threshold policy and \(r(q)\) are defined on this pair; the full pool \(\mathcal{M}\) may contain additional members for comparative signals and future extensions.
 
-**Routing need:**
+**Binary LLM routing (deployable):** For each query, compute signals \(x(q)\), score \(s(q)=\lambda^\top x(q)\), and **select** \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) via threshold policy \(\pi(q)\) (nomenclature §2.1). This is **model selection**, not a cascade contribution.
+
+**Routing need \(r(q)\) (oracle label only):**
 
 \[
 r(q) = \mathbb{1}\big[\, y_{\mathrm{lo}} = 0 \;\wedge\; y_{\mathrm{hi}} = 1 \,\big], \qquad \Delta(q) = y_{\mathrm{hi}} - y_{\mathrm{lo}}
 \]
 
-| Bucket | \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) | \(r(q)\) | Escalation warranted? |
-| ------ | ----------------------- | -------- | --------------------- |
-| easy | \((1,1)\) | 0 | No — \(M_{\mathrm{lo}}\) suffices |
-| **opportunity** | \((0,1)\) | **1** | **Yes** — use \(M_{\mathrm{hi}}\) |
-| lo\_only | \((1,0)\) | 0 | No |
-| too\_hard | \((0,0)\) | 0 | No — \(M_{\mathrm{hi}}\) also fails |
+**Definition (locked):** \(r(q)=1\) iff **\(M_{\mathrm{hi}}\) was the appropriate pool member ex post** — \(M_{\mathrm{lo}}\) failed and \(M_{\mathrm{hi}}\) would succeed. Also called **escalation utility** (technical name). Not generic difficulty.
+
+| Bucket | \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) | \(r(q)\) | Appropriate model (oracle) |
+| ------ | ----------------------- | -------- | ---------------------------- |
+| easy | \((1,1)\) | 0 | \(M_{\mathrm{lo}}\) |
+| **opportunity** | \((0,1)\) | **1** | **\(M_{\mathrm{hi}}\)** |
+| lo\_only | \((1,0)\) | 0 | \(M_{\mathrm{lo}}\) |
+| too\_hard | \((0,0)\) | 0 | \(M_{\mathrm{lo}}\) |
+
+**\(r(q)\) is an oracle label, not \(\pi(q)\).** Computed offline from both models. The **deployable router** \(\pi(q)\) uses \(x(q)\) only and **selects** the pool member; it never observes \(r(q)\), \(y_{\mathrm{lo}}\), or \(y_{\mathrm{hi}}\) online.
 
 **Oracle** \(\pi^*(q)\) (eval upper bound only): route to the **cheapest correct** pool member — for the primary pair: \(M_{\mathrm{lo}}\) if \(y_{\mathrm{lo}}=1\); else \(M_{\mathrm{hi}}\) if \(y_{\mathrm{hi}}=1\); else \(M_{\mathrm{lo}}\).
 
@@ -309,7 +333,7 @@ Phase B Routing study (M4)
 | **Prompt + format** | Confidence, entropy, gradability, \(y(q,M)\) |
 | **Decoding** | Output length, \(y(q,M)\), signal variance |
 | **Grading rule** | Definition of \(r(q)\) and oracle buckets |
-| **\(\kappa\)** | Pareto cost axis; value of escalation |
+| **\(\kappa\)** | Pareto cost axis; relative cost of selecting \(M_{\mathrm{hi}}\) |
 
 ##### M1 — Experimental Setting Specification (Stage 1)
 
@@ -380,9 +404,9 @@ Benchmark selection answers one question: **Is this a scientifically valid envir
 
 **Tie-break (pre-specified in M1):** among gate passers, prefer larger `acc_gap`, then higher `opportunity_rate`, then literature preference (`ARC-Challenge` → `MMLU` → `TruthfulQA-MC` → `HellaSwag`).
 
-**Gate C rationale (locked — for reviewers):** *The minimum accuracy gap excludes settings where the designated strong model is only marginally better than the weak model on the holdout — differences that are often sampling noise at pilot size and do not justify a weak→strong routing study.* Concrete value (`min_accuracy_gap` = 0.03) is pre-specified in `experiments/phase_a_defaults.yaml` before any pilot runs.
+**Gate C rationale (locked — for reviewers):** *The minimum accuracy gap excludes settings where the designated strong model is only marginally better than the weak model on the holdout — differences that are often sampling noise at pilot size and do not justify a weak→strong routing study.* Concrete value (`min_accuracy_gap` = 0.03) is pre-specified in `experiments/defaults.yaml` before any pilot runs.
 
-**Gate D rationale (locked — for reviewers):** *Thresholds exclude degenerate routing settings — too few routing opportunities to study, or too many queries where even the strong model fails — rather than optimize routing performance.* Concrete values (`opportunity_min` = 0.05, `too_hard_max` = 0.70) are pre-specified in `experiments/phase_a_defaults.yaml` before any pilot runs. There is no upper bound on opportunity rate: a high opportunity share means the weak model fails often while the strong model rescues, which is a valid (if aggressive-gap) routing scenario when `too_hard` remains low.
+**Gate D rationale (locked — for reviewers):** *Thresholds exclude degenerate routing settings — too few routing opportunities to study, or too many queries where even the strong model fails — rather than optimize routing performance.* Concrete values (`opportunity_min` = 0.05, `too_hard_max` = 0.70) are pre-specified in `experiments/defaults.yaml` before any pilot runs. There is no upper bound on opportunity rate: a high opportunity share means the weak model fails often while the strong model rescues, which is a valid (if aggressive-gap) routing scenario when `too_hard` remains low.
 
 ##### M2 bucket scorecard
 
@@ -404,11 +428,11 @@ Pool fixed: Llama-3.2-3B → Llama-3.1-8B (`homogeneous_pool`).
 
 Each signal type rests on a **routing-relevant assumption** — *why* it might predict \(r(q)=1\). These motivate H1–H3; the hypotheses **test** the assumptions empirically. A rejected hypothesis means the assumption failed for this Setting — not that the study failed.
 
-| Type | Assumption | Link to routing need | Hypothesis |
-| ---- | ---------- | -------------------- | ---------- |
-| **Query-derived** | More complex or ambiguous queries are more likely to exceed \(M_{\mathrm{lo}}\) capacity while remaining within \(M_{\mathrm{hi}}\) capacity. | Higher query complexity → higher \(P(r(q)=1)\) | **H1** |
-| **Model-response** | Higher model uncertainty reflects higher probability of error on that query. | Higher uncertainty on \(M_{\mathrm{lo}}\) → higher \(P(y_{\mathrm{lo}}=0)\); when \(y_{\mathrm{hi}}=1\), routing need | **H2** |
-| **Cross-model comparative** | Differences between pool members on the same query reveal where escalation changes the outcome. | Larger capability-gap signals (confidence, entropy, disagreement) → higher \(P(r(q)=1)\) | **H3** |
+| Layer | Type | Assumption | Link to oracle \(r(q)\) | Hypothesis |
+| ----- | ---- | ---------- | ----------------------- | ---------- |
+| **Model-independent** | **Query-derived** | More complex or ambiguous queries are more likely to exceed \(M_{\mathrm{lo}}\) capacity while remaining within \(M_{\mathrm{hi}}\) capacity. | Higher query complexity → higher \(P(r(q)=1)\) | **H1** |
+| **Model-dependent** | **Model-response** | Higher model uncertainty reflects higher probability of error on that query. | Higher uncertainty on \(M_{\mathrm{lo}}\) → higher \(P(y_{\mathrm{lo}}=0)\); when \(y_{\mathrm{hi}}=1\), \(M_{\mathrm{hi}}\) appropriate | **H2** |
+| **Cross-model** | **Cross-model comparative** | Differences between pool members on the same query reveal where \(M_{\mathrm{hi}}\) is the right choice. | Larger capability-gap signals → higher \(P(r(q)=1)\) | **H3** |
 
 **Literature grounding:** query complexity and task difficulty (Hybrid LLM, FrugalGPT); uncertainty and error (calibration literature); model disagreement and complementary strengths (RouterBench).
 
@@ -416,13 +440,50 @@ Full detail and examples: **§5**. Do not restate assumptions in §6 or §10 —
 
 ### 0.9 Signal taxonomy (conceptual)
 
-Three types — nested for H1–H3 ablations:
+Three **signal layers** — ordered by pool dependence; **H1–H3 test each layer in parallel** (not nested “beats previous layer”):
 
-| Type | Input needed | Role in ablation |
-| ---- | ------------ | ---------------- |
-| **Query-derived** | Query text only (**model-independent** — no pool forward pass) | H1 baseline set |
-| **Model-response** | One pool member × query (logits, entropy, confidence, …) | H2 adds to H1 |
-| **Cross-model comparative** | Both pool members (Δ entropy, disagreement, …) | H3 adds to H2 |
+```text
+Model-independent  →  query-derived           (H1)
+        ↓
+Model-dependent    →  model-response          (H2)
+        ↓
+Cross-model        →  cross-model comparative (H3)
+```
+
+| Layer | Type | Input needed | Hypothesis test |
+| ----- | ---- | ------------ | --------------- |
+| **Model-independent** | **Query-derived** | Query text only (no pool forward pass) | H1 — \(\phi(q)\) vs \(r(q)\) |
+| **Model-dependent** | **Model-response** | One pool member × query (logits, entropy, confidence, …) | H2 — \(\psi(q,M_{\mathrm{lo}})\) vs \(r(q)\) |
+| **Cross-model** | **Cross-model comparative** | Both pool members (Δ entropy, disagreement, …) | H3 — \(\chi(q)\) vs \(r(q)\) |
+
+**Information available at decision time (exposition — maps to routing surveys):** locked layer names above; this table is for reviewers.
+
+| Layer (locked) | Information used | Routing pool forward pass? |
+| -------------- | ---------------- | -------------------------- |
+| **Model-independent** (φ) | Query text only (+ fixed encoder **not** in \(\mathcal{P}\)) | **No** — no \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) inference at extraction |
+| **Model-dependent** (ψ) | One pool member's output on \(q\) (e.g. logits, uncertainty) | **One** — typically \(M_{\mathrm{lo}}\) |
+| **Cross-model** (χ) | Compare pool members on the same \(q\) | **Two+** — e.g. \(M_{\mathrm{lo}}\) and \(M_{\mathrm{hi}}\) |
+
+**Reviewer note:** *model-independent* means independent of the **routing pool** at extraction, not “no neural computation.” A frozen sentence encoder for φ is allowed; it is not a member of \(\mathcal{P}\).
+
+**Method vs instantiation (universality):**
+
+| Universal (methodology) | Setting-specific (ARC v1 instance) |
+| ----------------------- | ------------------------------------ |
+| \(r(q)\) oracle (appropriate model); \(\pi(q)\) binary selection | Letter-answer MCQ grading |
+| φ / ψ / χ layers by information availability | Load, ambiguity, choice entropy, disagreement, … |
+| Parallel H1–H3; freeze \(x(q)\); Pareto H4 | \(\mathcal{S}\) = ARC + Llama 3B→8B + `mcq_letter_v1` |
+| Protocol-dependent ψ, χ **extractors** | Choice-letter softmax for ψ; letter gaps for χ |
+
+Empirical claims are **conditional on** the locked Experimental Setting \(\mathcal{S}\); the framework transfers to other tasks by swapping extractors, not by assuming ARC features generalize.
+
+**Routing literature alignment (when / what / how):**
+
+| Survey axis | This work |
+| ----------- | --------- |
+| **When** | φ pre-inference; ψ at/at-after weak-model answer token; χ from both models' outputs |
+| **What information** | Three layers above — query-only → weak-model → multi-model |
+| **How** | Pre-specified signals + threshold policy; \((\lambda,\tau)\) fit on calib only (H4) |
 
 Concrete feature list is chosen at Stage **3** lock and documented in `paper/tables/T1_setup.tex`. Conceptual examples and assumptions: §5.
 
@@ -460,10 +521,20 @@ Motivated by **signal assumptions** (§0.8, §5).
 
 | ID | Hypothesis | Layer | Exec. stage | Split | Test statistic / criterion |
 | -- | ---------- | ----- | ----------- | ----- | -------------------------- |
-| **H1** | Query-derived signals predict routing need. | 2 | **6** | calib | AUROC / AUPRC vs \(r(q)\); query-derived only |
-| **H2** | Model-response improves prediction beyond query-derived. | 2 | **6** | calib | ΔAUROC over H1 (nested) |
-| **H3** | Cross-model comparative improves beyond model-response. | 2 | **6** | calib | ΔAUROC over H2 (nested) |
-| **H4** | Learned weighting outperforms manual rules on same \(x(q)\). | 3 | **9** | test | 4b **Pareto-dominates** best 4a |
+| **H1** | Query-derived signals predict appropriate-model oracle \(r(q)\). | model-independent | **6** | calib | AUROC / AUPRC vs \(r(q)\); \(\phi(q)\) only |
+| **H2** | Model-response signals predict appropriate-model oracle \(r(q)\). | model-dependent | **6** | calib | AUROC / AUPRC vs \(r(q)\); \(\psi(q,M_{\mathrm{lo}})\) only |
+| **H3** | Cross-model comparative signals predict appropriate-model oracle \(r(q)\). | cross-model | **6** | calib | AUROC / AUPRC vs \(r(q)\); \(\chi(q)\) only |
+| **H4** | Learned weighting outperforms manual rules on same \(x(q)\). | (policy) | **9** | test | 4b **Pareto-dominates** best 4a |
+
+**Not H2 / not H3 (common misreadings):**
+
+| Misreading | Correct |
+| ---------- | ------- |
+| H2 = “φ + ψ beats φ” | **H2** tests \(\psi(q,M_{\mathrm{lo}})\) **alone** vs \(r(q)\) |
+| H3 = “combining φ and ψ improves prediction” | **H3** tests \(\chi(q)\) **alone** vs \(r(q)\) (cross-model comparative) |
+| Nested ΔAUROC H1→H2→H3 | **Parallel** layer tests — each block on its own |
+
+Incremental \(\Delta\)AUROC of \(\phi{+}\psi\) over \(\phi\), or \(\phi{+}\psi{+}\chi\) over subsets, is **combination analysis** (Stage **6** optional, Stage **7** selection) for building frozen \(x(q)\) — **not** the definition of H2 or H3.
 
 **H4 tracks (policy fit on calib, eval on test):**
 
@@ -510,7 +581,7 @@ Full metrics and baselines: §9.
 ### 0.13 Contributions (paper claims)
 
 1. **Formulation** — \(r(q)\), signal assumptions + taxonomy, supervised vs unsupervised contrast (§2–§3, §5).
-2. **Signal analysis** — nested H1–H3 tests on calib (§6).
+2. **Signal analysis** — parallel H1–H3 layer tests on calib (§6).
 3. **Signal selection** — frozen \(x(q)\) before routing claims (§7).
 4. **Routing policies** — 4a rule + 4b learned via §2.1 (§8).
 5. **Pareto evaluation** — accuracy and cost jointly on test (§9).
@@ -658,7 +729,9 @@ Prior work **learns** routing from labels; we **propose and measure** fixed sign
 
 ---
 
-## 3. Routing need
+## 3. Routing need (oracle) and binary model selection
+
+**Deployable routing:** \(\pi(q)\) **selects** \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) from signals \(x(q)\) — **binary LLM routing** (nomenclature §2.1). Not a cascade contribution.
 
 **Setup:** Model pool \(\mathcal{M}=\{M_1,\ldots,M_K\}\) with distinct capabilities; query \(q\); full inference under frozen protocol. Stage 3 designates primary pair \(M_{\mathrm{lo}}\), \(M_{\mathrm{hi}}\) with \(\mathrm{cap}(M_{\mathrm{lo}}) < \mathrm{cap}(M_{\mathrm{hi}})\).
 
@@ -670,18 +743,20 @@ y(q, M) \in \{0, 1\}, \quad y_{\mathrm{lo}} = y(q, M_{\mathrm{lo}}),\; y_{\mathr
 r(q) = \mathbb{1}\big[\, y_{\mathrm{lo}} = 0 \;\wedge\; y_{\mathrm{hi}} = 1 \,\big], \qquad \Delta(q) = y_{\mathrm{hi}} - y_{\mathrm{lo}}
 \]
 
-| Bucket | \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) | \(r(q)\) | Oracle route |
-| ------ | ----------------------- | -------- | ------------ |
+**Oracle \(r(q)\):** \(r(q)=1\) iff **\(M_{\mathrm{hi}}\) was the appropriate choice ex post** (also **escalation utility** / routing need). Not generic difficulty.
+
+| Bucket | \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) | \(r(q)\) | Appropriate model (oracle) |
+| ------ | ----------------------- | -------- | -------------------------- |
 | easy | \((1,1)\) | 0 | \(M_{\mathrm{lo}}\) |
 | opportunity | \((0,1)\) | **1** | \(M_{\mathrm{hi}}\) |
 | lo\_only | \((1,0)\) | 0 | \(M_{\mathrm{lo}}\) |
 | too\_hard | \((0,0)\) | 0 | \(M_{\mathrm{lo}}\) |
 
-**Oracle** \(\pi^*(q)\): cheapest correct pool member — on the primary pair: \(M_{\mathrm{lo}}\) if \(y_{\mathrm{lo}}=1\); else \(M_{\mathrm{hi}}\) if \(y_{\mathrm{hi}}=1\); else \(M_{\mathrm{lo}}\). Evaluation upper bound only (§9).
+**Oracle** \(\pi^*(q)\) (eval upper bound): **select** the cheapest correct pool member — \(M_{\mathrm{lo}}\) if \(y_{\mathrm{lo}}=1\); else \(M_{\mathrm{hi}}\) if \(y_{\mathrm{hi}}=1\); else \(M_{\mathrm{lo}}\). Evaluation only (§9).
 
-\(r(q)\) is offline (layer 2–3 in §2) — never an input to signal extraction (§5). Pipeline steps: §4.
+**Oracle vs \(\pi(q)\):** \(r(q)\) is offline supervision only. \(\pi(q)\) selects from \(x(q)\); never observes \(r(q)\) online (§0.6).
 
----
+\(r(q)\) is offline (layer 2–3 in §2) — never an input to signal extraction (§5). Pipeline: §4.
 
 ## 4. Pipeline
 
@@ -712,9 +787,9 @@ Each signal type rests on a **routing-relevant assumption** — why it might pre
 
 | Type | Assumption | Predicted link to \(r(q)\) | Hypothesis |
 | ---- | ---------- | -------------------------- | ---------- |
-| **Query-derived** | More complex or ambiguous queries are more likely to require a higher-capability pool member. | Higher query complexity → higher \(P(r(q)=1)\) | **H1** |
-| **Model-response** | Higher uncertainty on a model reflects higher probability of error on that query. | Higher \(H(q\mid M_{\mathrm{lo}})\) or lower confidence → higher \(P(y_{\mathrm{lo}}=0)\); when \(y_{\mathrm{hi}}=1\), routing need | **H2** |
-| **Cross-model comparative** | Differences between pool members on the same query reveal routing opportunities. | Larger confidence/entropy gap or disagreement → higher \(P(r(q)=1)\) | **H3** |
+| **Query-derived** (model-independent) | More complex or ambiguous queries are more likely to require a higher-capability pool member. | Higher query complexity → higher \(P(r(q)=1)\) | **H1** |
+| **Model-response** (model-dependent) | Higher uncertainty on a model reflects higher probability of error on that query. | Higher \(H(q\mid M_{\mathrm{lo}})\) or lower confidence → higher \(P(y_{\mathrm{lo}}=0)\); when \(y_{\mathrm{hi}}=1\), \(M_{\mathrm{hi}}\) appropriate | **H2** |
+| **Cross-model comparative** (cross-model) | Differences between pool members on the same query reveal routing opportunities. | Larger confidence/entropy gap or disagreement → higher \(P(r(q)=1)\) | **H3** |
 
 **If an assumption fails** (e.g.\ complexity uncorrelated with \(r(q)\)), rejecting H1 is a valid, publishable outcome for this Setting.
 
@@ -724,15 +799,17 @@ Canonical summary: §0.8. Do not duplicate in §6 or §10.
 
 Concept only --- concrete signal list is chosen at **Stage 3** lock (§13); not fixed in this program.
 
-| Signal type | Needs | Examples |
-| ----------- | ----- | -------- |
-| **Query-derived** | Query text only (**model-independent**) | Complexity, length, lexical/syntactic cues, ambiguity |
-| **Model-response** | One pool member × query | Entropy Q\|Mᵢ, confidence, log-prob, paraphrase stability |
-| **Cross-model comparative** | Compare pool members on same query | ΔH, confidence gap, disagreement |
+| Layer | Signal type | Needs | Examples |
+| ----- | ----------- | ----- | -------- |
+| **Model-independent** | **Query-derived** | Query text only | Complexity, length, lexical/syntactic cues, ambiguity |
+| **Model-dependent** | **Model-response** | One pool member × query | Entropy Q\|Mᵢ, confidence, log-prob, paraphrase stability |
+| **Cross-model** | **Cross-model comparative** | Compare pool members on same query | ΔH, confidence gap, disagreement |
 
-**Cross-model comparative** distinguishes between-model signals from within-model model-response signals.
+**Cross-model comparative** is a separate layer from model-response: between-model signals vs within-model model-response signals.
 
-Why three types: query-derived is **model-independent** (no pool inference at extraction); model-response is within-model; cross-model comparative is between-model. The **pool** is fixed for the study (homogeneous MCQ pair); do not describe H1 features as *pool-independent*.
+**Protocol-dependent extractors (locked principle):** the φ / ψ / χ **layers** are universal; concrete features are **implementations** tied to frozen protocol \(\Pi\). Example: on `mcq_letter_v1`, ψ uses choice-letter logits (entropy, MSP, margin); on open-ended \(\Pi\), ψ would use sequence log-probability or sample-based uncertainty instead — same layer, different extractor.
+
+Why three layers: **model-independent** (query-derived, no pool inference at extraction) → **model-dependent** (one model's response) → **cross-model** (gaps between pool members). The **pool** is fixed for the study (homogeneous MCQ pair); do not describe H1 features as *pool-independent*.
 
 **Pipeline output:** candidate features (layer 1, §2). Selection: §7 after §6.
 
@@ -789,7 +866,8 @@ Novelty descriptors              (apply to calib + test)
 | Analysis | Statistics |
 | -------- | ---------- |
 | Univariate | Spearman \(\rho\), AUROC / AUPRC per feature |
-| Nested ablations | ΔAUROC — **§10 H1–H3** |
+| Layer-wise tests | AUROC / AUPRC per layer vs \(r(q)\) — **§10 H1–H3** (each layer tested on its own block) |
+| Combination models (Stage 6 optional / Stage 7) | \(\phi\), \(\phi{+}\psi\), \(\phi{+}\psi{+}\chi\) jointly for selecting frozen \(x(q)\) — **not** H2 or H3 |
 | Bucket view (optional) | Stratified plots over \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) |
 
 No \(\pi(q)\) claims. **Deliverable:** analysis table.
@@ -854,14 +932,16 @@ Do not tune on test.
 
 Motivated by **signal assumptions** (§5). Each hypothesis tests one assumption on the locked Setting.
 
-| ID | Hypothesis | Assumption | Program § | Exec. stage | Test |
-| -- | ---------- | ---------- | --------- | ----------- | ---- |
-| **H1** | Query-derived signals predict routing need. | Query complexity → routing need | §6 | **6** | AUROC / AUPRC vs \(r(q)\); query-derived only |
-| **H2** | Model-response improves prediction beyond query-derived. | Uncertainty → error | §6 | **6** | ΔAUROC over H1 |
-| **H3** | Cross-model comparative improves beyond model-response. | Disagreement → opportunity | §6 | **6** | ΔAUROC over H2 |
-| **H4** | Learned weighting outperforms manual rules. | (policy; not signal assumption) | §8–§9 | **9** | 4b Pareto-dominates best 4a on test |
+| ID | Hypothesis | Layer | Assumption | Program § | Exec. stage | Test |
+| -- | ---------- | ----- | ---------- | --------- | ----------- | ---- |
+| **H1** | Query-derived signals predict oracle \(r(q)\) (appropriate model). | model-independent | Query complexity → \(r(q)\) | §6 | **6** | AUROC / AUPRC vs \(r(q)\); \(\phi(q)\) only |
+| **H2** | Model-response signals predict oracle \(r(q)\). | model-dependent | Uncertainty → error | §6 | **6** | AUROC / AUPRC vs \(r(q)\); \(\psi(q,M_{\mathrm{lo}})\) only |
+| **H3** | Cross-model comparative signals predict oracle \(r(q)\). | cross-model | Disagreement → opportunity | §6 | **6** | AUROC / AUPRC vs \(r(q)\); \(\chi(q)\) only |
+| **H4** | Learned weighting outperforms manual rules. | (policy) | (policy; not signal assumption) | §8–§9 | **9** | 4b Pareto-dominates best 4a on test |
 
 H1–H3: **informativeness** (layer 2). H4: **routing** (layer 3). Either may fail (§14).
+
+**Not H3:** combining φ and ψ to beat either alone is combination analysis (§6–§7), not the cross-model hypothesis. **H3** = \(\chi(q)\) alone.
 
 ---
 
@@ -897,7 +977,7 @@ PHASE B — Routing study
 | **2** | **M2 — Setting Feasibility Assessment** | §0.7 | selection **holdout** | Bucket scorecard; gates A–E |
 | **3** | **M3 — Experimental Setting Lock** | §0.7 | — | **Frozen Setting** YAML + setup table |
 | **4** | **Oracle labeling** | §3 | calib + test | \(y(q,M)\), \(r(q)\), \(\pi^*(q)\) |
-| **5** | **Signal extraction** | §5 | no \(r(q)\) | Raw signal inventory (three types) |
+| **5** | **Signal extraction** | §5 | no \(r(q)\) | Raw signal inventory (three signal layers) |
 | **6** | **Signal analysis** | §6 | **calib** | Informativeness; **H1–H3** |
 | **7** | **Signal selection** | §7 | calib | Frozen \(x(q)\) and feature specification |
 | **8** | **Routing policy fit** | §8 | **calib** | Locked \(\pi(q)\); 4a + 4b |
@@ -1067,7 +1147,7 @@ M1 declares which native splits compose \(C\) (implementation only). The **parti
 | **TruthfulQA MCQ** | validation only (817) | — |
 | **HellaSwag** | validation only (10,042) | train |
 
-**Example partition (policy in `experiments/phase_a_defaults.yaml`; IDs at M3 on winner):**
+**Example partition (policy in `experiments/defaults.yaml`; IDs at M3 on winner):**
 
 | Split | Symbol | Role | Size |
 | ----- | ------ | ---- | ---- |

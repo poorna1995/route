@@ -37,6 +37,20 @@ class TestPartition(unittest.TestCase):
         cfg = {**self.POLICY, "test_n": 150}
         self.assertEqual(resolve_test_size(cfg, eval_pool_n=9892), 150)
 
+    def test_legacy_snapshot_m3_lock_policy(self) -> None:
+        from llm_routing.setting import partition_cfg_for_m3_lock
+
+        legacy = {
+            "partition": {
+                "method": "random_split",
+                "seed": 42,
+                "selection_holdout_n": 150,
+            },
+            "pool": {"M_lo": "x", "M_hi": "y"},
+        }
+        cfg = partition_cfg_for_m3_lock(legacy)
+        self.assertEqual(resolve_test_size(cfg, eval_pool_n=1321), 264)
+
     def test_m1_holdout_only(self) -> None:
         corpus = [Query(f"q{i}", "ARC", "t", ("a", "b"), 0) for i in range(500)]
         part = partition_holdout(corpus, method="random_split", seed=42, selection_n=150)

@@ -5,23 +5,28 @@
 \label{sec:routing-setting}
 
 We consider a fixed \textbf{model pool} $\Mpool=\{M_1,\ldots,M_K\}$ whose members have \textbf{distinct, documented capabilities}---they are not interchangeable.
-At Stage~3 we designate a \textbf{primary pair} for threshold routing: $\Mlo$ (lower capability, lower cost) and $\Mhi$ (higher capability, higher cost), with $\mathrm{cap}(\Mlo)<\mathrm{cap}(\Mhi)$.
-The pool may contain additional members for comparative signals; the primary pair defines routing need and the main policy.
+At Stage~3 we designate a \textbf{primary pair} for binary routing: $\Mlo$ (lower capability, lower cost) and $\Mhi$ (higher capability, higher cost), with $\mathrm{cap}(\Mlo)<\mathrm{cap}(\Mhi)$.
+The pool may contain additional members for comparative signals; the primary pair defines oracle $r(q)$ and deployable policy $\pi(q)$.
+In this paper $|\mathcal{P}|=2$, so \textbf{binary LLM routing} reduces to selecting $\Mlo$ or $\Mhi$ per query.
 
 For each query $q$, pool members run under a frozen prompting and decoding protocol; we write $y(q,M)\in\{0,1\}$ for correctness under an \textbf{objective} task metric (Section~\ref{sec:experimental-setup}).
 Let $y_{\mathrm{lo}}=y(q,\Mlo)$ and $y_{\mathrm{hi}}=y(q,\Mhi)$.
 
-Our goal is \textbf{appropriate model selection}: route to $\Mlo$ when it suffices, and escalate to $\Mhi$ only when additional capability is likely to improve correctness---subject to inference cost.
-We evaluate routing policies by task accuracy and average model cost on a held-out \textbf{test} split; an offline \textbf{oracle} upper bound is defined below for evaluation only.
+Our goal is \textbf{appropriate model selection}: from signals $x(q)$, choose the pool member that balances correctness and cost.
+We evaluate \textbf{binary model-selection} policies by task accuracy and average model cost on a held-out \textbf{test} split; an offline \textbf{oracle} upper bound is defined below for evaluation only.
+We do \textbf{not} propose a new cascade algorithm---sequential multi-model invoke appears only in related work (Section~\ref{sec:related}).
 
-\subsection{Routing need}
+\subsection{Routing need (oracle label)}
+\label{sec:routing-need}
 
-Escalation to $\Mhi$ is warranted when the lower-capability member fails but the higher-capability member would succeed.
-We define \textbf{routing need}:
+To analyze and fit routers on calib, we need an offline label for whether $\Mhi$ was the \textbf{appropriate} pool member ex post.
+We define \textbf{routing need} $r(q)$---also \textbf{escalation utility} in our notation---as an \textbf{oracle label}, not the deployable policy $\pi(q)$:
 \begin{equation}
   r(q) = \mathbb{1}\big[\, y(q,\Mlo)=0 \;\wedge\; y(q,\Mhi)=1 \,\big].
   \label{eq:routing-need}
 \end{equation}
+$r(q)=1$ iff $\Mlo$ failed but $\Mhi$ would succeed---i.e.\ $\Mhi$ was the right choice, not $\Mlo$.
+This is \textbf{not} generic task difficulty: \emph{too\_hard} queries ($y_{\mathrm{lo}}=y_{\mathrm{hi}}=0$) have $r(q)=0$ because $\Mhi$ does not improve the outcome.
 Queries fall into four buckets according to $(y_{\mathrm{lo}},y_{\mathrm{hi}})$:
 
 \begin{table}[t]
@@ -29,7 +34,7 @@ Queries fall into four buckets according to $(y_{\mathrm{lo}},y_{\mathrm{hi}})$:
   \small
   \begin{tabular}{@{}llcl@{}}
     \toprule
-    \textbf{Bucket} & $(y_{\mathrm{lo}}, y_{\mathrm{hi}})$ & $r(q)$ & \textbf{Oracle route} \\
+    \textbf{Bucket} & $(y_{\mathrm{lo}}, y_{\mathrm{hi}})$ & $r(q)$ & \textbf{Appropriate model (oracle)} \\
     \midrule
     easy         & $(1,1)$ & 0 & $\Mlo$ \\
     opportunity  & $(0,1)$ & \textbf{1} & $\Mhi$ \\
@@ -37,13 +42,35 @@ Queries fall into four buckets according to $(y_{\mathrm{lo}},y_{\mathrm{hi}})$:
     too\_hard    & $(0,0)$ & 0 & $\Mlo$ \\
     \bottomrule
   \end{tabular}
-  \caption{Query buckets and routing need. \emph{Opportunity} queries have $r(q)=1$.}
+  \caption{Query buckets and oracle $r(q)$. \emph{Opportunity} queries have $r(q)=1$.}
   \label{tab:buckets}
 \end{table}
 
-We also write the correctness gap $\Delta(q)=y_{\mathrm{hi}}-y_{\mathrm{lo}}$; routing need corresponds to $\Delta(q)=+1$.
-For \textbf{evaluation only}, the \textbf{oracle} policy $\pi^*(q)$ routes to the cheapest correct pool member: $\Mlo$ if $y_{\mathrm{lo}}=1$; else $\Mhi$ if $y_{\mathrm{hi}}=1$; else $\Mlo$.
+We also write the correctness gap $\Delta(q)=y_{\mathrm{hi}}-y_{\mathrm{lo}}$; $r(q)=1$ corresponds to $\Delta(q)=+1$.
+For \textbf{evaluation only}, the \textbf{oracle} policy $\pi^*(q)$ selects the cheapest correct pool member: $\Mlo$ if $y_{\mathrm{lo}}=1$; else $\Mhi$ if $y_{\mathrm{hi}}=1$; else $\Mlo$.
 The oracle uses offline labels and is not a deployable router.
+
+\subsection{Oracle label vs.\ deployable policy}
+\label{sec:oracle-vs-policy}
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    & \textbf{Oracle label $r(q)$} & \textbf{Deployable policy $\pi(q)$} \\
+    \midrule
+    When known & Offline (both models on calib/test) & Online at routing time \\
+    Inputs & $y_{\mathrm{lo}}, y_{\mathrm{hi}}$ & Signals $x(q)$ only \\
+    Question & Was $\Mhi$ the appropriate choice ex post? & Which pool member should answer? \\
+    \bottomrule
+  \end{tabular}
+  \caption{Oracle supervision vs.\ binary model selection.}
+  \label{tab:oracle-vs-policy}
+\end{table}
+
+Deployable routing: compute $x(q)$, score $s(q)$, and \textbf{select} $\Mlo$ or $\Mhi$ via $\pi(q)$ (Section~\ref{sec:routing-policy}).
+$\pi(q)$ never observes $r(q)$, $y_{\mathrm{lo}}$, or $y_{\mathrm{hi}}$ at decision time.
 
 Routing need $r(q)$ is computed offline for analysis and policy fit; it is \textbf{never} an input to signal extraction (Section~\ref{sec:signal-extraction}).
 
@@ -81,11 +108,30 @@ We do \textbf{not} mean classical unsupervised routing (e.g., clustering queries
 \subsection{Research questions}
 
 \begin{enumerate}
-  \item[RQ1.] What \textbf{query-derived}, \textbf{model-response}, and \textbf{cross-model comparative} signals can we estimate without routing labels at extraction time?
-  \item[RQ2.] Which signals predict routing need $r(q)$ on calib? \textbf{(H1--H3)}
+  \item[RQ1.] What \textbf{model-independent} (query-derived), \textbf{model-dependent} (model-response), and \textbf{cross-model} (cross-model comparative) signals can we estimate without routing labels at extraction time?
+  \item[RQ2.] Which layers predict oracle $r(q)$ (appropriate model choice) on calib? \textbf{(H1--H3)}
   \item[RQ3.] After freezing $x(q)$, do learned weights outperform hand-designed rules on the same features? \textbf{(H4)}
 \end{enumerate}
 
 Signal analysis (RQ2) and routing evaluation (RQ3) are \textbf{separate} claims: informative signals can fail to improve Pareto routing, and good routing performance can arise primarily from policy fit rather than signal structure.
 Routing quality is judged by $\mathrm{Acc}(\pi)$ and $\mathrm{Cost}(\pi)$ on test with \textbf{Pareto} dominance as the primary comparison (Section~\ref{sec:experimental-setup}).
 The routing score $s(q)$ and policy $\pi(q)$ are defined once in Section~\ref{sec:routing-policy}.
+
+\subsection{Scope and universality}
+\label{sec:scope}
+
+Our \textbf{methodology} is setting-agnostic; our \textbf{empirical results} are conditional on one locked Experimental Setting $\mathcal{S}=(\mathcal{D},\mathcal{P},\Pi)$.
+
+\paragraph{Universal (method).}
+Oracle $r(q)$ for appropriate-model analysis; deployable \textbf{binary model selection} $\pi(q)$ from pre-specified signals; three information layers ($\phi$, $\psi$, $\chi$); parallel H1--H3; freeze $x(q)$; Pareto routing (H4).
+These apply wherever pool outputs are objectively gradable (MCQ match, unit tests, grader scores).
+
+\paragraph{Setting-specific (instance).}
+Benchmark, pool pair, prompt protocol, and concrete extractors (e.g.\ choice-letter entropy on ARC; load/ambiguity descriptors for $\phi$).
+The same layers apply to open-ended tasks with different $\psi$ extractors---we do not claim ARC features transfer without refit.
+
+\paragraph{Relation to routing surveys.}
+Surveys distinguish \textbf{routing} (choose a model) from \textbf{cascading} (sequential invoke).
+Our contribution is the former: signals $\to$ $\pi(q)$ $\to$ one pool member.
+FrugalGPT-style cascades are related work only (Section~\ref{sec:related}).
+Surveys also classify routers by \emph{when} the decision is made, \emph{what information} is available, and \emph{how} the score is computed; our layers map to information availability (Section~\ref{sec:intro}).

@@ -1,13 +1,20 @@
 \section{Discussion}
 \label{sec:discussion}
 
+\paragraph{Scope and universality.}
+We contribute \textbf{unsupervised signals for binary LLM routing}---a methodological framework (oracle $r(q)$, information-layered signals, parallel H1--H3, separate H4) instantiated in one locked setting $\mathcal{S}$.
+Concrete features are protocol-dependent implementations, not universal laws.
+We claim \emph{methodological} universality, not \emph{empirical} generality across benchmarks without refit.
+We do \textbf{not} propose a cascade algorithm; sequential invoke systems are related work only.
+
 \paragraph{Signal understanding vs.\ routing.}
-Our pipeline deliberately separates H1--H3 (do signals predict $r(q)$?) from H4 (does a policy improve accuracy--cost?).
+Our pipeline deliberately separates H1--H3 (do $\phi$, $\psi$, or $\chi$ \emph{alone} predict oracle $r(q)$?) from H4 (does \textbf{binary model-selection} $\pi(q)$ improve accuracy--cost?).
+Combining $\phi{+}\psi$ to build $x(q)$ is signal selection (Stage~7), not the definition of H3---H3 is cross-model $\chi$ alone.
 Informative signals can coexist with poor routing if $(\lambda,\tau)$ do not exploit them; good routing with unpromising H1--H3 would suggest policy fit dominates.
 
 \paragraph{Supervised vs.\ unsupervised contrast.}
 We do not claim unsupervised signals replace supervised routers in general.
-We characterize \textbf{what routing-relevant information exists} in signals defined without routing training data, then test simple combination rules.
+We characterize \textbf{what routing-relevant information exists} in signals defined without routing training data, then test simple \textbf{binary routing} rules.
 End-to-end supervised systems (RouteLLM, GraphRouter, AgentRouter) remain strong baselines for deployment.
 
 \paragraph{Limitations.}
@@ -15,4 +22,4 @@ Fixed model pool with distinct capabilities; primary pair $(\Mlo,\Mhi)$; single 
 Agent routing and dynamic pools are future work.
 
 \paragraph{Negative results.}
-Failure of H2--H4, or weak $\Delta$AUROC across types, is publishable when analysis and routing are reported separately with frozen vocabulary and splits.
+Failure of H2--H4, or weak AUROC across layers, is publishable when analysis and routing are reported separately with frozen vocabulary and splits.

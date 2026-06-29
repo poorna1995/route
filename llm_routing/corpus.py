@@ -46,7 +46,7 @@ class QueryResult:
     correct: int
     latency_ms: float | None = None
     token_count: int | None = None
-    logprobs: dict[str, Any] | None = None
+    model_response: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -10,12 +10,12 @@
 
 | Category | Canonical home | Do not substitute |
 | -------- | -------------- | ----------------- |
-| Paper voice | §1 | *support routing*, *solve routing*, Family 1/2/3 |
+| Paper voice | §1 | *support routing*, *solve routing*, **cascade** as our contribution, Family 1/2/3 |
 | Model pool | program §3 | *weak* / *strong* as model labels |
 | Unsupervised vs supervised | program §2 | “no labels ever”; pre- vs post-inference as headline |
 | Routing need, oracle | program §3 | informal “opportunity” without \(r(q)\) |
 | Signal assumptions | program §5 · §0.8 | informal “try entropy” without prior |
-| Signal types | nomenclature §4 | model-derived only; Family 1/2/3 |
+| Signal types | nomenclature §4 | *pool-independent* for query-derived; Family 1/2/3 |
 | Pipeline stages | §3–§4, program §11 | ad-hoc *Phase* names; “Stage” = execution only (§11) |
 | \(s(q)\), \(\pi(q)\), \(\lambda\), \(\tau\) | **§2.1** | redefining score/policy elsewhere |
 | Hypotheses H1–H4 | program §10 | informal claim lists |
@@ -27,8 +27,11 @@
 
 | Context | Wording |
 | ------- | ------- |
-| **Paper / Intro / RQ** | **Enable routing decisions** · **Guide routing decisions** |
-| **Avoid** | *Support routing* (advisor-cautious) · *Solve routing* · *Family 1/2/3* |
+| **Paper / Intro / RQ** | **Binary LLM routing** · **Model selection** · **Select the appropriate pool member** · **Enable / guide routing decisions** |
+| **Deployable policy \(\pi(q)\)** | **Binary model selection** between \(M_{\mathrm{lo}}\) and \(M_{\mathrm{hi}}\) (two-model pool instance) |
+| **Oracle \(r(q)\)** | **Routing need** · **Escalation utility** (technical oracle name only — whether \(M_{\mathrm{hi}}\) was the appropriate choice ex post) |
+| **Avoid as headline** | *Cascade paper* · *Unsupervised cascade* · *Escalate to the stronger model* (as contribution) · *Support routing* · *Solve routing* · *Family 1/2/3* |
+| **Related work only** | *Cascade* (FrugalGPT, sequential invoke) — cite prior work, not our method |
 
 ---
 
@@ -43,9 +46,10 @@ Quick lookup. **Routing score and policy:** full math in **§2.1 only** — do n
 | **Model pool** | \(\mathcal{M}\) | Fixed set of models with distinct capabilities — program §3 |
 | **Primary pair** | \(M_{\mathrm{lo}}, M_{\mathrm{hi}}\) | Lower- / higher-capability members for threshold routing |
 | Per-model correctness | \(y(q,M)\) | Correct answer under frozen protocol |
-| **Routing need** | \(r(q)\) | \(\mathbb{1}[y_{\mathrm{lo}}=0 \wedge y_{\mathrm{hi}}=1]\) — [`program.md`](program.md) §3 |
-| Opportunity query | \(r(q)=1\) | Bucket name for routing need |
-| Correctness gap | \(\Delta(q)=y_{\mathrm{hi}}-y_{\mathrm{lo}}\) | \(+1\) iff routing need |
+| **Routing need** | \(r(q)\) | **Oracle label** for appropriate model choice: \(\mathbb{1}[y_{\mathrm{lo}}=0 \wedge y_{\mathrm{hi}}=1]\) — ex post, \(M_{\mathrm{hi}}\) was the right pool member (also **escalation utility**) — [`program.md`](program.md) §3 |
+| **Binary LLM routing** | \(\pi(q)\) | Select \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) from signals; two-model instance of pool routing |
+| Opportunity query | \(r(q)=1\) | Oracle: \(M_{\mathrm{hi}}\) was appropriate; \(M_{\mathrm{lo}}\) failed, \(M_{\mathrm{hi}}\) succeeded |
+| Correctness gap | \(\Delta(q)=y_{\mathrm{hi}}-y_{\mathrm{lo}}\) | \(+1\) iff \(M_{\mathrm{hi}}\) was the appropriate choice (oracle) |
 | Feature vector | \(x(q) \in \mathbb{R}^d\) | Unsupervised signals; no \(r(q)\) at extraction |
 | **Routing score** | \(s(q)\) | **§2.1** |
 | **Routing policy** | \(\pi(q)\) | **§2.1** |
@@ -75,9 +79,9 @@ Quick lookup. **Routing score and policy:** full math in **§2.1 only** — do n
 s(q) = \lambda^\top x(q) = \sum_{i=1}^{d} \lambda_i \, x_i(q)
 \]
 
-Higher \(s(q)\) = stronger evidence of routing need \(r(q)=1\) (escalate to \(M_{\mathrm{hi}}\)).
+Higher \(s(q)\) = stronger evidence that **\(M_{\mathrm{hi}}\) is the appropriate choice** (\(r(q)=1\) under the oracle); **select** \(M_{\mathrm{hi}}\) when \(s(q) > \tau\), else **select** \(M_{\mathrm{lo}}\).
 
-**Policy** — threshold router given \(\tau \in \mathbb{R}\):
+**Policy** — **binary model selection** given \(\tau \in \mathbb{R}\):
 
 \[
 \pi(q) =
@@ -111,11 +115,35 @@ Supervision layers: program §2 (defined once).
 
 ## 4. Signal types
 
-| Type | Meaning |
-| ---- | ------- |
-| **Query-derived** | Query text only (model-independent) |
-| **Model-response** | One model on query (model-dependent) |
-| **Cross-model comparative** | Pool gaps, disagreement (our refinement) |
+Three **signal layers** — ordered by pool dependence; H1–H3 test each layer **in parallel** (not nested “beats previous layer”). Say **model-independent**, **model-dependent**, and **cross-model** for the layers; use **query-derived**, **model-response**, and **cross-model comparative** for the concrete signal inventories.
+
+| Layer | Signal type | Meaning |
+| ----- | ----------- | ------- |
+| **Model-independent** | **Query-derived** | Query text only — no **routing pool** forward pass at extraction (**H1**) |
+| **Model-dependent** | **Model-response** | One pool member × query — entropy, confidence, log-prob (**H2**) |
+| **Cross-model** | **Cross-model comparative** | Gaps between pool members on the same query — Δ entropy, disagreement (**H3**) |
+
+**Information at decision time (exposition for surveys / reviewers):**
+
+| Layer (locked name) | Information used | Pool member inference? |
+| ------------------- | ---------------- | ---------------------- |
+| Model-independent (φ) | Query only (+ fixed encoder ∉ \(\mathcal{P}\)) | No |
+| Model-dependent (ψ) | Weak-model output on \(q\) | One (\(M_{\mathrm{lo}}\)) |
+| Cross-model (χ) | Multiple pool members on \(q\) | Two+ |
+
+```text
+Model-independent  →  query-derived           (H1)
+        ↓
+Model-dependent    →  model-response          (H2)
+        ↓
+Cross-model        →  cross-model comparative (H3)
+```
+
+**Wording (locked):** say **model-independent** for query-derived signals. Do **not** say *pool-independent*. **Model-independent** = no forward pass through any member of the **routing pool** \(\mathcal{P}\) at extraction — not “no neural models anywhere” (e.g. a frozen MiniLM encoder for φ is fine; it is not in \(\mathcal{P}\)). Do **not** lump cross-model comparative under model-dependent — cross-model is the third layer.
+
+**Universality vs generality:** the φ/ψ/χ **framework** and oracle \(r(q)\) (appropriate-model label) apply wherever outputs are gradable; concrete features are **protocol-dependent implementations** for one Experimental Setting \(\mathcal{S}\). Deployable contribution is **binary LLM routing**, not cascading.
+
+**Headline claim:** **unsupervised signals for binary LLM routing** — pre-specified **model-independent**, **model-dependent**, and **cross-model** signals tested against oracle \(r(q)\) (appropriate-model label) in a fixed homogeneous MCQ pair; H1–H3 are **parallel layer tests** (φ, ψ, χ each alone). **Contribution = signal extraction + analysis + routing**, not a new cascade algorithm. \(\pi(q)\) **selects** the pool member; it never observes \(r(q)\) online. Pareto evaluation (H4).
 
 Detail and **signal assumptions:** [`program.md`](program.md) §5.
 
@@ -174,5 +202,11 @@ Do not extend: prefill traces, layerwise campaigns, numbered experiment codes. A
 | 2026-06-25 | Setting | **Experimental Setting** \(\mathcal{S}\) | Unambiguous in paper; avoids generic "setting" |
 | 2026-06-25 | fixed pilot N=150 | `selection_holdout_n` parameter | Methodology budget-independent |
 | 2026-06-25 | — | **Setting validity** definition + architecture **FROZEN** | Reviewer protection; stop redesign |
+| 2026-06-29 | *pool-independent* (query-derived) | **model-independent** (query-derived) | Pool = experimental setting; H1 = no pool forward pass at extraction |
+| 2026-06-29 | H2/H3 as nested ΔAUROC | **Parallel layer tests** — each layer vs \(r(q)\) on its own block | H2 = model-dependent signals help router; not “beats H1” |
+| 2026-06-29 | informal routing-need wording | **utility of escalation** + oracle vs \(\pi(q)\) | Target is escalation benefit, not generic difficulty |
+| 2026-06-29 | H3 as φ+ψ combination | **H3 = χ alone**; combination in Stage 7 | Cross-model layer distinct from feature merging |
+| 2026-06-29 | cascade as our method | **binary LLM routing / model selection** | Professor framing; cascade = related work only |
+| 2026-06-29 | — | **information availability** exposition table (§4) | Survey alignment; locked layer names unchanged |
 
 **Break-glass procedure:** (1) document technical reason in a new row above; (2) update [`program.md`](program.md), paper, and code together; (3) do not introduce synonyms in parallel.

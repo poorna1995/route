@@ -10,3 +10,4 @@ experiments/corpora/_test_arc/
 experiments/runs/
 research/archive/
 llm_routing.egg-info/
+tests/

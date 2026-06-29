@@ -14,8 +14,12 @@ from llm_routing.pipeline import (
     Run,
     run_all,
     stage_lock_eval,
+    stage_model_response,
+    stage_cross_model,
     stage_oracle,
     stage_prepare,
+    stage_query_derived,
+    stage_query_derived_all,
     stage_scorecard,
     write_selection_report,
 )
@@ -44,6 +48,9 @@ def main() -> int:
     s.add_argument("--smoke", action="store_true")
     s.add_argument("--limit", type=int)
     s.add_argument("--mock", action="store_true", help="fake oracle outputs (no GPU/HF weights)")
+    s.add_argument("--backfill", action="store_true", help="only infer rows missing model_response.trace")
+    s.add_argument("--force", action="store_true", help="re-infer all queries in split (ignore existing trace)")
+    s.add_argument("--role", choices=("M_lo", "M_hi", "both"), default="both")
     s.set_defaults(
         func=lambda a: (
             stage_oracle(
@@ -51,6 +58,9 @@ def main() -> int:
                 split=a.split,
                 limit=a.limit if a.limit is not None else (20 if a.smoke else None),
                 mock=a.mock,
+                backfill=a.backfill,
+                force=a.force,
+                roles=("M_lo", "M_hi") if a.role == "both" else (a.role,),
             ),
             0,
         )[1]
@@ -68,6 +78,78 @@ def main() -> int:
     s.add_argument("--json", action="store_true")
     s.set_defaults(
         func=lambda a: (print(json.dumps(stage_scorecard(Run.open(a.run)), indent=2)) if a.json else None, 0)[1]
+    )
+
+    s = sub.add_parser(
+        "query-derived",
+        help="Stage 5 (model-independent / H1): query-derived φ(q) extraction",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.add_argument("--smoke", action="store_true")
+    s.add_argument("--limit", type=int)
+    s.add_argument("--mock-embed", action="store_true", help="deterministic mock embeddings (no sentence-transformers)")
+    s.add_argument(
+        "--allow-full-corpus",
+        action="store_true",
+        help="smoke only: skip M3 split guard (not for analysis)",
+    )
+    s.set_defaults(
+        func=lambda a: (
+            stage_query_derived(
+                Run.open(a.run),
+                mock_embed=True if a.mock_embed or a.smoke else False,
+                limit=a.limit if a.limit is not None else (5 if a.smoke else None),
+                allow_full_corpus=a.allow_full_corpus or a.smoke,
+            ),
+            0,
+        )[1]
+    )
+
+    s = sub.add_parser(
+        "query-derived-all",
+        help="Stage 5 for all candidates: prepare → lock-eval → φ(q) on R_c ∪ R_t",
+    )
+    s.add_argument("--smoke", action="store_true")
+    s.add_argument("--limit", type=int)
+    s.add_argument("--mock-embed", action="store_true")
+    s.add_argument("--force-partition", action="store_true")
+    s.set_defaults(
+        func=lambda a: (
+            stage_query_derived_all(
+                mock_embed=True if a.mock_embed or a.smoke else False,
+                limit=a.limit if a.limit is not None else (5 if a.smoke else None),
+                force_partition=a.force_partition,
+                smoke=a.smoke,
+            ),
+            0,
+        )[1]
+    )
+
+    s = sub.add_parser(
+        "model-response",
+        help="Stage 5B (model-dependent / H2): ψ metrics from oracle trace (CPU)",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.add_argument("--role", default="M_lo", choices=("M_lo", "M_hi"))
+    s.add_argument("--temperature", type=float, default=1.0)
+    s.set_defaults(
+        func=lambda a: (
+            stage_model_response(
+                Run.open(a.run),
+                role=a.role,
+                temperature=a.temperature,
+            ),
+            0,
+        )[1]
+    )
+
+    s = sub.add_parser(
+        "cross-model",
+        help="Stage 5C (cross-model / H3): χ metrics from joined ψ signals (CPU)",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.set_defaults(
+        func=lambda a: (stage_cross_model(Run.open(a.run)), 0)[1]
     )
 
     s = sub.add_parser("all", help="new + prepare + oracle + scorecard")

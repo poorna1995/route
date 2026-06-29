@@ -1,4 +1,4 @@
-"""Run layout + pipeline stages (prepare → oracle → scorecard)."""
+"""Run layout + pipeline stages (prepare → oracle → scorecard → query-derived φ / model-response ψ)."""
 
 from __future__ import annotations
 
@@ -18,12 +18,14 @@ from llm_routing.corpus import (
     partition_eval,
     partition_holdout,
     read_jsonl,
+    resolve_test_size,
     save_corpus,
     select_queries,
     validate_holdout,
     write_jsonl,
 )
-from llm_routing.oracle import run_model, run_model_mock
+from llm_routing.model_response.protocol import ARTIFACT_VERSION, has_protocol_trace
+from llm_routing.oracle import run_oracle_inference, run_oracle_inference_mock
 from llm_routing.setting import (
     corpus_spec_from_setting,
     eval_partition_complete,
@@ -34,20 +36,59 @@ from llm_routing.setting import (
     get_protocol,
     get_tie_break,
     holdout_size,
-    load_phase_a_defaults,
+    load_defaults,
     load_setting,
+    partition_cfg_for_m3_lock,
     save_setting,
-    test_size,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_ROOT = ROOT / "experiments" / "runs"
+PERMANENT_RUNS_ROOT = RUNS_ROOT / "permanent"
 SELECTION_REPORT_PATH = RUNS_ROOT / "selection_report.json"
 SPLITS = ("selection_holdout", "calib", "test")
+SPLIT_SUFFIX = {
+    "selection_holdout": "pilot",
+    "calib": "val",
+    "test": "test",
+}
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _is_run_dir(path: Path) -> bool:
+    return path.is_dir() and (path / "manifest.json").exists()
+
+
+def iter_run_dirs(runs_root: Path = RUNS_ROOT) -> list[Path]:
+    """Scratch timestamp runs plus grouped permanent runs."""
+    if not runs_root.exists():
+        return []
+    found: list[Path] = []
+    permanent = runs_root / "permanent"
+    if permanent.is_dir():
+        for group in sorted(permanent.iterdir()):
+            if group.is_dir():
+                found.extend(sorted(p for p in group.iterdir() if _is_run_dir(p)))
+    found.extend(
+        sorted(
+            p
+            for p in runs_root.iterdir()
+            if p.name != "permanent" and not p.name.startswith(".") and _is_run_dir(p)
+        )
+    )
+    return found
+
+
+def permanent_run_name(dataset: str, stage: str, split: str) -> str:
+    """Stable run dir name, e.g. arc_oracle_pilot or mmlu_query_derived_eval."""
+    slug = dataset.lower().replace("-", "_").removesuffix("_challenge")
+    if stage == "query_derived" and split == "eval":
+        return f"{slug}_query_derived_eval"
+    suffix = SPLIT_SUFFIX.get(split, split)
+    return f"{slug}_{stage}_{suffix}"
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
@@ -58,14 +99,19 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
 # --- scorecard ---
 
 
-def _bucket(y_lo: int, y_hi: int) -> str:
-    if y_lo and y_hi:
+def routing_bucket_name(low_model_correct: int, high_model_correct: int) -> str:
+    if low_model_correct and high_model_correct:
         return "easy"
-    if not y_lo and y_hi:
+    if not low_model_correct and high_model_correct:
         return "opportunity"
-    if y_lo and not y_hi:
+    if low_model_correct and not high_model_correct:
         return "lo_only"
     return "too_hard"
+
+
+def routing_oracle_r(low_model_correct: int, high_model_correct: int) -> int:
+    """r(q)=1 iff M_lo failed and M_hi succeeded (opportunity bucket)."""
+    return int(low_model_correct == 0 and high_model_correct == 1)
 
 
 def compute_scorecard(
@@ -74,11 +120,13 @@ def compute_scorecard(
     hi: list[QueryResult],
     gates: dict[str, float],
 ) -> dict[str, Any]:
-    lo_map = {r.query_id: r for r in lo}
-    hi_map = {r.query_id: r for r in hi}
+    low_model_by_id = {r.query_id: r for r in lo}
+    high_model_by_id = {r.query_id: r for r in hi}
     buckets: Counter[str] = Counter()
-    for q in queries:
-        buckets[_bucket(lo_map[q.query_id].correct, hi_map[q.query_id].correct)] += 1
+    for query in queries:
+        low_correct = low_model_by_id[query.query_id].correct
+        high_correct = high_model_by_id[query.query_id].correct
+        buckets[routing_bucket_name(low_correct, high_correct)] += 1
     n = len(queries)
     acc_lo = sum(r.correct for r in lo) / n
     acc_hi = sum(r.correct for r in hi) / n
@@ -153,11 +201,7 @@ def gate_reasons(scorecard: dict[str, Any], setting: dict[str, Any]) -> tuple[li
 def _latest_scorecards(runs_root: Path = RUNS_ROOT) -> dict[str, tuple[str, dict[str, Any]]]:
     """dataset → (run_id, scorecard) — latest run per candidate."""
     latest: dict[str, tuple[str, dict[str, Any]]] = {}
-    if not runs_root.exists():
-        return latest
-    for run_dir in runs_root.iterdir():
-        if not run_dir.is_dir() or run_dir.name.startswith("."):
-            continue
+    for run_dir in iter_run_dirs(runs_root):
         path = run_dir / "scorecard.json"
         if not path.exists():
             continue
@@ -166,7 +210,9 @@ def _latest_scorecards(runs_root: Path = RUNS_ROOT) -> dict[str, tuple[str, dict
         run_id = sc.get("run_id", run_dir.name)
         if not dataset:
             continue
-        if dataset not in latest or run_id > latest[dataset][0]:
+        ts = sc.get("timestamp", "")
+        prev_ts = latest.get(dataset, ("", {}))[1].get("timestamp", "") if dataset in latest else ""
+        if dataset not in latest or ts > prev_ts:
             latest[dataset] = (run_id, sc)
     return latest
 
@@ -190,7 +236,7 @@ def pick_winner(candidates: list[dict[str, Any]], tie_break: dict[str, Any]) -> 
 
 def build_selection_report(*, runs_root: Path = RUNS_ROOT) -> dict[str, Any]:
     """Aggregate M2 scorecards into paper-citeable selection_report.json."""
-    defaults = load_phase_a_defaults()
+    defaults = load_defaults()
     tie_break = get_tie_break(defaults)
     latest = _latest_scorecards(runs_root)
 
@@ -377,7 +423,7 @@ def stage_lock_eval(run: Run) -> None:
     holdout = partition["selection_holdout"]
     part_cfg = setting["partition"]
     n_rest = len(corpus) - len(holdout)
-    test_n = test_size(setting, eval_pool_n=n_rest)
+    test_n = resolve_test_size(partition_cfg_for_m3_lock(setting), eval_pool_n=n_rest)
     print(f"[lock-eval] |C\\H|={n_rest}  R_t={test_n}  R_c={n_rest - test_n}")
 
     full = partition_eval(
@@ -402,33 +448,90 @@ def stage_lock_eval(run: Run) -> None:
     )
 
 
+def _oracle_path(run: Run, role: str) -> Path:
+    return run.oracle_dir / f"{role}.jsonl"
+
+
+def load_oracle_rows_by_id(path: Path) -> dict[str, QueryResult]:
+    return {row.query_id: row for row in read_jsonl(path, QueryResult.from_dict)}
+
+
+def merge_oracle_rows(
+    queries: list[Query],
+    cached_oracle_rows: dict[str, QueryResult],
+    new_oracle_rows: list[QueryResult],
+) -> list[QueryResult]:
+    merged = dict(cached_oracle_rows)
+    for row in new_oracle_rows:
+        merged[row.query_id] = row
+    query_ids = {query.query_id for query in queries}
+    extra_rows = [row for query_id, row in merged.items() if query_id not in query_ids]
+    ordered_rows = [merged[query.query_id] for query in queries if query.query_id in merged]
+    extra_rows.sort(key=lambda row: row.query_id)
+    return ordered_rows + extra_rows
+
+
 def stage_oracle(
     run: Run,
     *,
     split: str = "selection_holdout",
     limit: int | None = None,
     mock: bool = False,
+    backfill: bool = False,
+    force: bool = False,
+    roles: tuple[str, ...] = ("M_lo", "M_hi"),
 ) -> None:
     setting = run.setting()
     protocol = get_protocol(setting)
     pool = setting["pool"]
     queries = _select_split(run, split, limit)
-    infer = run_model_mock if mock else run_model
+    run_oracle = run_oracle_inference_mock if mock else run_oracle_inference
     tag = " [mock]" if mock else ""
+    if backfill:
+        tag += " [backfill]"
     print(f"[oracle] split={split}  n={len(queries)}{tag}")
 
     run.oracle_dir.mkdir(parents=True, exist_ok=True)
-    meta: dict[str, Any] = {"split": split, "limit": limit, "n": len(queries), "mock": mock, "models": {}}
+    meta: dict[str, Any] = {
+        "split": split,
+        "limit": limit,
+        "n": len(queries),
+        "mock": mock,
+        "backfill": backfill,
+        "artifact_version": ARTIFACT_VERSION,
+        "models": {},
+    }
 
-    for role in ("M_lo", "M_hi"):
+    for role in roles:
+        if role not in ("M_lo", "M_hi"):
+            raise ValueError(f"role must be M_lo or M_hi, got {role!r}")
         model_id = pool[role]
-        print(f"[oracle] {role} ← {model_id}")
-        results = infer(model_id, queries, protocol)
-        write_jsonl(run.oracle_dir / f"{role}.jsonl", results, QueryResult.to_dict)
+        path = _oracle_path(run, role)
+        cached_oracle_rows = load_oracle_rows_by_id(path)
+        queries_to_infer = [
+            query
+            for query in queries
+            if force or not (
+                (cached_row := cached_oracle_rows.get(query.query_id)) is not None
+                and has_protocol_trace(cached_row.model_response)
+            )
+        ]
+        skip_count = len(queries) - len(queries_to_infer)
+        print(f"[oracle] {role} ← {model_id}  run={len(queries_to_infer)}  skip={skip_count}")
+        new_oracle_rows = run_oracle(model_id, queries_to_infer, protocol) if queries_to_infer else []
+        merged_rows = merge_oracle_rows(queries, cached_oracle_rows, new_oracle_rows)
+        write_jsonl(path, merged_rows, QueryResult.to_dict)
         meta["models"][role] = model_id
 
     _write_json(run.oracle_dir / "meta.json", meta)
-    run.stage_done("oracle", split=split, n=len(queries), limit=limit, mock=mock)
+    run.stage_done(
+        "oracle",
+        split=split,
+        n=len(queries),
+        limit=limit,
+        mock=mock,
+        backfill=backfill,
+    )
 
 
 def stage_scorecard(run: Run) -> dict[str, Any]:
@@ -461,7 +564,7 @@ def stage_query_derived(
     limit: int | None = None,
     allow_full_corpus: bool = False,
 ) -> Path:
-    """Stage 5: query-derived φ(q) on R_c ∪ R_t only (holdout excluded)."""
+    """Stage 5 (model-independent / H1): query-derived φ(q) on R_c ∪ R_t only (holdout excluded)."""
     _, _, partition = load_corpus_artifacts(run.corpus_dir)
     if partition and partition.get("calib") and partition.get("test"):
         query_ids, n_calib, n_test = (
@@ -497,6 +600,52 @@ def stage_query_derived(
         output=str(out.relative_to(run.root)),
     )
     print(f"[query-derived] → {out}")
+    return out
+
+
+def stage_model_response(
+    run: Run,
+    *,
+    role: str = "M_lo",
+    temperature: float = 1.0,
+    metrics_version: str | None = None,
+) -> Path:
+    """Stage 5B (model-dependent / H2): ψ metric views from immutable oracle trace (CPU)."""
+    from llm_routing.model_response import extract_model_response_signals
+    from llm_routing.model_response.protocol import METRICS_VERSION
+
+    metrics_version = metrics_version or METRICS_VERSION
+    print(f"[model-response] role={role}  temperature={temperature}  metrics={metrics_version}")
+    out = extract_model_response_signals(
+        run.root,
+        pool_role=role,
+        temperature=temperature,
+        metrics_version=metrics_version,
+    )
+    run.stage_done(
+        "model_response",
+        role=role,
+        temperature=temperature,
+        metrics_version=metrics_version,
+        output=str(out.relative_to(run.root)),
+    )
+    print(f"[model-response] → {out}")
+    return out
+
+
+def stage_cross_model(
+    run: Run,
+    *,
+    metrics_version: str | None = None,
+) -> Path:
+    """Stage 5C (cross-model / H3): χ(q) from joined ψ signals — CPU only."""
+    from llm_routing.cross_model import CROSS_MODEL_METRICS_VERSION, extract_cross_model_signals
+
+    mv = metrics_version or CROSS_MODEL_METRICS_VERSION
+    print(f"[cross-model] metrics={mv}")
+    out = extract_cross_model_signals(run.root, metrics_version=mv)
+    run.stage_done("cross_model", metrics_version=mv, output=str(out.relative_to(run.root)))
+    print(f"[cross-model] → {out}")
     return out
 
 

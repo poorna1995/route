@@ -1,25 +1,87 @@
-"""Run one model on queries; write QueryResult rows."""
+"""Oracle inference: MCQ prompts, grading, and GPU forward passes."""
 
 from __future__ import annotations
 
 import gc
 import os
+import re
 import time
 from typing import Any
 
 import torch
 
 from llm_routing.corpus import Query, QueryResult
-from llm_routing.prompts import build_messages, grade_query, parse_answer
+from llm_routing.model_response.protocol import (
+    build_protocol_artifact,
+    capture_protocol_trace,
+    inference_capture_metadata,
+    mock_protocol_trace,
+)
+
+_LETTER = re.compile(r"^([A-Za-z])\s*$")
+_FIRST_LETTER = re.compile(r"\b([A-Za-z])\b")
 
 
-def hf_token() -> str | None:
+# --- MCQ prompt + grading ---
+
+
+def _choice_index(letter: str, n: int) -> int | None:
+    idx = ord(letter.upper()) - ord("A")
+    return idx if 0 <= idx < n else None
+
+
+def format_choices(choices: tuple[str, ...]) -> str:
+    return "\n".join(f"{chr(ord('A') + i)}. {c.strip()}" for i, c in enumerate(choices))
+
+
+def format_question(query: Query) -> str:
+    subject = query.metadata.get("subject")
+    text = query.text.strip()
+    return f"Subject: {subject}\n\n{text}" if subject else text
+
+
+def render_user_message(query: Query, protocol: dict[str, Any]) -> str:
+    return protocol["user_template"].format(
+        question=format_question(query),
+        choices=format_choices(query.choices),
+    )
+
+
+def build_messages(query: Query, protocol: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": protocol["system_prompt"]},
+        {"role": "user", "content": render_user_message(query, protocol)},
+    ]
+
+
+def parse_answer(text: str, n_choices: int) -> int | None:
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if m := _LETTER.match(line):
+            return _choice_index(m.group(1), n_choices)
+        if m := _FIRST_LETTER.search(line):
+            return _choice_index(m.group(1), n_choices)
+        break
+    return None
+
+
+def grade_query(query: Query, model_output: str) -> int:
+    pred = parse_answer(model_output, len(query.choices))
+    return int(pred == query.answer_index) if pred is not None else 0
+
+
+# --- GPU inference ---
+
+
+def huggingface_read_token() -> str | None:
     """HF read token for gated models (Llama). Set HF_TOKEN on RunPod."""
     return os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or None
 
 
-def _load_kwargs(model_id: str) -> dict[str, Any]:
-    token = hf_token()
+def _huggingface_load_kwargs(model_id: str) -> dict[str, Any]:
+    token = huggingface_read_token()
     if token is None and model_id.startswith("meta-llama/"):
         raise RuntimeError(
             "HF_TOKEN is not set. Gated Llama weights require a Hugging Face read token.\n"
@@ -30,35 +92,60 @@ def _load_kwargs(model_id: str) -> dict[str, Any]:
     return {"token": token} if token else {}
 
 
-def run_model_mock(
+def run_oracle_inference_mock(
     model_id: str,
     queries: list[Query],
     protocol: dict[str, Any],
 ) -> list[QueryResult]:
     """Deterministic fake outputs for local pipeline checks (no GPU/HF weights)."""
-    del protocol
-    is_hi = "8B" in model_id or "70B" in model_id
+    protocol_version = protocol["protocol_version"]
+    is_high_pool_model = "8B" in model_id or "70B" in model_id
     results: list[QueryResult] = []
-    for i, query in enumerate(queries):
-        lo_ok = i % 2 == 0
-        hi_ok = i % 3 != 0
-        correct = hi_ok if is_hi else lo_ok
-        pred = query.answer_index if correct else (query.answer_index + 1) % len(query.choices)
+    for query_index, query in enumerate(queries):
+        low_model_correct = query_index % 2 == 0
+        high_model_correct = query_index % 3 != 0
+        is_correct = high_model_correct if is_high_pool_model else low_model_correct
+        predicted_index = (
+            query.answer_index
+            if is_correct
+            else (query.answer_index + 1) % len(query.choices)
+        )
+        predicted_letter = chr(ord("A") + predicted_index)
+        messages = build_messages(query, protocol)
+        prompt = f"{messages[0]['content']}\n{messages[1]['content']}"
+        trace = mock_protocol_trace(
+            protocol_version,
+            len(query.choices),
+            predicted_index,
+            generated_text=predicted_letter,
+        )
         results.append(
             QueryResult(
                 query_id=query.query_id,
                 model=model_id,
-                raw_output=chr(ord("A") + pred),
-                parsed_answer=pred,
-                correct=int(correct),
+                raw_output=trace["generated_text"],
+                parsed_answer=predicted_index,
+                correct=int(is_correct),
                 latency_ms=1.0,
-                token_count=1,
+                token_count=len(trace.get("generated_token_ids", [])),
+                model_response=build_protocol_artifact(
+                    protocol_version,
+                    trace,
+                    model_id=model_id,
+                    prompt=prompt,
+                    prompt_token_count=len(prompt.split()),
+                    tokenizer_id=model_id,
+                    model_revision="mock",
+                    transformers_version="mock",
+                    torch_version="mock",
+                    dtype="mock",
+                ),
             )
         )
     return results
 
 
-def run_model(
+def run_oracle_inference(
     model_id: str,
     queries: list[Query],
     protocol: dict[str, Any],
@@ -71,17 +158,18 @@ def run_model(
     dtype = torch.bfloat16 if device == "cuda" else torch.float32
     max_tokens = int(protocol["decoding"].get("max_tokens", 16))
 
-    hf_kw = _load_kwargs(model_id)
-    tokenizer = AutoTokenizer.from_pretrained(model_id, **hf_kw)
+    hf_load_kwargs = _huggingface_load_kwargs(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, **hf_load_kwargs)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,
-        **hf_kw,
+        **hf_load_kwargs,
     )
     if device != "cuda":
         model.to(device)
 
+    capture_meta = inference_capture_metadata(model, tokenizer, torch_dtype=dtype)
     results: list[QueryResult] = []
     for query in queries:
         messages = build_messages(query, protocol)
@@ -89,26 +177,46 @@ def run_model(
             messages, tokenize=False, add_generation_prompt=True,
         )
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-        t0 = time.perf_counter()
+        start_time = time.perf_counter()
         with torch.inference_mode():
-            out = model.generate(
+            outputs = model.generate(
                 **inputs,
                 max_new_tokens=max_tokens,
                 do_sample=False,
                 pad_token_id=tokenizer.eos_token_id,
+                return_dict_in_generate=True,
+                output_scores=True,
             )
-        latency_ms = (time.perf_counter() - t0) * 1000
-        new_ids = out[0, inputs["input_ids"].shape[1] :]
-        text = tokenizer.decode(new_ids, skip_special_tokens=True)
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        prompt_len = inputs["input_ids"].shape[1]
+        new_token_ids = outputs.sequences[0, prompt_len:]
+        generated_token_ids = [int(token_id) for token_id in new_token_ids.tolist()]
+        trace = capture_protocol_trace(
+            outputs,
+            tokenizer,
+            generated_token_ids,
+            protocol,
+            prompt=prompt,
+            n_choices=len(query.choices),
+        )
+        generated_text = trace["generated_text"]
         results.append(
             QueryResult(
                 query_id=query.query_id,
                 model=model_id,
-                raw_output=text,
-                parsed_answer=parse_answer(text, len(query.choices)),
-                correct=grade_query(query, text),
+                raw_output=generated_text,
+                parsed_answer=parse_answer(generated_text, len(query.choices)),
+                correct=grade_query(query, generated_text),
                 latency_ms=latency_ms,
-                token_count=int(new_ids.shape[0]),
+                token_count=len(generated_token_ids),
+                model_response=build_protocol_artifact(
+                    protocol["protocol_version"],
+                    trace,
+                    model_id=model_id,
+                    prompt=prompt,
+                    prompt_token_count=prompt_len,
+                    **capture_meta,
+                ),
             )
         )
 

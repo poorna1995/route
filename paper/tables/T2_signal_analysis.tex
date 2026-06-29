@@ -1,15 +1,15 @@
 \begin{table}[t]
   \centering
   \small
-  \begin{tabular}{@{}lccc@{}}
+  \begin{tabular}{@{}lcc@{}}
     \toprule
-    \textbf{Feature set} & \textbf{AUROC} & \textbf{AUPRC} & \textbf{$\Delta$AUROC} \\
+    \textbf{Layer / hypothesis} & \textbf{AUROC} & \textbf{AUPRC} \\
     \midrule
-    H1: query-derived only & \textsc{TBD} & \textsc{TBD} & --- \\
-    H2: + model-response & \textsc{TBD} & \textsc{TBD} & \textsc{TBD} \\
-    H3: + cross-model comparative & \textsc{TBD} & \textsc{TBD} & \textsc{TBD} \\
-    \bottomrule
+    H1: model-independent ($\phi$ only) & \textsc{TBD} & \textsc{TBD} \\
+    H2: model-dependent ($\psi$ only) & \textsc{TBD} & \textsc{TBD} \\
+    H3: cross-model ($\chi$ only) & \textsc{TBD} & \textsc{TBD} \\
+  \bottomrule
   \end{tabular}
-  \caption{Signal analysis on calib vs.\ routing need $r(q)$ (nested ablations H1--H3).}
+  \caption{Signal analysis on calib vs.\ oracle $r(q)$ (appropriate model label). H1--H3 are parallel layer tests (each block alone), not nested $\Delta$AUROC over the previous layer.}
   \label{tab:signal-analysis}
 \end{table}

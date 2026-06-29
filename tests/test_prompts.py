@@ -1,5 +1,5 @@
 from llm_routing.corpus import Query
-from llm_routing.prompts import build_messages, grade_query, parse_answer
+from llm_routing.oracle import build_messages, grade_query, parse_answer
 from llm_routing.setting import get_protocol, load_setting
 
 

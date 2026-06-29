@@ -28,8 +28,9 @@
 
 \begin{abstract}
 Most LLM routing systems are \emph{supervised}: routers are trained on human preferences, win/loss labels, or reward-model scores.
-We ask whether \emph{unsupervised signals}---computed from the query and from model responses \emph{without} routing supervision at extraction time---can \textbf{enable routing decisions} in a fixed model pool with distinct capabilities.
-We define \textbf{routing need} $r(q)$ and three signal types, each motivated by a routing-relevant \textbf{assumption} (Section~\ref{sec:signal-extraction}), analyze which predict $r(q)$ on calib (H1--H3), freeze $x(q)$, and route via $s(q)=\lambda^\top x(q)$ and threshold policy $\pi(q)$ (Section~\ref{sec:routing-policy}).
+We ask whether \emph{unsupervised signals}---computed from the query and from model responses \emph{without} routing supervision at extraction time---can guide \textbf{binary LLM routing}: selecting the appropriate model from a fixed capability-differentiated pool.
+We define oracle routing need $r(q)$, three signal layers by \textbf{information availability}, analyze which predict $r(q)$ on calib, freeze $x(q)$, and route via \textbf{binary model-selection} policy $\pi(q)$ from $s(q)=\lambda^\top x(q)$ (Section~\ref{sec:routing-policy}) without observing $r(q)$ online.
+Our pool contains two models ($\Mlo$, $\Mhi$); routing reduces to a binary decision.
 We compare hand-designed and learned weights on calib (H4) and report accuracy--cost Pareto curves on test.
 \textsc{[Results TBD.]}
 \end{abstract}

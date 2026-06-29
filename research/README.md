@@ -10,7 +10,7 @@ Three docs — no duplicates. **Vocabulary frozen 2026-06-28** ([`nomenclature.m
 | [`nomenclature.md`](nomenclature.md) | Locked terms, symbols, change log (§7) |
 | [`literature_record.md`](literature_record.md) | Related work and **candidate** benchmarks/pools (not locked) |
 
-**Next design priority (scientific contribution):** signal definitions in [`program.md`](program.md) **§5** — query complexity, entropy, paraphrase stability, cross-model comparison.
+**Next (Phase B):** binary LLM routing — implement ψ (Stage 5B), χ (Stage 5C); H1–H3 parallel vs oracle \(r(q)\); Stage 5B next. See [`program.md`](program.md) §0.1a (routing vs cascade).
 
 **Read order:** `program.md` §0 → §5 (signals) → `literature_record.md` when filling M1 YAMLs.
 

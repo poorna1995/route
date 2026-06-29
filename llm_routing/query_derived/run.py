@@ -1,4 +1,4 @@
-"""Stage 5 orchestration: canonicalize → extract → embed → engineer → write φ(q)."""
+"""Stage 5A orchestration (model-independent / H1): canonicalize → extract → embed → engineer → write φ(q)."""
 
 from __future__ import annotations
 
@@ -7,22 +7,18 @@ from pathlib import Path
 from typing import Any
 
 from llm_routing.corpus import eval_query_ids, load_corpus_artifacts, select_queries, write_jsonl
-from llm_routing.query_derived.config import (
+from llm_routing.query_derived.core import (
+    GeometryModel,
     QueryDerivedRecord,
+    TokenCounter,
+    ZScoreModel,
+    canonical_user,
+    encode_canonical_texts,
+    extract_ambiguity,
+    extract_structural,
     load_query_derived_defaults,
     resolve_tokenizer_id,
-)
-from llm_routing.query_derived.engineer import (
-    NoveltyModel,
-    ZScoreModel,
-    encode_canonical_texts,
     save_embedding,
-)
-from llm_routing.query_derived.extract import (
-    TokenCounter,
-    canonical_user,
-    extract_ambiguity,
-    extract_load,
 )
 from llm_routing.setting import get_protocol, load_setting
 
@@ -46,7 +42,7 @@ def _resolve_query_ids(
     )
 
 
-def _fit_novelty(
+def _fit_embedding_geometry(
     records: list[dict[str, Any]],
     embeddings: dict[str, list[float]],
     query_ids: list[str],
@@ -56,23 +52,21 @@ def _fit_novelty(
 ) -> None:
     if not calib_ids:
         for rec in records:
-            rec["novelty"] = {}
+            rec["embedding_geometry"] = {}
         return
 
     calib_matrix = [embeddings[qid] for qid in query_ids if qid in calib_ids]
     if len(calib_matrix) < 2:
         for rec in records:
-            rec["novelty"] = {}
+            rec["embedding_geometry"] = {}
         return
 
-    model = NoveltyModel()
+    model = GeometryModel()
     model.fit(calib_matrix, config)
-    (eng_dir / "novelty_model.json").write_text(
-        json.dumps(model.to_artifact(), indent=2) + "\n",
-        encoding="utf-8",
-    )
+    artifact_path = eng_dir / "embedding_geometry_model.json"
+    artifact_path.write_text(json.dumps(model.to_artifact(), indent=2) + "\n", encoding="utf-8")
     for rec in records:
-        rec["novelty"] = model.transform(embeddings[rec["query_id"]])
+        rec["embedding_geometry"] = model.transform(embeddings[rec["query_id"]])
 
 
 def _apply_zscore(
@@ -137,7 +131,7 @@ def run_query_derived(
             QueryDerivedRecord(
                 query_id=query.query_id,
                 split=split,
-                load=extract_load(query, canonical, counter, config),
+                structural=extract_structural(query, canonical, counter, config),
                 ambiguity=extract_ambiguity(query),
             ).to_dict()
         )
@@ -161,7 +155,7 @@ def run_query_derived(
         embeddings[query.query_id] = vector
         save_embedding(emb_dir / f"{query.query_id}.npy", vector)
 
-    _fit_novelty(records, embeddings, query_ids, calib_ids, eng_dir, config)
+    _fit_embedding_geometry(records, embeddings, query_ids, calib_ids, eng_dir, config)
     records = _apply_zscore(records, calib_ids, eng_dir, config)
 
     out_path = signals_dir / "query_derived.jsonl"
@@ -177,10 +171,10 @@ def run_query_derived(
         "embedding_model": model_id if not mock_embed else "mock",
         "tokenizer_id": tokenizer_id,
         "representation": {
-            "load": "jsonl.load",
+            "structural": "jsonl.structural",
             "ambiguity": "jsonl.ambiguity",
             "semantic": "embeddings/{query_id}.npy",
-            "novelty": "jsonl.novelty",
+            "embedding_geometry": "jsonl.embedding_geometry",
         },
     }
     (signals_dir / "query_derived_meta.json").write_text(
