@@ -1,0 +1,45 @@
+# Draft defaults for query-derived φ(q) pipeline (architecture frozen; tune at M3 lock).
+# Loaded by llm_routing.query_derived — not merged into setting.yaml.
+#
+# φ(q) = [φ_load, φ_ambiguity, φ_semantic, φ_novelty]
+#   load      — 8 scalars (prompt stats + lexical density)
+#   ambiguity — 4 scalars (MCQ distinguishability)
+#   semantic  — frozen u(q) in signals/embeddings/{id}.npy (not jsonl columns)
+#   novelty   — 7 scalars (corpus-relative, fit on R_c only)
+
+load:
+  mattr_window: 50
+  zlib_level: 6
+
+novelty:
+  pca_components: 3
+  knn_k: 10
+
+embedding:
+  model_id: sentence-transformers/all-MiniLM-L6-v2
+  dimension: 384  # implementation detail; paper says "frozen sentence encoder"
+
+tokenizer:
+  # Count tokens for load features (no model forward pass).
+  source: pool_M_lo
+
+zscore:
+  continuous_keys:
+    - load.prompt_token_len
+    - load.question_token_len
+    - load.mean_option_token_len
+    - load.std_option_token_len
+    - load.question_option_ratio
+    - load.mattr
+    - load.compression_ratio
+    - ambiguity.stem_choice_overlap_max
+    - ambiguity.stem_choice_overlap_mean
+    - ambiguity.choice_choice_overlap
+    - ambiguity.choice_length_range
+    - novelty.pc1
+    - novelty.pc2
+    - novelty.pc3
+    - novelty.centroid_distance
+    - novelty.knn_distance
+    - novelty.retrieval_density
+    - novelty.lof_score

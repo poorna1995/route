@@ -39,7 +39,6 @@ from llm_routing.setting import (
     save_setting,
     test_size,
 )
-from llm_routing.query_derived import run_query_derived
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_ROOT = ROOT / "experiments" / "runs"
@@ -483,6 +482,8 @@ def stage_query_derived(
         query_ids = query_ids[:limit]
 
     print(f"[query-derived] n={len(query_ids)}  mock_embed={mock_embed}")
+    from llm_routing.query_derived import run_query_derived
+
     out = run_query_derived(
         run.root,
         query_ids=query_ids,
