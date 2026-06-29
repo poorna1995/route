@@ -14,6 +14,7 @@
 **RunPod (fast path):**
 
 ```bash
+bash runpod.sh prefetch       # download both Llama weights first (recommended)
 bash runpod.sh smoke          # provisions env + runs smoke test
 bash runpod.sh pilot
 bash runpod.sh resume experiments/runs/<id>
@@ -63,9 +64,14 @@ Partition IDs are frozen into the run's `setting.yaml` automatically.
    export HF_TOKEN=hf_...
    huggingface-cli login --token "$HF_TOKEN"
    ```
-4. If download fails inside `xet_get`, disable XET (default on RunPod via `setup_env.sh`):
+4. If download fails inside `xet_get` / `File reconstruction error`:
    ```bash
    export HF_HUB_DISABLE_XET=1
+   export HF_HUB_ENABLE_HF_TRANSFER=0
+   # remove corrupted partial 8B cache, then prefetch:
+   rm -rf "$HF_HOME/hub/models--meta-llama--Llama-3.1-8B-Instruct"
+   bash runpod.sh prefetch
+   python run.py resume --run experiments/runs/<run_id>
    ```
 
 **Pipeline check without GPU weights:** `python run.py all --smoke --mock`

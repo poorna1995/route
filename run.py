@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import llm_routing.hf_env  # noqa: F401 — before hub imports
+
 import argparse
 import json
 from pathlib import Path

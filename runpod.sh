@@ -15,10 +15,16 @@ if [[ -z "${HF_TOKEN:-}" ]] && [[ -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
   exit 1
 fi
 
+export HF_HUB_DISABLE_XET=1
+export HF_HUB_ENABLE_HF_TRANSFER=0
+
 MODE="${1:-smoke}"
 SETTING="experiments/candidates/arc.yaml"
 
 case "$MODE" in
+  prefetch)
+    bash scripts/prefetch_models.sh
+    ;;
   smoke)
     python run.py all --setting "$SETTING" --name arc-smoke --smoke
     ;;
@@ -29,7 +35,7 @@ case "$MODE" in
     python run.py resume --run "${2:?usage: runpod.sh resume experiments/runs/<id>}"
     ;;
   *)
-    echo "usage: runpod.sh [smoke|pilot|resume RUN_DIR]" >&2
+    echo "usage: runpod.sh [smoke|pilot|prefetch|resume RUN_DIR]" >&2
     exit 1
     ;;
 esac
