@@ -103,9 +103,7 @@ def main() -> int:
     s = sub.add_parser("scorecard")
     s.add_argument("--run", type=Path, required=True)
     s.add_argument("--json", action="store_true")
-    s.set_defaults(
-        func=lambda a: (print(json.dumps(stage_scorecard(Run.open(a.run)), indent=2)) if a.json else None, 0)[1]
-    )
+    s.set_defaults(func=lambda a: _scorecard(a))
 
     s = sub.add_parser(
         "model-independent",
@@ -292,6 +290,13 @@ def main() -> int:
 
     args = p.parse_args()
     return args.func(args)
+
+
+def _scorecard(args: argparse.Namespace) -> int:
+    report = stage_scorecard(Run.open(args.run))
+    if args.json:
+        print(json.dumps(report, indent=2))
+    return 0
 
 
 def _resume(args: argparse.Namespace) -> int:
