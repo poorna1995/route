@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from llm_routing.corpus import QueryResult, load_corpus_artifacts, read_jsonl
-from llm_routing.model_response.protocol import (
+from llm_routing.signals.psi.protocol import (
     METRICS_VERSION,
     get_protocol_extractor,
     has_protocol_trace,

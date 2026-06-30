@@ -5,13 +5,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from llm_routing.corpus import Query, QueryResult
-from llm_routing.pipeline import (
+from llm_routing.run import (
     ROOT,
     Run,
     build_selection_report,
     compute_scorecard,
     pick_winner,
-    write_selection_report,
+    stage_selection_report,
 )
 from llm_routing.setting import load_setting
 
@@ -73,7 +73,7 @@ class TestPipeline(unittest.TestCase):
 
     def test_run_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("llm_routing.pipeline.RUNS_ROOT", Path(tmp)):
+            with patch("llm_routing.paths.RUNS_ROOT", Path(tmp)):
                 run = Run.create(ROOT / "experiments/candidates/arc.yaml", name="test")
                 self.assertTrue((run.root / "setting.yaml").exists())
                 self.assertIn("setting_source", run.manifest())

@@ -1,6 +1,0 @@
-setting:
-  corpus:
-    dataset: TruthfulQA-MC
-    source: registry_default
-  meta:
-    status: draft

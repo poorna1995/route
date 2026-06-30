@@ -3,13 +3,16 @@
   \small
   \begin{tabular}{@{}lcc@{}}
     \toprule
-    \textbf{Layer / hypothesis} & \textbf{AUROC} & \textbf{AUPRC} \\
+    \textbf{Representation} & \textbf{Joint CV AUROC} & \textbf{Joint CV AUPRC} \\
     \midrule
-    H1: model-independent ($\phi$ only) & \textsc{TBD} & \textsc{TBD} \\
-    H2: model-dependent ($\psi$ only) & \textsc{TBD} & \textsc{TBD} \\
-    H3: cross-model ($\chi$ only) & \textsc{TBD} & \textsc{TBD} \\
+    H1: structural ($\phi_{\text{structural}}$, H1a) & \textsc{TBD} & \textsc{TBD} \\
+    H1: ambiguity ($\phi_{\text{ambiguity}}$, H1b) & \textsc{TBD} & \textsc{TBD} \\
+    H1: embedding geometry ($\phi_{\text{geometry}}$, H1c) & \textsc{TBD} & \textsc{TBD} \\
+    H1: all $\phi$ combined (H1) & \textsc{TBD} & \textsc{TBD} \\
+    H2: $\psi(M_{\mathrm{lo}})$ & \textsc{TBD} & \textsc{TBD} \\
+    H3: $\chi$ & \textsc{TBD} & \textsc{TBD} \\
   \bottomrule
   \end{tabular}
-  \caption{Signal analysis on calib vs.\ oracle $r(q)$ (appropriate model label). H1--H3 are parallel layer tests (each block alone), not nested $\Delta$AUROC over the previous layer.}
+  \caption{Representation-level signal analysis on calib vs.\ oracle $r(q)$. Each row tests whether that \emph{representation} (feature vector) predicts $r(q)$ via 5-fold stratified CV logistic regression---not router training. Per-scalar diagnostics appear in the appendix; feature ranking and redundancy analysis are Stage~7 (Section~\ref{sec:signal-selection}).}
   \label{tab:signal-analysis}
 \end{table}

@@ -11,7 +11,7 @@ from llm_routing.signals import SIGNAL_TYPE_CROSS_MODEL, SignalRecord, load_sign
 
 CROSS_MODEL_METRICS_VERSION = "v1"
 
-# Update when adding χ metrics — signals.py legacy flat-row loader can import this set.
+# Update when adding χ metrics — signals.record legacy flat-row loader can import this set.
 CROSS_MODEL_METRIC_KEYS = frozenset({
     "delta_entropy",
     "delta_margin",
@@ -36,7 +36,7 @@ def extract_cross_model_signals(
     for path in (lo_path, hi_path):
         if not path.exists():
             raise FileNotFoundError(
-                f"{path} missing — run: python run.py model-response --run {run_root} --role M_lo "
+                f"{path} missing — run: python run.py model-dependent --run {run_root} --role M_lo "
                 "and --role M_hi"
             )
 

@@ -2,36 +2,36 @@
 
 > **Vocabulary frozen — 2026-06-28 (ACL v1).** Terms below are locked. Do not rename unless a **compelling technical reason** forces it. Log any break-glass change in §7.
 >
-> Every name states *what it is* — no campaign codes or informal aliases.
+> Every name states _what it is_ — no campaign codes or informal aliases.
 
 **Program:** [`program.md`](program.md) · **Related work:** [`literature_record.md`](literature_record.md)
 
 ### Locked vocabulary (summary)
 
-| Category | Canonical home | Do not substitute |
-| -------- | -------------- | ----------------- |
-| Paper voice | §1 | *support routing*, *solve routing*, **cascade** as our contribution, Family 1/2/3 |
-| Model pool | program §3 | *weak* / *strong* as model labels |
-| Unsupervised vs supervised | program §2 | “no labels ever”; pre- vs post-inference as headline |
-| Routing need, oracle | program §3 | informal “opportunity” without \(r(q)\) |
-| Signal assumptions | program §5 · §0.8 | informal “try entropy” without prior |
-| Signal types | nomenclature §4 | *pool-independent* for query-derived; Family 1/2/3 |
-| Pipeline stages | §3–§4, program §11 | ad-hoc *Phase* names; “Stage” = execution only (§11) |
-| \(s(q)\), \(\pi(q)\), \(\lambda\), \(\tau\) | **§2.1** | redefining score/policy elsewhere |
-| Hypotheses H1–H4 | program §10 | informal claim lists |
-| Evaluation | program §9 | vague “better routing” without Pareto |
+| Category                                    | Canonical home     | Do not substitute                                                                 |
+| ------------------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
+| Paper voice                                 | §1                 | _support routing_, _solve routing_, **cascade** as our contribution, Family 1/2/3 |
+| Model pool                                  | program §3         | _weak_ / _strong_ as model labels                                                 |
+| Unsupervised vs supervised                  | program §2         | “no labels ever”; pre- vs post-inference as headline                              |
+| Routing need, oracle                        | program §3         | informal “opportunity” without \(r(q)\)                                           |
+| Signal assumptions                          | program §5 · §0.8  | informal “try entropy” without prior                                              |
+| Signal types                                | nomenclature §4    | _pool-independent_ for query-derived; Family 1/2/3                                |
+| Pipeline stages                             | §3–§4, program §11 | ad-hoc _Phase_ names; “Stage” = execution only (§11)                              |
+| \(s(q)\), \(\pi(q)\), \(\lambda\), \(\tau\) | **§2.1**           | redefining score/policy elsewhere                                                 |
+| Hypotheses H1–H4                            | program §10        | informal claim lists                                                              |
+| Evaluation                                  | program §9         | vague “better routing” without Pareto                                             |
 
 ---
 
 ## 1. Paper voice
 
-| Context | Wording |
-| ------- | ------- |
-| **Paper / Intro / RQ** | **Binary LLM routing** · **Model selection** · **Select the appropriate pool member** · **Enable / guide routing decisions** |
-| **Deployable policy \(\pi(q)\)** | **Binary model selection** between \(M_{\mathrm{lo}}\) and \(M_{\mathrm{hi}}\) (two-model pool instance) |
-| **Oracle \(r(q)\)** | **Routing need** · **Escalation utility** (technical oracle name only — whether \(M_{\mathrm{hi}}\) was the appropriate choice ex post) |
-| **Avoid as headline** | *Cascade paper* · *Unsupervised cascade* · *Escalate to the stronger model* (as contribution) · *Support routing* · *Solve routing* · *Family 1/2/3* |
-| **Related work only** | *Cascade* (FrugalGPT, sequential invoke) — cite prior work, not our method |
+| Context                          | Wording                                                                                                                                              |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Paper / Intro / RQ**           | **Binary LLM routing** · **Model selection** · **Select the appropriate pool member** · **Enable / guide routing decisions**                         |
+| **Deployable policy \(\pi(q)\)** | **Binary model selection** between \(M*{\mathrm{lo}}\) and \(M*{\mathrm{hi}}\) (two-model pool instance)                                             |
+| **Oracle \(r(q)\)**              | **Routing need** · **Escalation utility** (technical oracle name only — whether \(M\_{\mathrm{hi}}\) was the appropriate choice ex post)             |
+| **Avoid as headline**            | _Cascade paper_ · _Unsupervised cascade_ · _Escalate to the stronger model_ (as contribution) · _Support routing_ · _Solve routing_ · _Family 1/2/3_ |
+| **Related work only**            | _Cascade_ (FrugalGPT, sequential invoke) — cite prior work, not our method                                                                           |
 
 ---
 
@@ -39,35 +39,35 @@
 
 Quick lookup. **Routing score and policy:** full math in **§2.1 only** — do not repeat elsewhere.
 
-| Term | Symbol | Definition |
-| ---- | ------ | ---------- |
-| **Unsupervised (signals)** | — | Layer 1 ([`program.md`](program.md) §2): no routing labels at extraction |
-| **Supervised (field baseline)** | — | Routers trained on prefs/outcomes (RouteLLM, …) |
-| **Model pool** | \(\mathcal{M}\) | Fixed set of models with distinct capabilities — program §3 |
-| **Primary pair** | \(M_{\mathrm{lo}}, M_{\mathrm{hi}}\) | Lower- / higher-capability members for threshold routing |
-| Per-model correctness | \(y(q,M)\) | Correct answer under frozen protocol |
-| **Routing need** | \(r(q)\) | **Oracle label** for appropriate model choice: \(\mathbb{1}[y_{\mathrm{lo}}=0 \wedge y_{\mathrm{hi}}=1]\) — ex post, \(M_{\mathrm{hi}}\) was the right pool member (also **escalation utility**) — [`program.md`](program.md) §3 |
-| **Binary LLM routing** | \(\pi(q)\) | Select \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) from signals; two-model instance of pool routing |
-| Opportunity query | \(r(q)=1\) | Oracle: \(M_{\mathrm{hi}}\) was appropriate; \(M_{\mathrm{lo}}\) failed, \(M_{\mathrm{hi}}\) succeeded |
-| Correctness gap | \(\Delta(q)=y_{\mathrm{hi}}-y_{\mathrm{lo}}\) | \(+1\) iff \(M_{\mathrm{hi}}\) was the appropriate choice (oracle) |
-| Feature vector | \(x(q) \in \mathbb{R}^d\) | Unsupervised signals; no \(r(q)\) at extraction |
-| **Routing score** | \(s(q)\) | **§2.1** |
-| **Routing policy** | \(\pi(q)\) | **§2.1** |
-| Weights / threshold | \(\lambda, \tau\) | Fit on calib only; **§2.1** |
-| **Task accuracy** | \(\mathrm{Acc}(\pi)\) | [`program.md`](program.md) §9 |
-| **Average cost** | \(\mathrm{Cost}(\pi)\) | [`program.md`](program.md) §9 |
-| **Scalar objective** | \(J_\alpha(\pi)\) | [`program.md`](program.md) §9; calib tuning optional |
-| Oracle route | \(\pi^*(q)\) | [`program.md`](program.md) §3; eval upper bound |
-| **Experimental Setting** | \(\mathcal{S}\) | \(\mathcal{S}=(\mathcal{D},\mathcal{P},\Pi)\) — benchmark, pool, protocol; frozen at M3 — [`program.md`](program.md) §0.7 |
-| **Evaluation corpus** | \(C\) | Labeled queries for the study; methodology defined in terms of \(C\), not HF splits |
-| **Project calib** | \(R_c\) | H1–H3 + policy fit; partition of \(C\) — §0.7.1 |
-| **Project test** | \(R_t\) | H4 only; partition of \(C\) |
-| **Setting validity** | — | Environment passes Gates A–E; does **not** imply signals will work — §0.7 |
-| **Deployment scenario** | — | `homogeneous_pool` / `heterogeneous_pool` — pool homogeneity (vendor, tokenizer) — §0.7 |
-| **Gap-size robustness** | — | Optional post-primary pairs (1B→3B ablation; 8B→70B) — not Phase A grid — §0.7 |
-| **Tuning policy** | — | Only \(\lambda, \tau\) on \(R_c\); all else frozen — §0.17 |
-| **Corpus partition** | Option 1 | \(C \to H \mid R_c \mid R_t\); \(H\) never reused — §0.7.2 |
-| **H1–H4** | — | [`program.md`](program.md) §10 |
+| Term                            | Symbol                                        | Definition                                                                                                                                                                                                                        |
+| ------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unsupervised (signals)**      | —                                             | Layer 1 ([`program.md`](program.md) §2): no routing labels at extraction                                                                                                                                                          |
+| **Supervised (field baseline)** | —                                             | Routers trained on prefs/outcomes (RouteLLM, …)                                                                                                                                                                                   |
+| **Model pool**                  | \(\mathcal{M}\)                               | Fixed set of models with distinct capabilities — program §3                                                                                                                                                                       |
+| **Primary pair**                | \(M*{\mathrm{lo}}, M*{\mathrm{hi}}\)          | Lower- / higher-capability members for threshold routing                                                                                                                                                                          |
+| Per-model correctness           | \(y(q,M)\)                                    | Correct answer under frozen protocol                                                                                                                                                                                              |
+| **Routing need**                | \(r(q)\)                                      | **Oracle label** for appropriate model choice: \(\mathbb{1}[y_{\mathrm{lo}}=0 \wedge y_{\mathrm{hi}}=1]\) — ex post, \(M\_{\mathrm{hi}}\) was the right pool member (also **escalation utility**) — [`program.md`](program.md) §3 |
+| **LLM routing**                 | \(\pi(q)\)                                    | Select \(M*{\mathrm{lo}}\) or \(M*{\mathrm{hi}}\) from signals; two-model instance of pool routing                                                                                                                                |
+| Opportunity query               | \(r(q)=1\)                                    | Oracle: \(M*{\mathrm{hi}}\) was appropriate; \(M*{\mathrm{lo}}\) failed, \(M\_{\mathrm{hi}}\) succeeded                                                                                                                           |
+| Correctness gap                 | \(\Delta(q)=y*{\mathrm{hi}}-y*{\mathrm{lo}}\) | \(+1\) iff \(M\_{\mathrm{hi}}\) was the appropriate choice (oracle)                                                                                                                                                               |
+| Feature vector                  | \(x(q) \in \mathbb{R}^d\)                     | Unsupervised signals; no \(r(q)\) at extraction                                                                                                                                                                                   |
+| **Routing score**               | \(s(q)\)                                      | **§2.1**                                                                                                                                                                                                                          |
+| **Routing policy**              | \(\pi(q)\)                                    | **§2.1**                                                                                                                                                                                                                          |
+| Weights / threshold             | \(\lambda, \tau\)                             | Fit on calib only; **§2.1**                                                                                                                                                                                                       |
+| **Task accuracy**               | \(\mathrm{Acc}(\pi)\)                         | [`program.md`](program.md) §9                                                                                                                                                                                                     |
+| **Average cost**                | \(\mathrm{Cost}(\pi)\)                        | [`program.md`](program.md) §9                                                                                                                                                                                                     |
+| **Scalar objective**            | \(J\_\alpha(\pi)\)                            | [`program.md`](program.md) §9; calib tuning optional                                                                                                                                                                              |
+| Oracle route                    | \(\pi^\*(q)\)                                 | [`program.md`](program.md) §3; eval upper bound                                                                                                                                                                                   |
+| **Experimental Setting**        | \(\mathcal{S}\)                               | \(\mathcal{S}=(\mathcal{D},\mathcal{P},\Pi)\) — benchmark, pool, protocol; frozen at M3 — [`program.md`](program.md) §0.7                                                                                                         |
+| **Evaluation corpus**           | \(C\)                                         | Labeled queries for the study; methodology defined in terms of \(C\), not HF splits                                                                                                                                               |
+| **Project calib**               | \(R_c\)                                       | H1–H3 + policy fit; partition of \(C\) — §0.7.1                                                                                                                                                                                   |
+| **Project test**                | \(R_t\)                                       | H4 only; partition of \(C\)                                                                                                                                                                                                       |
+| **Setting validity**            | —                                             | Environment passes Gates A–E; does **not** imply signals will work — §0.7                                                                                                                                                         |
+| **Deployment scenario**         | —                                             | `model_pool` / `heterogeneous_pool` — pool homogeneity (vendor, tokenizer) — §0.7                                                                                                                                           |
+| **Gap-size robustness**         | —                                             | Optional post-primary pairs (1B→3B ablation; 8B→70B) — not Phase A grid — §0.7                                                                                                                                                    |
+| **Tuning policy**               | —                                             | Only \(\lambda, \tau\) on \(R_c\); all else frozen — §0.17                                                                                                                                                                        |
+| **Corpus partition**            | Option 1                                      | \(C \to H \mid R_c \mid R_t\); \(H\) never reused — §0.7.2                                                                                                                                                                        |
+| **H1–H4**                       | —                                             | [`program.md`](program.md) §10                                                                                                                                                                                                    |
 
 ### 2.1 Routing mathematics (canonical)
 
@@ -76,18 +76,18 @@ Quick lookup. **Routing score and policy:** full math in **§2.1 only** — do n
 **Score** — combine frozen features with weights \(\lambda \in \mathbb{R}^d\):
 
 \[
-s(q) = \lambda^\top x(q) = \sum_{i=1}^{d} \lambda_i \, x_i(q)
+s(q) = \lambda^\top x(q) = \sum\_{i=1}^{d} \lambda_i \, x_i(q)
 \]
 
-Higher \(s(q)\) = stronger evidence that **\(M_{\mathrm{hi}}\) is the appropriate choice** (\(r(q)=1\) under the oracle); **select** \(M_{\mathrm{hi}}\) when \(s(q) > \tau\), else **select** \(M_{\mathrm{lo}}\).
+Higher \(s(q)\) = stronger evidence that **\(M\_{\mathrm{hi}}\) is the appropriate choice** (\(r(q)=1\) under the oracle); **select** \(M*{\mathrm{hi}}\) when \(s(q) > \tau\), else **select** \(M*{\mathrm{lo}}\).
 
 **Policy** — **binary model selection** given \(\tau \in \mathbb{R}\):
 
 \[
 \pi(q) =
 \begin{cases}
-M_{\mathrm{hi}}, & s(q) > \tau \\
-M_{\mathrm{lo}}, & \text{otherwise}
+M*{\mathrm{hi}}, & s(q) > \tau \\
+M*{\mathrm{lo}}, & \text{otherwise}
 \end{cases}
 \]
 
@@ -99,15 +99,15 @@ M_{\mathrm{lo}}, & \text{otherwise}
 
 **Scientific pipeline** (paper Method — program §4):
 
-| Pipeline step | Section | Question |
-| ----- | ------- | -------- |
-| Signals | program §5 | What can we measure? (layer 1) |
-| Signal analysis | program §6 | What predicts \(r(q)\)? (layer 2) |
-| Signal selection | program §7 | What enters \(x(q)\)? |
-| Routing policy | program §8 | \(\pi(q)\) from §2.1 |
-| Evaluation | program §9 | Accuracy–cost trade-off? |
+| Pipeline step    | Section    | Question                          |
+| ---------------- | ---------- | --------------------------------- |
+| Signals          | program §5 | What can we measure? (layer 1)    |
+| Signal analysis  | program §6 | What predicts \(r(q)\)? (layer 2) |
+| Signal selection | program §7 | What enters \(x(q)\)?             |
+| Routing policy   | program §8 | \(\pi(q)\) from §2.1              |
+| Evaluation       | program §9 | Accuracy–cost trade-off?          |
 
-**Execution workflow** (program **§11**, Stages **0–9**; Phase A = M1–M3, Phase B = M4): research design → setting specification → feasibility assessment → setting lock → oracle → signals → analysis → selection → policy → evaluation.
+**Execution workflow** ([`program.md`](program.md) **§0.7**, Parts I–IV): Part I M1–M3 (experimental design) → Part II Stages 4–8 (development + freeze) → Part III (deployment) → Part IV (evaluation on \(R_t\), H4).
 
 Supervision layers: program §2 (defined once).
 
@@ -117,19 +117,19 @@ Supervision layers: program §2 (defined once).
 
 Three **signal layers** — ordered by pool dependence; H1–H3 test each layer **in parallel** (not nested “beats previous layer”). Say **model-independent**, **model-dependent**, and **cross-model** for the layers; use **query-derived**, **model-response**, and **cross-model comparative** for the concrete signal inventories.
 
-| Layer | Signal type | Meaning |
-| ----- | ----------- | ------- |
-| **Model-independent** | **Query-derived** | Query text only — no **routing pool** forward pass at extraction (**H1**) |
-| **Model-dependent** | **Model-response** | One pool member × query — entropy, confidence, log-prob (**H2**) |
-| **Cross-model** | **Cross-model comparative** | Gaps between pool members on the same query — Δ entropy, disagreement (**H3**) |
+| Layer                 | Signal type                 | Meaning                                                                        |
+| --------------------- | --------------------------- | ------------------------------------------------------------------------------ |
+| **Model-independent** | **Query-derived**           | Query text only — no **routing pool** forward pass at extraction (**H1**)      |
+| **Model-dependent**   | **Model-response**          | One pool member × query — entropy, confidence, log-prob (**H2**)               |
+| **Cross-model**       | **Cross-model comparative** | Gaps between pool members on the same query — Δ entropy, disagreement (**H3**) |
 
 **Information at decision time (exposition for surveys / reviewers):**
 
-| Layer (locked name) | Information used | Pool member inference? |
-| ------------------- | ---------------- | ---------------------- |
-| Model-independent (φ) | Query only (+ fixed encoder ∉ \(\mathcal{P}\)) | No |
-| Model-dependent (ψ) | Weak-model output on \(q\) | One (\(M_{\mathrm{lo}}\)) |
-| Cross-model (χ) | Multiple pool members on \(q\) | Two+ |
+| Layer (locked name)   | Information used                               | Pool member inference?     |
+| --------------------- | ---------------------------------------------- | -------------------------- |
+| Model-independent (φ) | Query only (+ fixed encoder ∉ \(\mathcal{P}\)) | No                         |
+| Model-dependent (ψ)   | Weak-model output on \(q\)                     | One (\(M\_{\mathrm{lo}}\)) |
+| Cross-model (χ)       | Multiple pool members on \(q\)                 | Two+                       |
 
 ```text
 Model-independent  →  query-derived           (H1)
@@ -139,7 +139,7 @@ Model-dependent    →  model-response          (H2)
 Cross-model        →  cross-model comparative (H3)
 ```
 
-**Wording (locked):** say **model-independent** for query-derived signals. Do **not** say *pool-independent*. **Model-independent** = no forward pass through any member of the **routing pool** \(\mathcal{P}\) at extraction — not “no neural models anywhere” (e.g. a frozen MiniLM encoder for φ is fine; it is not in \(\mathcal{P}\)). Do **not** lump cross-model comparative under model-dependent — cross-model is the third layer.
+**Wording (locked):** say **model-independent** for query-derived signals. Do **not** say _pool-independent_. **Model-independent** = no forward pass through any member of the **routing pool** \(\mathcal{P}\) at extraction — not “no neural models anywhere” (e.g. a frozen MiniLM encoder for φ is fine; it is not in \(\mathcal{P}\)). Do **not** lump cross-model comparative under model-dependent — cross-model is the third layer.
 
 **Universality vs generality:** the φ/ψ/χ **framework** and oracle \(r(q)\) (appropriate-model label) apply wherever outputs are gradable; concrete features are **protocol-dependent implementations** for one Experimental Setting \(\mathcal{S}\). Deployable contribution is **binary LLM routing**, not cascading.
 
@@ -179,34 +179,36 @@ Do not extend: prefill traces, layerwise campaigns, numbered experiment codes. A
 
 **Pre-freeze history** (2026-06-28 and earlier). **Post-freeze:** append only when breaking the freeze; include technical justification.
 
-| Date | Old | New | Reason |
-| ---- | --- | --- | ------ |
-| **2026-06-28** | *(open vocabulary)* | **FROZEN** | ACL v1 — no renames without compelling technical reason |
-| 2026-06-28 | T1/T2 IDs | RouteLLM, Plaut et al. | Researcher-style names |
-| 2026-06-28 | support routing | enable / guide routing decisions | Paper voice |
-| 2026-06-28 | Family 1/2/3 | query-derived, model-response, cross-model comparative | Concept words |
-| 2026-06-28 | opportunity (informal) | routing need \(r(q)\) | Precise definition |
-| 2026-06-28 | 9 working docs + stable/ | 3 docs: program, nomenclature, literature | Remove duplication |
-| 2026-06-28 | implicit score | \(s(q)\), \(\pi(q)\) in nomenclature §2.1 only | Single routing-math home |
-| 2026-06-28 | informal claim list | H1–H4 nested ablation hypotheses | Maps to experiments |
-| 2026-06-28 | accuracy + cost (vague) | \(\mathrm{Acc}\), \(\mathrm{Cost}\), Pareto; \(J_\alpha\) optional | Defines “better routing” |
-| 2026-06-28 | mixed signal/routing stages | 5-stage pipeline | Signal vs routing |
-| 2026-06-28 | repeated concepts | define once, cross-ref | Reduce duplication |
-| 2026-06-28 | informal phase names | execution Stages 0–9 (program §11) | Setup vs scientific pipeline |
-| 2026-06-28 | weak / strong model labels | **model pool** + \(M_{\mathrm{lo}}\) / \(M_{\mathrm{hi}}\) | Distinct capabilities, not binary branding |
-| 2026-06-28 | joint Setting in one stage | Phase A M1–M3: specification → feasibility → lock | Reproducible coupled design |
-| 2026-06-25 | HF validation → calib (methodology) | **Evaluation corpus** \(C\) + uniform partition | Future-proof; no HF split-name dependency |
-| 2026-06-25 | Pool A / Pool B | **Deployment scenarios** (`narrow_gap`, `wide_gap`) | Scientific meaning for pools |
-| 2026-06-28 | `pool.scenario` | **`pool.deployment_scenario`** | Distinguish from task scenario; extensible values (same_family, api_router, …) |
-| 2026-06-25 | Dataset × pool grid; `narrow_gap`/`wide_gap` as primary axis | **`homogeneous_pool`**; pool frozen in M1; M2 varies **dataset only** | Align Phase A with fixed-pool RQ |
-| 2026-06-25 | Setting | **Experimental Setting** \(\mathcal{S}\) | Unambiguous in paper; avoids generic "setting" |
-| 2026-06-25 | fixed pilot N=150 | `selection_holdout_n` parameter | Methodology budget-independent |
-| 2026-06-25 | — | **Setting validity** definition + architecture **FROZEN** | Reviewer protection; stop redesign |
-| 2026-06-29 | *pool-independent* (query-derived) | **model-independent** (query-derived) | Pool = experimental setting; H1 = no pool forward pass at extraction |
-| 2026-06-29 | H2/H3 as nested ΔAUROC | **Parallel layer tests** — each layer vs \(r(q)\) on its own block | H2 = model-dependent signals help router; not “beats H1” |
-| 2026-06-29 | informal routing-need wording | **utility of escalation** + oracle vs \(\pi(q)\) | Target is escalation benefit, not generic difficulty |
-| 2026-06-29 | H3 as φ+ψ combination | **H3 = χ alone**; combination in Stage 7 | Cross-model layer distinct from feature merging |
-| 2026-06-29 | cascade as our method | **binary LLM routing / model selection** | Professor framing; cascade = related work only |
-| 2026-06-29 | — | **information availability** exposition table (§4) | Survey alignment; locked layer names unchanged |
+| Date           | Old                                                          | New                                                                   | Reason                                                                         |
+| -------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **2026-06-28** | _(open vocabulary)_                                          | **FROZEN**                                                            | ACL v1 — no renames without compelling technical reason                        |
+| 2026-06-28     | T1/T2 IDs                                                    | RouteLLM, Plaut et al.                                                | Researcher-style names                                                         |
+| 2026-06-28     | support routing                                              | enable / guide routing decisions                                      | Paper voice                                                                    |
+| 2026-06-28     | Family 1/2/3                                                 | query-derived, model-response, cross-model comparative                | Concept words                                                                  |
+| 2026-06-28     | opportunity (informal)                                       | routing need \(r(q)\)                                                 | Precise definition                                                             |
+| 2026-06-28     | 9 working docs + stable/                                     | 3 docs: program, nomenclature, literature                             | Remove duplication                                                             |
+| 2026-06-28     | implicit score                                               | \(s(q)\), \(\pi(q)\) in nomenclature §2.1 only                        | Single routing-math home                                                       |
+| 2026-06-28     | informal claim list                                          | H1–H4 nested ablation hypotheses                                      | Maps to experiments                                                            |
+| 2026-06-28     | accuracy + cost (vague)                                      | \(\mathrm{Acc}\), \(\mathrm{Cost}\), Pareto; \(J\_\alpha\) optional   | Defines “better routing”                                                       |
+| 2026-06-28     | mixed signal/routing stages                                  | 5-stage pipeline                                                      | Signal vs routing                                                              |
+| 2026-06-28     | repeated concepts                                            | define once, cross-ref                                                | Reduce duplication                                                             |
+| 2026-06-28     | informal phase names                                         | execution Stages 0–9 (program §11)                                    | Setup vs scientific pipeline                                                   |
+| 2026-06-28     | weak / strong model labels                                   | **model pool** + \(M*{\mathrm{lo}}\) / \(M*{\mathrm{hi}}\)            | Distinct capabilities, not binary branding                                     |
+| 2026-06-28     | joint Setting in one stage                                   | Phase A M1–M3: specification → feasibility → lock                     | Reproducible coupled design                                                    |
+| 2026-06-25     | HF validation → calib (methodology)                          | **Evaluation corpus** \(C\) + uniform partition                       | Future-proof; no HF split-name dependency                                      |
+| 2026-06-25     | Pool A / Pool B                                              | **Deployment scenarios** (`narrow_gap`, `wide_gap`)                   | Scientific meaning for pools                                                   |
+| 2026-06-28     | `pool.scenario`                                              | **`pool.deployment_scenario`**                                        | Distinguish from task scenario; extensible values (same_family, api_router, …) |
+| 2026-06-25     | Dataset × pool grid; `narrow_gap`/`wide_gap` as primary axis | **`model_pool`**; pool frozen in M1; M2 varies **dataset only** | Align Phase A with fixed-pool RQ                                               |
+| 2026-06-25     | Setting                                                      | **Experimental Setting** \(\mathcal{S}\)                              | Unambiguous in paper; avoids generic "setting"                                 |
+| 2026-06-25     | fixed pilot N=150                                            | `selection_holdout_n` parameter                                       | Methodology budget-independent                                                 |
+| 2026-06-25     | —                                                            | **Setting validity** definition + architecture **FROZEN**             | Reviewer protection; stop redesign                                             |
+| 2026-06-29     | _pool-independent_ (query-derived)                           | **model-independent** (query-derived)                                 | Pool = experimental setting; H1 = no pool forward pass at extraction           |
+| 2026-06-29     | H2/H3 as nested ΔAUROC                                       | **Parallel layer tests** — each layer vs \(r(q)\) on its own block    | H2 = model-dependent signals help router; not “beats H1”                       |
+| 2026-06-29     | informal routing-need wording                                | **utility of escalation** + oracle vs \(\pi(q)\)                      | Target is escalation benefit, not generic difficulty                           |
+| 2026-06-29     | H3 as φ+ψ combination                                        | **H3 = χ alone**; combination in Stage 7                              | Cross-model layer distinct from feature merging                                |
+| 2026-06-30     | `random_split`                                               | **`split_dataset`** (partition method)                                | Clearer name for corpus shuffle split                                          |
+| 2026-06-30     | `homogeneous_pool`                                           | **`model_pool`** (deployment_scenario)                                | Shorter pool-type label                                                        |
+| 2026-06-30     | `mcq_letter_v1`                                              | **`mcq_letter`** (protocol_version)                                   | Drop version suffix; `mcq_letter_v1` remains a read alias for old runs         |
+| 2026-06-29     | —                                                            | **information availability** exposition table (§4)                    | Survey alignment; locked layer names unchanged                                 |
 
 **Break-glass procedure:** (1) document technical reason in a new row above; (2) update [`program.md`](program.md), paper, and code together; (3) do not introduce synonyms in parallel.

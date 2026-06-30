@@ -9,20 +9,47 @@ import argparse
 import json
 from pathlib import Path
 
-from llm_routing.pipeline import (
-    ROOT,
+from llm_routing.paths import ROOT
+from llm_routing.run import (
     Run,
     run_all,
-    stage_lock_eval,
-    stage_model_response,
+    run_development,
     stage_cross_model,
+    stage_eval,
+    stage_evaluate,
+    stage_model_dependent,
+    stage_model_independent,
+    stage_model_independent_all,
     stage_oracle,
     stage_prepare,
-    stage_query_derived,
-    stage_query_derived_all,
     stage_scorecard,
-    write_selection_report,
+    stage_selection_report,
+    stage_signal_validation,
 )
+
+
+def _route_demo(args: argparse.Namespace) -> int:
+    from llm_routing.deploy.policy import load_policy, resolve_policy_path
+    from llm_routing.deploy.router import route_query
+
+    run = Run.open(args.run)
+    policy_path = resolve_policy_path(run.root, args.policy)
+    policy = load_policy(policy_path)
+    decision = route_query(policy, run.root, args.query_id)
+    print(
+        json.dumps(
+            {
+                "query_id": decision.query_id,
+                "score": decision.score,
+                "route_hi": decision.route_hi,
+                "model": decision.model,
+                "threshold": policy.threshold,
+                "policy_path": str(policy_path.relative_to(run.root)),
+            },
+            indent=2,
+        )
+    )
+    return 0
 
 
 def main() -> int:
@@ -66,12 +93,12 @@ def main() -> int:
         )[1]
     )
 
-    s = sub.add_parser("select", help="M2: aggregate scorecards → selection_report.json")
-    s.set_defaults(func=lambda a: (print(write_selection_report()), 0)[1])
+    s = sub.add_parser("selection-report", help="M2: aggregate scorecards → selection_report.json")
+    s.set_defaults(func=lambda a: (print(stage_selection_report()), 0)[1])
 
-    s = sub.add_parser("lock-eval", help="M3: split C\\H into calib + test (winning run only)")
+    s = sub.add_parser("eval", help="M3: split C\\H into calib + test (winning run only)")
     s.add_argument("--run", type=Path, required=True)
-    s.set_defaults(func=lambda a: (stage_lock_eval(Run.open(a.run)), 0)[1])
+    s.set_defaults(func=lambda a: (stage_eval(Run.open(a.run)), 0)[1])
 
     s = sub.add_parser("scorecard")
     s.add_argument("--run", type=Path, required=True)
@@ -81,8 +108,8 @@ def main() -> int:
     )
 
     s = sub.add_parser(
-        "query-derived",
-        help="Stage 5 (model-independent / H1): query-derived φ(q) extraction",
+        "model-independent",
+        help="Stage 5A (model-independent / H1): query-derived φ(q) extraction",
     )
     s.add_argument("--run", type=Path, required=True)
     s.add_argument("--smoke", action="store_true")
@@ -95,7 +122,7 @@ def main() -> int:
     )
     s.set_defaults(
         func=lambda a: (
-            stage_query_derived(
+            stage_model_independent(
                 Run.open(a.run),
                 mock_embed=True if a.mock_embed or a.smoke else False,
                 limit=a.limit if a.limit is not None else (5 if a.smoke else None),
@@ -106,8 +133,8 @@ def main() -> int:
     )
 
     s = sub.add_parser(
-        "query-derived-all",
-        help="Stage 5 for all candidates: prepare → lock-eval → φ(q) on R_c ∪ R_t",
+        "model-independent-all",
+        help="Stage 5A for all candidates: prepare → eval → φ(q) on R_c ∪ R_t",
     )
     s.add_argument("--smoke", action="store_true")
     s.add_argument("--limit", type=int)
@@ -115,7 +142,7 @@ def main() -> int:
     s.add_argument("--force-partition", action="store_true")
     s.set_defaults(
         func=lambda a: (
-            stage_query_derived_all(
+            stage_model_independent_all(
                 mock_embed=True if a.mock_embed or a.smoke else False,
                 limit=a.limit if a.limit is not None else (5 if a.smoke else None),
                 force_partition=a.force_partition,
@@ -126,7 +153,7 @@ def main() -> int:
     )
 
     s = sub.add_parser(
-        "model-response",
+        "model-dependent",
         help="Stage 5B (model-dependent / H2): ψ metrics from oracle trace (CPU)",
     )
     s.add_argument("--run", type=Path, required=True)
@@ -134,7 +161,7 @@ def main() -> int:
     s.add_argument("--temperature", type=float, default=1.0)
     s.set_defaults(
         func=lambda a: (
-            stage_model_response(
+            stage_model_dependent(
                 Run.open(a.run),
                 role=a.role,
                 temperature=a.temperature,
@@ -151,6 +178,87 @@ def main() -> int:
     s.set_defaults(
         func=lambda a: (stage_cross_model(Run.open(a.run)), 0)[1]
     )
+
+    s = sub.add_parser(
+        "signal-validation",
+        help="Stage 6: validate φ/ψ/χ association with r(q) on R_c",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.add_argument("--cv-folds", type=int, default=5)
+    s.add_argument("--seed", type=int, default=42)
+    s.set_defaults(
+        func=lambda a: (
+            print(
+                json.dumps(
+                    stage_signal_validation(
+                        Run.open(a.run),
+                        cv_folds=a.cv_folds,
+                        seed=a.seed,
+                    ),
+                    indent=2,
+                )
+            ),
+            0,
+        )[1]
+    )
+
+    s = sub.add_parser(
+        "evaluate",
+        help="Part IV — evaluate frozen router on R_t (accuracy, cost, Pareto)",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.add_argument("--policy", type=Path, default=None)
+    s.add_argument("--limit", type=int, default=None)
+    s.set_defaults(
+        func=lambda a: (
+            stage_evaluate(
+                Run.open(a.run),
+                policy_path=a.policy,
+                limit=a.limit,
+            ),
+            0,
+        )[1]
+    )
+
+    s = sub.add_parser(
+        "develop",
+        help="Part II — run Stages 4→5 (+ optional χ) on an M3-locked run",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.add_argument("--mock-oracle", action="store_true")
+    s.add_argument("--mock-embed", action="store_true")
+    s.add_argument("--oracle-limit", type=int, default=None)
+    s.add_argument("--signal-limit", type=int, default=None)
+    s.add_argument("--skip-cross-model", action="store_true")
+    s.set_defaults(
+        func=lambda a: (
+            print(
+                run_development(
+                    Run.open(a.run),
+                    mock_oracle=a.mock_oracle,
+                    mock_embed=a.mock_embed,
+                    oracle_limit=a.oracle_limit,
+                    signal_limit=a.signal_limit,
+                    skip_cross_model=a.skip_cross_model,
+                )
+            ),
+            0,
+        )[1]
+    )
+
+    s = sub.add_parser(
+        "route-demo",
+        help="Part III — replay frozen policy for one query (loads signals from run dir)",
+    )
+    s.add_argument("--run", type=Path, required=True)
+    s.add_argument("--query-id", type=str, required=True)
+    s.add_argument(
+        "--policy",
+        type=Path,
+        default=None,
+        help="policy.json path (default: routing/policy.json)",
+    )
+    s.set_defaults(func=_route_demo)
 
     s = sub.add_parser("all", help="new + prepare + oracle + scorecard")
     add_setting(s)

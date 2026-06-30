@@ -1,25 +1,28 @@
-# Phase A (M1) defaults — merged into experiments/candidates/*.yaml at load time.
-# Pool, protocol, partition policy, gates, and tie-break are frozen before M2.
-# Run snapshots (experiments/runs/*/setting.yaml) are always fully expanded.
+# Shared Phase A config — auto-merged into candidates/*.yaml (see setting.load_setting).
+# Frozen per-run snapshot: experiments/runs/<run_id>/setting.yaml
 
 partition:
-  method: random_split
+  method: split_dataset
   seed: 42
-  selection_holdout_n: 150   # M1/M2 — fixed pilot size on every benchmark
-  # M3 (winner only): R_t = clamp(round(test_fraction * |C\H|), test_min, test_max)
+  selection_holdout_n: 150
   test_fraction: 0.20
   test_min: 150
   test_max: 1000
-  # R_c = |C| - |H| - |R_t|  (maximize calib for φ, novelty, H1–H3, λ/τ)
+
+# M1: applied when |C_raw| > subsample_when_above (e.g. MMLU-Pro)
+corpus_preparation:
+  subsample_when_above: 5000
+  target_size: 2000
+  stratify_metadata_key: subject
 
 pool:
-  deployment_scenario: homogeneous_pool
+  deployment_scenario: model_pool
   M_lo: meta-llama/Llama-3.2-3B-Instruct
   M_hi: meta-llama/Llama-3.1-8B-Instruct
   kappa: null
 
 protocol:
-  protocol_version: mcq_letter_v1
+  protocol_version: mcq_letter
   system_prompt: |
     You answer multiple-choice questions.
 
@@ -40,19 +43,11 @@ protocol:
     method: mcq
 
 gates:
-  min_accuracy_gap: 0.03 # Gate C: min Acc(M_hi) - Acc(M_lo) on holdout
-  opportunity_min: 0.05 # Gate D: min P(opportunity bucket)
-  too_hard_max: 0.70 # Gate D: max P(too_hard bucket)
-  # Paper: thresholds exclude degenerate settings (equivalent models, almost no
-  # routing events, almost nothing solvable by M_hi) — not optimize routing performance.
+  min_accuracy_gap: 0.03
+  opportunity_min: 0.05
+  too_hard_max: 0.70
 
 selection:
   tie_break:
-    order:
-      - acc_gap
-      - opportunity_rate
-    prefer:
-      - ARC-Challenge
-      - MMLU
-      - TruthfulQA-MC
-      - HellaSwag
+    order: [acc_gap, opportunity_rate]
+    prefer: [ARC-Challenge, MMLU_PRO]

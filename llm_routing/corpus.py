@@ -71,17 +71,9 @@ DATASET_REGISTRY: dict[str, DatasetSpec] = {
         "ARC-Challenge", "allenai/ai2_arc", "ARC-Challenge",
         ("validation", "test"), ("train",),
     ),
-    "MMLU": DatasetSpec(
-        "MMLU", "cais/mmlu", "all",
+    "MMLU_PRO": DatasetSpec(
+        "MMLU_PRO", "TIGER-Lab/MMLU-Pro", "default",
         ("validation", "test"), ("dev", "auxiliary_train"),
-    ),
-    "TruthfulQA-MC": DatasetSpec(
-        "TruthfulQA-MC", "truthfulqa/truthful_qa", "multiple_choice",
-        ("validation",),
-    ),
-    "HellaSwag": DatasetSpec(
-        "HellaSwag", "Rowan/hellaswag", None,
-        ("validation",), ("train",),
     ),
 }
 
@@ -116,11 +108,23 @@ def _parse_arc(row: dict[str, Any], spec: DatasetSpec, source_split: str, row_in
     )
 
 
-def _parse_mmlu(row: dict[str, Any], spec: DatasetSpec, source_split: str, row_index: int) -> Query:
+def _parse_mmlu_pro(row: dict[str, Any], spec: DatasetSpec, source_split: str, row_index: int) -> Query:
+    choices = row.get("options") or row.get("choices")
+    if not choices:
+        raise ValueError("MMLU-Pro row missing options/choices")
+    if row.get("answer_index") is not None:
+        answer_index = int(row["answer_index"])
+    else:
+        key = str(row["answer"]).strip().upper()
+        if len(key) == 1 and key.isalpha():
+            answer_index = ord(key) - ord("A")
+        else:
+            raise ValueError(f"Bad MMLU-Pro answer {row.get('answer')!r}")
+    subject = row.get("subject") or row.get("category", "unknown")
     return Query(
         _query_id(spec.name, source_split, row_index), spec.name,
-        row["question"].strip(), tuple(str(c) for c in row["choices"]), int(row["answer"]),
-        {"subject": row.get("subject", "unknown")},
+        row["question"].strip(), tuple(str(c) for c in choices), answer_index,
+        {"subject": subject},
     )
 
 
@@ -145,9 +149,7 @@ def _parse_hellaswag(row: dict[str, Any], spec: DatasetSpec, source_split: str, 
 
 _ROW_PARSERS: dict[str, Callable[..., Query]] = {
     "ARC-Challenge": _parse_arc,
-    "MMLU": _parse_mmlu,
-    "TruthfulQA-MC": _parse_truthfulqa,
-    "HellaSwag": _parse_hellaswag,
+    "MMLU_PRO": _parse_mmlu_pro,
 }
 
 
@@ -170,6 +172,101 @@ def load_corpus(spec: DatasetSpec, *, cache_dir: str | None = None) -> list[Quer
     if len({q.query_id for q in corpus}) != len(corpus):
         raise ValueError(f"Duplicate query_id in {spec.name}")
     return corpus
+
+
+def _normalize_query(q: Query) -> Query:
+    return Query(
+        q.query_id,
+        q.dataset,
+        q.text.strip(),
+        tuple(c.strip() for c in q.choices),
+        int(q.answer_index),
+        dict(q.metadata),
+    )
+
+
+def _valid_query(q: Query) -> bool:
+    return bool(q.text.strip()) and len(q.choices) >= 2 and 0 <= q.answer_index < len(q.choices)
+
+
+def _stratum_key(q: Query, metadata_key: str | None) -> str:
+    if metadata_key:
+        return str(q.metadata.get(metadata_key, "unknown"))
+    return q.dataset
+
+
+def _stratified_subsample(
+    corpus: list[Query], target_n: int, *, metadata_key: str | None, seed: int
+) -> list[Query]:
+    if target_n >= len(corpus):
+        return list(corpus)
+    rng = random.Random(seed)
+    groups: dict[str, list[Query]] = {}
+    for q in corpus:
+        groups.setdefault(_stratum_key(q, metadata_key), []).append(q)
+    for items in groups.values():
+        rng.shuffle(items)
+
+    n = len(corpus)
+    keys = sorted(groups)
+    counts = {k: int(target_n * len(groups[k]) / n) for k in keys}
+    remainder = target_n - sum(counts.values())
+    if remainder:
+        ranked = sorted(
+            keys,
+            key=lambda k: (target_n * len(groups[k]) / n - counts[k]),
+            reverse=True,
+        )
+        for k in ranked[:remainder]:
+            counts[k] += 1
+
+    out: list[Query] = []
+    for k in keys:
+        out.extend(groups[k][: counts[k]])
+    rng.shuffle(out)
+    return out[:target_n]
+
+
+def prepare_corpus(
+    corpus: list[Query],
+    cfg: dict[str, Any] | None,
+    *,
+    seed: int = 42,
+) -> tuple[list[Query], dict[str, Any]]:
+    """M1 dataset preparation: normalize, drop invalid rows, optional stratified subsample."""
+    cfg = cfg or {}
+    meta: dict[str, Any] = {"n_loaded": len(corpus), "n_dropped_invalid": 0, "subsampled": False}
+
+    cleaned: list[Query] = []
+    for q in corpus:
+        try:
+            nq = _normalize_query(q)
+        except (TypeError, ValueError):
+            meta["n_dropped_invalid"] += 1
+            continue
+        if not _valid_query(nq):
+            meta["n_dropped_invalid"] += 1
+            continue
+        cleaned.append(nq)
+
+    meta["n_after_clean"] = len(cleaned)
+    threshold = cfg.get("subsample_when_above")
+    target = cfg.get("target_size")
+    if threshold is not None and target is not None and len(cleaned) > int(threshold):
+        cleaned = _stratified_subsample(
+            cleaned,
+            int(target),
+            metadata_key=cfg.get("stratify_metadata_key"),
+            seed=int(cfg.get("seed", seed)),
+        )
+        meta["subsampled"] = True
+        meta["subsample_target"] = int(target)
+        meta["subsample_threshold"] = int(threshold)
+
+    meta["n_final"] = len(cleaned)
+    if len({q.query_id for q in cleaned}) != len(cleaned):
+        raise ValueError("duplicate query_id after corpus preparation")
+    return cleaned, meta
 
 
 def resolve_holdout_size(corpus_size: int, partition_cfg: dict[str, Any]) -> int:
@@ -209,6 +306,14 @@ def resolve_test_size(partition_cfg: dict[str, Any], *, eval_pool_n: int) -> int
     )
 
 
+PARTITION_METHOD_SPLIT_DATASET = "split_dataset"
+_PARTITION_METHOD_ALIASES = {"random_split": PARTITION_METHOD_SPLIT_DATASET}
+
+
+def _normalize_partition_method(method: str) -> str:
+    return _PARTITION_METHOD_ALIASES.get(method, method)
+
+
 def _shuffled_ids(corpus: list[Query], seed: int) -> list[str]:
     perm = list(range(len(corpus)))
     random.Random(seed).shuffle(perm)
@@ -223,7 +328,8 @@ def partition_holdout(
     selection_n: int,
 ) -> dict[str, list[str]]:
     """M1: sample H ⊂ C only. Calib/test are created at M3 on the winning benchmark."""
-    if method != "random_split":
+    method = _normalize_partition_method(method)
+    if method != PARTITION_METHOD_SPLIT_DATASET:
         raise NotImplementedError(f"partition method {method!r} not implemented")
     ids = _shuffled_ids(corpus, seed)
     return {"selection_holdout": ids[:selection_n]}
@@ -238,7 +344,8 @@ def partition_eval(
     test_n: int,
 ) -> dict[str, list[str]]:
     """M3: split C \\ H into R_c and R_t using the same shuffle order as M1."""
-    if method != "random_split":
+    method = _normalize_partition_method(method)
+    if method != PARTITION_METHOD_SPLIT_DATASET:
         raise NotImplementedError(f"partition method {method!r} not implemented")
     ids = _shuffled_ids(corpus, seed)
     expected = ids[: len(holdout_ids)]
@@ -268,7 +375,7 @@ def validate_partition(corpus: list[Query], partition: dict[str, list[str]]) -> 
     ids = {q.query_id for q in corpus}
     for key in ("selection_holdout", "calib", "test"):
         if not partition.get(key):
-            raise ValueError(f"partition.{key} missing — run M3 lock-eval first")
+            raise ValueError(f"partition.{key} missing — run M3 eval first")
     all_parts = partition["selection_holdout"] + partition["calib"] + partition["test"]
     if set(all_parts) != ids:
         raise ValueError("partition IDs do not match corpus")
@@ -283,7 +390,7 @@ def eval_query_ids(
 ) -> tuple[list[str], set[str], set[str]]:
     """Return (R_c ∪ R_t) IDs in stable order; reject holdout leakage."""
     if not partition.get("calib") or not partition.get("test"):
-        raise ValueError("M3 eval partition required — run: python run.py lock-eval --run <run_dir>")
+        raise ValueError("M3 eval partition required — run: python run.py eval --run <run_dir>")
 
     holdout = set(partition["selection_holdout"])
     calib = set(partition["calib"])
@@ -373,3 +480,18 @@ def read_jsonl(path: Path, from_dict) -> list:
     if not path.exists():
         return []
     return [from_dict(row) for row in _iter_jsonl(path)]
+
+
+def select_split(run, split: str, limit: int | None) -> list[Query]:
+    """Select queries for a run split (H, R_c, or R_t)."""
+    from llm_routing.paths import SPLITS
+
+    corpus, _, partition = load_corpus_artifacts(run.corpus_dir)
+    if split not in SPLITS:
+        raise ValueError(f"split must be one of {SPLITS}")
+    if split != "selection_holdout" and not (partition.get("calib") and partition.get("test")):
+        raise ValueError(
+            f"split={split!r} requires M3 eval partition — run: python run.py eval --run {run.root}"
+        )
+    queries = select_queries(corpus, partition[split])
+    return queries[:limit] if limit else queries

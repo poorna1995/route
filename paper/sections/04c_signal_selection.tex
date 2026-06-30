@@ -1,12 +1,31 @@
 \subsection{Signal selection}
 \label{sec:signal-selection}
 
-After signal analysis on calib, we freeze a compact feature vector $x(q)\in\mathbb{R}^d$ for all routing experiments.
+After Stage~6 signal analysis on calib, Stage~7 freezes a compact feature vector $x(q)\in\mathbb{R}^d$ for all routing experiments.
+This stage corresponds to \textbf{Section~7} in the pipeline narrative: ranking, redundancy, correlation, and export---not hypothesis testing.
+
+\subsubsection{Feature ranking (7.1)}
+\label{sec:signal-selection-ranking}
+
+Rank per-scalar diagnostics from Stage~6 univariates (e.g.\ $|$\texttt{auroc}$-0.5|$ on $R_c$).
+Ranking is \textbf{not} performed in Stage~6 outputs.
+
+\subsubsection{Redundancy and correlation (7.2)}
+\label{sec:signal-selection-redundancy}
+
+Identify highly redundant pairs (Pearson $|r|\ge 0.95$ on $R_c$) within $\phi$ blocks and across candidates.
+Correlation matrices support drop decisions; they are Stage~7 diagnostics, not Stage~6 representation tests.
+
+\subsubsection{Freeze $x(q)$ (7.3)}
+\label{sec:signal-selection-freeze}
 
 \paragraph{Rules.}
 \begin{itemize}
+  \item \textbf{Do not pre-prune} before Stage~6 univariate results exist.
+  \item Drop features with evidence only: AUROC $\approx 0.5$, Spearman $\approx 0$, zero variance, or redundancy ($|r|>0.95$ on $R_c$).
   \item Drop redundant features (high correlation, no $\Delta$AUROC gain).
   \item Drop non-informative features unless needed for the H1--H3 ablation narrative.
+  \item \texttt{option\_count} is not extracted (constant on ARC MCQ).
   \item Export a frozen feature specification used identically on calib and test (values only; no refitting).
 \end{itemize}
 

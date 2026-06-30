@@ -8,10 +8,8 @@ import re
 import time
 from typing import Any
 
-import torch
-
 from llm_routing.corpus import Query, QueryResult
-from llm_routing.model_response.protocol import (
+from llm_routing.signals.psi.protocol import (
     build_protocol_artifact,
     capture_protocol_trace,
     inference_capture_metadata,
@@ -152,6 +150,7 @@ def run_oracle_inference(
     *,
     device: str | None = None,
 ) -> list[QueryResult]:
+    import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")

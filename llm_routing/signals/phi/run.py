@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from llm_routing.corpus import eval_query_ids, load_corpus_artifacts, select_queries, write_jsonl
-from llm_routing.query_derived.core import (
+from llm_routing.signals.phi.core import (
     GeometryModel,
     QueryDerivedRecord,
     TokenCounter,
@@ -16,7 +16,7 @@ from llm_routing.query_derived.core import (
     encode_canonical_texts,
     extract_ambiguity,
     extract_structural,
-    load_query_derived_defaults,
+    load_model_independent_defaults,
     resolve_tokenizer_id,
     save_embedding,
 )
@@ -37,7 +37,7 @@ def _resolve_query_ids(
         return ids, set(), set()
     raise ValueError(
         "M3 eval partition required (calib + test). "
-        "Run: python run.py lock-eval --run <run_dir> "
+        "Run: python run.py eval --run <run_dir> "
         "or pass allow_full_corpus=True for smoke only."
     )
 
@@ -88,7 +88,7 @@ def _apply_zscore(
     return [model.transform(r) for r in records]
 
 
-def run_query_derived(
+def run_model_independent(
     run_root: Path,
     *,
     query_ids: list[str] | None = None,
@@ -96,9 +96,9 @@ def run_query_derived(
     config: dict[str, Any] | None = None,
     allow_full_corpus: bool = False,
 ) -> Path:
-    """Execute query-derived φ(q) pipeline for one run directory."""
+    """Execute model-independent φ(q) pipeline for one run directory."""
     run_root = Path(run_root)
-    config = config or load_query_derived_defaults()
+    config = config or load_model_independent_defaults()
     setting = load_setting(run_root / "setting.yaml")
     protocol = get_protocol(setting)
     corpus, _, partition = load_corpus_artifacts(run_root / "corpus")
@@ -108,10 +108,15 @@ def run_query_derived(
     )
     queries = select_queries(corpus, query_ids)
 
-    tokenizer_id = resolve_tokenizer_id(setting, config)
-    try:
-        counter = TokenCounter(tokenizer_id)
-    except Exception:
+    tokenizer_id = None if mock_embed else resolve_tokenizer_id(setting, config)
+    if tokenizer_id:
+        try:
+            import transformers  # noqa: F401
+
+            counter = TokenCounter(tokenizer_id)
+        except ImportError:
+            counter = TokenCounter(None)
+    else:
         counter = TokenCounter(None)
 
     signals_dir = run_root / "signals"
@@ -158,7 +163,7 @@ def run_query_derived(
     _fit_embedding_geometry(records, embeddings, query_ids, calib_ids, eng_dir, config)
     records = _apply_zscore(records, calib_ids, eng_dir, config)
 
-    out_path = signals_dir / "query_derived.jsonl"
+    out_path = signals_dir / "model_independent.jsonl"
     write_jsonl(out_path, records, lambda r: r)
 
     meta = {
@@ -177,7 +182,7 @@ def run_query_derived(
             "embedding_geometry": "jsonl.embedding_geometry",
         },
     }
-    (signals_dir / "query_derived_meta.json").write_text(
+    (signals_dir / "model_independent_meta.json").write_text(
         json.dumps(meta, indent=2) + "\n", encoding="utf-8"
     )
     if partition and calib_ids:
@@ -187,7 +192,11 @@ def run_query_derived(
             "calib": partition["calib"],
             "test": partition["test"],
         }
-        (signals_dir / "query_derived_splits.json").write_text(
+        (signals_dir / "model_independent_splits.json").write_text(
             json.dumps(splits, indent=2) + "\n", encoding="utf-8"
         )
     return out_path
+
+
+# Deprecated alias
+run_query_derived = run_model_independent

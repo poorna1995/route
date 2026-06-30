@@ -22,7 +22,7 @@ Candidate file (experiments/candidates/arc.yaml) — dataset only:
 At load time, load_setting() merges in experiments/defaults.yaml (pool, protocol,
 gates, partition) because the candidate has no "pool" key yet.
 
-After prepare/lock-eval, the run snapshot (experiments/runs/.../setting.yaml) is
+After prepare/eval, the run snapshot (experiments/runs/.../setting.yaml) is
 fully expanded and frozen — it stores partition ids so splits never change.
 
     setting = load_setting("experiments/candidates/arc.yaml")
@@ -40,8 +40,7 @@ import yaml
 
 from llm_routing.corpus import DatasetSpec, get_dataset, resolve_holdout_size, resolve_test_size
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULTS_PATH = ROOT / "experiments/defaults.yaml"
+from llm_routing.paths import SETTING_DEFAULTS_PATH as DEFAULTS_PATH
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -63,6 +62,15 @@ def _load_defaults() -> dict[str, Any]:
     return data
 
 
+def corpus_preparation_cfg(setting: dict[str, Any]) -> dict[str, Any]:
+    """Merge defaults + run overrides for M1 corpus preparation."""
+    defaults = _load_defaults().get("corpus_preparation") or {}
+    override = setting.get("corpus_preparation") or {}
+    if isinstance(defaults, dict) and isinstance(override, dict):
+        return _deep_merge(defaults, override)
+    return dict(defaults) if defaults else {}
+
+
 def load_defaults() -> dict[str, Any]:
     """Public wrapper for _load_defaults()."""
     return _load_defaults()
@@ -77,7 +85,7 @@ def load_setting(path: Path | str) -> dict[str, Any]:
     If the file is a thin candidate (no "pool" key), merges experiments/defaults.yaml
     on top so pool/protocol/gates are filled in automatically.
 
-    Used by: pipeline, query_derived/run, tests
+    Used by: run, signals.phi.run, tests
     """
     path = Path(path)
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -92,7 +100,7 @@ def load_setting(path: Path | str) -> dict[str, Any]:
 def save_setting(path: Path | str, setting: dict[str, Any]) -> None:
     """Write a setting dict back to YAML (wraps it under top-level "setting").
 
-    Used when freezing partition ids after prepare or lock-eval.
+    Used when freezing partition ids after prepare or M3 eval.
     """
     Path(path).write_text(
         yaml.safe_dump({"setting": setting}, sort_keys=False),
@@ -129,7 +137,7 @@ def get_protocol(setting: dict[str, Any]) -> dict[str, Any]:
     Output: flat dict used by oracle.py and query_derived
 
         {
-          "protocol_version": "mcq_letter_v1",
+          "protocol_version": "mcq_letter",
           "system_prompt": "You answer multiple-choice questions...",
           "user_template": "{question}\\n\\n{choices}\\n\\nAnswer:",
           "decoding": {"temperature": 0.0, "max_tokens": 16},

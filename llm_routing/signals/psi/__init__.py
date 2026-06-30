@@ -1,4 +1,4 @@
-from llm_routing.model_response.protocol import (
+from llm_routing.signals.psi.protocol import (
     ARTIFACT_VERSION,
     METRICS_VERSION,
     MODEL_RESPONSE_METRIC_KEYS,
@@ -31,6 +31,6 @@ __all__ = [
 
 
 def extract_model_response_signals(*args, **kwargs):
-    from llm_routing.model_response.stage import extract_model_response_signals as _extract
+    from llm_routing.signals.psi.stage import extract_model_response_signals as _extract
 
     return _extract(*args, **kwargs)

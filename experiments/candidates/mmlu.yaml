@@ -1,6 +1,0 @@
-setting:
-  corpus:
-    dataset: MMLU
-    source: registry_default
-  meta:
-    status: draft

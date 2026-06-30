@@ -1,0 +1,8 @@
+setting:
+  corpus:
+    dataset: MMLU_PRO
+    source: registry_default
+  corpus_preparation:
+    stratify_metadata_key: subject
+  meta:
+    status: draft

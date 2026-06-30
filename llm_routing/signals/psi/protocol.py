@@ -3,7 +3,7 @@
 Immutable trace (never discard — GPU is expensive, storage is cheap):
   generated_text, generated_token, finish_reason
   generated_token_ids, generated_token_logprobs, generated_logits (sparse top-k per step)
-  candidate_token_logprobs, predicted_letter, n_choices  (mcq_letter_v1)
+  candidate_token_logprobs, predicted_letter, n_choices  (mcq_letter)
 
 Immutable artifact envelope (artifact_version + extractor_version + metrics_version):
   model_id, tokenizer_id, prompt_sha256, model_revision,
@@ -97,7 +97,10 @@ def _generation_scores(outputs: Any) -> tuple[Any, ...]:
     return scores
 
 
-# --- mcq_letter_v1 extractor ---
+# --- mcq_letter extractor ---
+
+PROTOCOL_MCQ_LETTER = "mcq_letter"
+_PROTOCOL_ALIASES = {"mcq_letter_v1": PROTOCOL_MCQ_LETTER}
 
 
 def _letter_token_variants(letter: str) -> tuple[str, ...]:
@@ -141,7 +144,7 @@ def validate_protocol_trace(trace: dict[str, Any]) -> None:
 
 @dataclass(frozen=True)
 class McqLetterProtocolExtractor:
-    protocol_version: str = "mcq_letter_v1"
+    protocol_version: str = PROTOCOL_MCQ_LETTER
     name: str = "choice_letter_v1"
     version: int = 2
 
@@ -279,14 +282,21 @@ class ProtocolExtractor(Protocol):
     def compute_metrics(self, trace: dict, *, temperature: float = 1.0) -> dict[str, float]: ...
 
 
+_MCQ_LETTER_EXTRACTOR = McqLetterProtocolExtractor()
 _PROTOCOL_EXTRACTORS: dict[str, ProtocolExtractor] = {
-    "mcq_letter_v1": McqLetterProtocolExtractor(),
+    PROTOCOL_MCQ_LETTER: _MCQ_LETTER_EXTRACTOR,
+    "mcq_letter_v1": _MCQ_LETTER_EXTRACTOR,
 }
 
 
+def _normalize_protocol_version(protocol_version: str) -> str:
+    return _PROTOCOL_ALIASES.get(protocol_version, protocol_version)
+
+
 def get_protocol_extractor(protocol_version: str) -> ProtocolExtractor:
+    version = _normalize_protocol_version(protocol_version)
     try:
-        return _PROTOCOL_EXTRACTORS[protocol_version]
+        return _PROTOCOL_EXTRACTORS[version]
     except KeyError as exc:
         raise KeyError(f"no ProtocolExtractor for protocol_version={protocol_version!r}") from exc
 
@@ -303,7 +313,10 @@ MODEL_RESPONSE_METRIC_KEYS = frozenset({
 
 
 def model_response_prediction(trace: dict[str, Any], metrics: dict[str, float]) -> dict[str, Any]:
-    """Stage 5B view: protocol-parsed answer + confidence (MSP for mcq_letter_v1)."""
+    """Stage 5B view: protocol-parsed answer + MSP as confidence field.
+
+    MSP is a routing signal (max softmax over choice letters), not a calibrated P(correct).
+    """
     return {
         "parsed_answer": trace["predicted_letter"],
         "confidence": float(metrics["msp"]),
@@ -347,7 +360,7 @@ def mock_protocol_trace(
     generated_text: str | None = None,
 ) -> dict[str, Any]:
     extractor = get_protocol_extractor(protocol_version)
-    if protocol_version == "mcq_letter_v1":
+    if _normalize_protocol_version(protocol_version) == PROTOCOL_MCQ_LETTER:
         return extractor.mock_trace(n_choices, peak_choice_index, generated_text=generated_text)
     return extractor.mock_trace(n_choices, peak_choice_index)
 

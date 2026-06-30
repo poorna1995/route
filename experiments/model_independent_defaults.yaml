@@ -1,18 +1,18 @@
-# Draft defaults for query-derived φ(q) pipeline (architecture frozen; tune at M3 lock).
+# Model-independent φ(q) defaults (architecture frozen; tune at M3 lock).
 # Layer: model-independent (query-derived) — H1; no pool forward pass at extraction.
 #
-# φ(q) = [φ_structural, φ_ambiguity, φ_semantic, φ_embedding_geometry]
-#   structural           — 8 scalars (prompt stats + lexical density)
+# φ(q) = [φ_structural, φ_ambiguity, φ_embedding_geometry]  (jsonl scalar blocks)
+#   structural           — 7 scalars (prompt stats + lexical density; option_count omitted — constant on ARC)
 #   ambiguity            — 4 scalars (MCQ distinguishability)
-#   semantic             — frozen u(q) in signals/embeddings/{id}.npy (not jsonl columns)
-#   embedding_geometry   — 7 scalars (geometry of u(q) relative to R_c; paper may call novelty)
+#   u(q)                 — frozen semantic representation in signals/embeddings/{id}.npy (NOT a jsonl column)
+#   embedding_geometry   — 6 scalars: pc1–pc3, centroid_distance, mean_knn_similarity, lof_score
 
 structural:
   mattr_window: 25
   zlib_level: 6
 
 embedding_geometry:
-  pca_components: 3   # capped at 3 (pc1–pc3 only)
+  pca_components: 3 # capped at 3 (pc1–pc3 only)
   knn_k: 10
 
 embedding:
@@ -23,6 +23,8 @@ tokenizer:
   source: pool_M_lo
 
 zscore:
+  # Fit mu/sigma on R_c only; apply to calib + test. See query_derived_spec.md Step 6.
+  # option_count not extracted (constant on ARC MCQ).
   continuous_keys:
     - structural.prompt_token_len
     - structural.question_token_len
@@ -39,6 +41,5 @@ zscore:
     - embedding_geometry.pc2
     - embedding_geometry.pc3
     - embedding_geometry.centroid_distance
-    - embedding_geometry.knn_distance
     - embedding_geometry.mean_knn_similarity
     - embedding_geometry.lof_score

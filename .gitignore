@@ -11,3 +11,5 @@ experiments/runs/
 research/archive/
 llm_routing.egg-info/
 tests/
+research/
+paper/

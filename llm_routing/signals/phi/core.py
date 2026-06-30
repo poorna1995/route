@@ -14,10 +14,64 @@ from typing import Any
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
-DEFAULTS_PATH = ROOT / "experiments/query_derived_defaults.yaml"
+from llm_routing.paths import MODEL_INDEPENDENT_DEFAULTS_PATH, resolve_model_independent_defaults_path
+
+DEFAULTS_PATH = MODEL_INDEPENDENT_DEFAULTS_PATH
 JSONL_BLOCKS = ("structural", "ambiguity", "embedding_geometry")
 MAX_PCA_COMPONENTS = 3
+
+# Static φ block keys (Stage 5 schema — do not infer from data rows).
+STRUCTURAL_KEYS: tuple[str, ...] = (
+    "prompt_token_len",
+    "question_token_len",
+    "mean_option_token_len",
+    "std_option_token_len",
+    "question_option_ratio",
+    "mattr",
+    "compression_ratio",
+)
+AMBIGUITY_KEYS: tuple[str, ...] = (
+    "stem_choice_overlap_max",
+    "stem_choice_overlap_mean",
+    "choice_choice_overlap",
+    "choice_length_range",
+)
+EMBEDDING_GEOMETRY_KEYS: tuple[str, ...] = (
+    "pc1",
+    "pc2",
+    "pc3",
+    "centroid_distance",
+    "mean_knn_similarity",
+    "lof_score",
+)
+QUERY_BLOCK_KEYS: dict[str, tuple[str, ...]] = {
+    "structural": STRUCTURAL_KEYS,
+    "ambiguity": AMBIGUITY_KEYS,
+    "embedding_geometry": EMBEDDING_GEOMETRY_KEYS,
+}
+
+
+def query_column(block: str, key: str) -> str:
+    return f"phi.{block}.{key}"
+
+
+def query_block_columns(block: str) -> tuple[str, ...]:
+    return tuple(query_column(block, k) for k in QUERY_BLOCK_KEYS[block])
+
+
+def query_all_columns() -> tuple[str, ...]:
+    return tuple(col for block in JSONL_BLOCKS for col in query_block_columns(block))
+
+
+def flatten_query_row(record: dict[str, Any]) -> dict[str, Any]:
+    """Map query_derived jsonl row → hierarchical phi.* table columns."""
+    rec = _normalize_record_blocks(record)
+    out: dict[str, Any] = {}
+    for block in JSONL_BLOCKS:
+        block_vals = rec.get(block) or {}
+        for key in QUERY_BLOCK_KEYS[block]:
+            out[query_column(block, key)] = block_vals.get(key)
+    return out
 
 _WORD = re.compile(r"\b[\w']+\b", re.UNICODE)
 
@@ -64,8 +118,8 @@ def flatten_blocks(record: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def load_query_derived_defaults(path: Path | None = None) -> dict[str, Any]:
-    path = path or DEFAULTS_PATH
+def load_model_independent_defaults(path: Path | None = None) -> dict[str, Any]:
+    path = path or resolve_model_independent_defaults_path()
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected mapping")
@@ -85,10 +139,11 @@ def embedding_geometry_section(config: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-# Deprecated aliases (old manifest / yaml keys).
 load_section = structural_section
 geometry_section = embedding_geometry_section
 novelty_section = embedding_geometry_section
+
+load_query_derived_defaults = load_model_independent_defaults
 
 
 def resolve_tokenizer_id(setting: dict[str, Any], config: dict[str, Any]) -> str | None:
@@ -191,7 +246,6 @@ def extract_token_stats(
     return {
         "prompt_token_len": counter.count(canonical),
         "question_token_len": q_len,
-        "option_count": len(query.choices),
         "mean_option_token_len": statistics.fmean(opt_lens) if opt_lens else 0.0,
         "std_option_token_len": statistics.pstdev(opt_lens) if len(opt_lens) > 1 else 0.0,
         "question_option_ratio": q_len / opt_sum,
@@ -215,7 +269,7 @@ def extract_structural(
     counter: TokenCounter,
     config: dict[str, Any],
 ) -> dict[str, float | int]:
-    """φ_structural block: token-length stats + lexical density (8 scalars)."""
+    """φ_structural block: token-length stats + lexical density (7 scalars)."""
     out = extract_token_stats(query, canonical, counter)
     out.update(extract_lexical(canonical, config))
     return out
@@ -298,7 +352,7 @@ def save_embedding(path: Path, vector: list[float]) -> None:
 
 @dataclass
 class GeometryModel:
-    """Embedding-geometry descriptors fit on R_c (PCA, kNN, LOF, centroid)."""
+    """Embedding-geometry on R_c: PCA coords + centroid / kNN similarity / LOF."""
 
     pca_components: list[list[float]] | None = None
     centroid: list[float] | None = None
@@ -347,7 +401,6 @@ class GeometryModel:
         centroid_dist = 1.0 - float(np.dot(x / norm, centroid / (np.linalg.norm(centroid) or 1.0)))
 
         dists, _ = self._nn.kneighbors(x.reshape(1, -1))
-        knn_dist = float(dists.mean())
         mean_knn_similarity = float((1.0 - dists).mean())
 
         lof_raw = -float(self._lof.score_samples(x.reshape(1, -1))[0])
@@ -355,7 +408,6 @@ class GeometryModel:
 
         out = {
             "centroid_distance": centroid_dist,
-            "knn_distance": knn_dist,
             "mean_knn_similarity": mean_knn_similarity,
             "lof_score": lof_score,
         }

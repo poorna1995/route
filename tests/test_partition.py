@@ -42,7 +42,7 @@ class TestPartition(unittest.TestCase):
 
         legacy = {
             "partition": {
-                "method": "random_split",
+                "method": "split_dataset",
                 "seed": 42,
                 "selection_holdout_n": 150,
             },
@@ -53,17 +53,17 @@ class TestPartition(unittest.TestCase):
 
     def test_m1_holdout_only(self) -> None:
         corpus = [Query(f"q{i}", "ARC", "t", ("a", "b"), 0) for i in range(500)]
-        part = partition_holdout(corpus, method="random_split", seed=42, selection_n=150)
+        part = partition_holdout(corpus, method="split_dataset", seed=42, selection_n=150)
         self.assertEqual(len(part["selection_holdout"]), 150)
         self.assertNotIn("calib", part)
 
     def test_m3_extends_same_shuffle(self) -> None:
         corpus = [Query(f"q{i}", "ARC", "t", ("a", "b"), 0) for i in range(500)]
-        holdout = partition_holdout(corpus, method="random_split", seed=42, selection_n=150)
+        holdout = partition_holdout(corpus, method="split_dataset", seed=42, selection_n=150)
         test_n = resolve_test_size(self.POLICY, eval_pool_n=350)
         full = partition_eval(
             corpus, holdout["selection_holdout"],
-            method="random_split", seed=42, test_n=test_n,
+            method="split_dataset", seed=42, test_n=test_n,
         )
         self.assertEqual(len(full["selection_holdout"]), 150)
         self.assertEqual(len(full["test"]), test_n)
@@ -73,10 +73,10 @@ class TestPartition(unittest.TestCase):
         from llm_routing.corpus import eval_query_ids, validate_partition
 
         corpus = [Query(f"q{i}", "ARC", "t", ("a", "b"), 0) for i in range(500)]
-        holdout = partition_holdout(corpus, method="random_split", seed=42, selection_n=150)
+        holdout = partition_holdout(corpus, method="split_dataset", seed=42, selection_n=150)
         full = partition_eval(
             corpus, holdout["selection_holdout"],
-            method="random_split", seed=42, test_n=150,
+            method="split_dataset", seed=42, test_n=150,
         )
         validate_partition(corpus, full)
         ids, calib, test = eval_query_ids(full)

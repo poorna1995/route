@@ -20,11 +20,19 @@ Each layer rests on a \textbf{signal assumption} (why it might predict oracle $r
 Assumptions are priors, not claims; a rejected hypothesis means the assumption failed for our locked setting.
 
 \paragraph{Query-derived (model-independent).}
-Computed from query text only---no forward pass through any \textbf{routing-pool} member at extraction (a fixed sentence encoder for semantic features is allowed; it is not a member of $\mathcal{P}$): e.g., lexical/syntactic complexity, length, ambiguity cues.
+Computed from query text only---no forward pass through any \textbf{routing-pool} member at extraction (a fixed sentence encoder for $u(q)$ is allowed; it is not a member of $\mathcal{P}$): e.g., lexical/syntactic complexity, length, ambiguity cues.
+Semantic representation $u(q)$ is stored separately; scalar $\phi(q)$ includes corpus-relative \emph{embedding-geometry} features derived from $u(q)$ (fit on $R_c$ only).
+Token counts use the canonical user prompt the pool model receives.
+\texttt{compression\_ratio} measures text \emph{redundancy/compressibility} (zlib), not semantic complexity.
+PCA coordinates (\texttt{pc1--pc3}) describe position on the calibration embedding manifold---not an interpretable difficulty axis.
 
 \paragraph{Model-response (model-dependent).}
-Computed from one pool member on $q$: e.g., token entropy $H(q\mid M_i)$, confidence, log-probability.
+Computed from one pool member on $q$: e.g., token entropy $H(q\mid M_i)$, max softmax probability (MSP), margin, log-probability.
 On our locked MCQ protocol, $\psi$ uses \textbf{choice-letter logits} at the answer token (entropy, MSP, margin over $\{A,B,C,D\}$); open-ended protocols would use different extractors (sequence log-probability, sample-based uncertainty) under the same layer.
+
+\textbf{MSP is a routing signal, not a calibrated probability.}
+We store MSP in \texttt{prediction.confidence} for convenience, but \textbf{H2} asks whether the model's \emph{confidence signal} predicts routing need $r(q)$---not whether MSP is an accurate estimate of $P(\text{correct})$.
+Chat and instruction-tuned LMs are often overconfident; softmax masses are useful as \emph{ranking} features for routing analysis even when miscalibrated~\citep{plaut2024calibration}.
 
 \paragraph{Cross-model comparative (cross-model).}
 Computed by comparing pool members on the same $q$, typically from model-response quantities already computed: e.g., entropy gap $\Delta H$, confidence gap, answer disagreement.

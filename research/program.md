@@ -1,35 +1,124 @@
 # Research program
 
-> **ACL v1:** unsupervised signals for **binary LLM routing** + weight learning in a **fixed pool of models with distinct capabilities**. Not a cascade paper — see §0.1a.  
+> unsupervised signals for **LLM routing** + weight learning in a **fixed LLM pool of models with distinct capabilities**. see §0.1a.  
 > **Vocabulary frozen 2026-06-28** — [`nomenclature.md`](nomenclature.md). No term changes unless compelling technical reason.  
-> **Related work:** [`literature_record.md`](literature_record.md)  
-> Prior experiments retired — see nomenclature §6. **Benchmark, pool, and protocol not locked** (§13): chosen via reproducible Stages **1–3**, then frozen before oracle runs.
+> **Related work:** [`literature_record.md`](literature_record.md)
 
-**Canonical sections:** **§0 research design (Stage 0)** · signal assumptions **§5** · unsupervised §2 · routing need §3 · pipeline §4 · execution workflow **§11 (Stages 0–9)** · routing policy §8 (refs [`nomenclature.md`](nomenclature.md) **§2.1** for \(s\), \(\pi\))
+**Canonical sections:** **§0 research design** · **§0.7 methodology (Parts I–IV)** · signal assumptions **§5** · unsupervised §2 · routing need §3 · routing policy §8 (refs [`nomenclature.md`](nomenclature.md) **§2.1** for \(s\), \(\pi\))
 
 ---
 
 ## 0. Research design (Stage 0)
 
-**Execution stage:** 0 — Research design. **Status:** locked (2026-06-28). Benchmark, pool, and protocol are **not** locked — Stages **1–3** select and freeze them (§0.7, §13). Everything else in §0 is **method-level**.
-
-**Purpose:** Fix the scientific contract before Stages 1–9. Stage 0 locks *what* we test; Stages 1–3 lock *where* we test it; Stages 4–9 run the study.
-
 ### 0.1 Title and pitch
 
-**Working title:** *Routing from Unsupervised Signals in a Fixed LLM Pool*
+**Working title: _Routing from Unsupervised Signals in a Fixed LLM Pool_**
 
-**One sentence:** We study whether **unsupervised signals** can **guide binary LLM routing** — selecting the appropriate model from a fixed capability-differentiated pool — and whether **learned combination weights** on calib improve over hand-written rules, in contrast to **supervised** routers trained on preferences or outcomes.
+Given a fixed pool of language models with different capabilities, can pre-defined routing signals computed without routing supervision identify which model is appropriate for a query?
 
-**30 s pitch:** Supervised routing dominates the field. We pre-specify **model-independent**, **model-dependent**, and **cross-model** signals, test whether each layer predicts oracle \(r(q)\) (was \(M_{\mathrm{hi}}\) the appropriate choice?) on calib, freeze \(x(q)\), fit **binary model-selection** policy \(\pi(q)\) from signals only (nomenclature §2.1), and judge **accuracy–cost Pareto** on test. **Contribution:** unsupervised signal extraction, signal analysis, and routing — **not** a new cascade algorithm. Our pool has two models (3B, 8B), so routing reduces to a binary decision.
+**30 s pitch:**
+Current LLM routers are typically trained from supervision such as preference labels, oracle routing decisions, reward scores, or model outcomes. In contrast, we investigate whether routing-relevant information already exists in signals that can be computed without routing labels during signal extraction.
 
-### 0.1a Paper voice: routing vs cascade (locked)
+We organize these signals into three families:
 
-| Say (contribution) | Do not say (headline) |
-| ------------------ | --------------------- |
-| **Binary LLM routing** · **Model selection** · **Select the appropriate pool member** | *Unsupervised cascade* · *Cascade paper* · *Escalate to the stronger model* (as contribution) |
-| \(\pi(q)\) chooses \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) from \(x(q)\) | Sequential multi-model invoke as **our** method |
-| Oracle \(r(q)\) = routing need / escalation utility (technical label) | \(r(q)\) is not the deployable router |
+1. **Model-independent (ϕ):** derived from the query alone.
+2. **Model-dependent (ψ):** derived from the response of a candidate model.
+3. **Cross-model (χ):** derived from comparisons between models (offline analysis).
+
+Using an oracle-defined routing label r(q) only on a calibration set, we evaluate which signal families contain routing information, freeze a routing feature specification x(q), optionally learn a lightweight routing policy π(q), and evaluate the resulting accuracy–cost trade-off on held-out test queries.
+
+**Contributions**
+
+This paper makes four contributions.
+
+1. **Signal taxonomy (C1)** — predefined routing signals computed without routing supervision during extraction (Stage 5).
+
+2. **Signal validation (C2)** — statistical evidence that model-independent, model-dependent, and cross-model families associate with oracle routing need (Stage 6).
+
+3. **Signal combination and policy calibration (C3)** — a routing score \(s(q)\) and threshold \(\tau\) learned from validated signals on \(R_c\) (Stage 8).
+
+4. **Routing evaluation (C4)** — accuracy–cost of the frozen policy on held-out \(R_t\) (Stage 9).
+
+**One-line problem (scientific):** Can pre-specified, label-free routing signals provide sufficient information for model selection in a fixed LLM pool?
+
+**Three core objects:**
+
+| Object | Symbol | Stage |
+|--------|--------|-------|
+| Signals | φ, ψ, χ | 5 — define |
+| Representation | \(x(q)\) | 7 — freeze |
+| Policy | \(\pi(q)\), \(s(q)\) | 8 — calibrate; 9 — evaluate |
+
+**Scope**
+
+We study routing within a fixed model pool
+
+M={M1,…,MK},
+
+where models have distinct capabilities and computational costs.
+
+Currently, ∣M∣=2,
+
+consisting of
+
+1. Llama-3.2-3B-Instruct
+2. Llama-3.1-8B-Instruct
+
+Later work may extend the framework to larger model pools.
+
+**0.1 Paper Voice (locked)**
+
+Use throughout the paper:
+
+1. LLM routing
+2. Model selection
+3. Select the appropriate model
+4. Routing policy
+5. Fixed model pool
+
+Avoid as contribution language:
+
+1. "Cascade routing"
+2. "Escalation framework"
+3. "Sequential invocation"
+
+Those describe one possible deployment strategy, not the scientific contribution.
+
+The routing policy is
+
+π(q):x(q)→Mi,
+
+which selects one member of the model pool.
+
+**0.2 Motivation**
+
+Large language models exhibit a well-known trade-off between inference cost and answer quality. Running the strongest available model for every query maximizes accuracy but incurs unnecessary computational cost, while always selecting a smaller model sacrifices quality on difficult queries. The central challenge of LLM routing is therefore to select the most appropriate model for each query.
+
+Existing routing systems—including RouteLLM, HybridLLM, RouterBench, and related methods—typically formulate routing as a supervised prediction problem. They learn a direct mapping from queries (or model outputs) to routing decisions using preference labels, oracle outcomes, reward models, or other forms of supervision.
+
+This naturally raises a different research question:
+
+How much routing-relevant information is already present in signals that can be computed without routing supervision?
+
+Rather than learning a router directly from routing labels, we first investigate the signals themselves. We define routing signals that require no routing labels during extraction, organize them into model-independent, model-dependent, and cross-model families, and evaluate whether they are associated with oracle routing need.
+
+This separation is important. The proposed signals are label-free to compute and can therefore be extracted for any query without access to routing supervision. Oracle routing labels are used only during an offline calibration phase to evaluate signal informativeness and, optionally, to fit a lightweight routing policy. During deployment, routing decisions are made solely from the extracted signals and a frozen routing policy.
+
+**Setting**
+
+We consider a fixed pool of language models
+
+> M={M1,…,MK},
+
+whose members exhibit different capabilities and computational costs. For each incoming query q, the routing policy selects exactly one model from this pool.
+
+The present work focuses on the simplest non-trivial setting,
+
+> ∣M∣=2,
+
+where routing is a binary model-selection problem between a lower-cost and a higher-capability model.
+
+> Can unsupervised signal extraction provide sufficient information for effective LLM routing?
 
 **Deployment picture (professor / paper):**
 
@@ -37,179 +126,323 @@
 Query → compute signals x(q) → π(q) → select M_lo or M_hi → run that model
 ```
 
-**Not our contribution:** FrugalGPT-style **cascades** (sequential invoke with feedback) — cite as related work only. Same \(\pi(q)\) math can implement binary selection; we do not propose a new cascading algorithm.
+**Not our contribution:** FrugalGPT-style **cascades** (sequential invoke with feedback) — cite as related work only.
 
 Full voice table: [`nomenclature.md`](nomenclature.md) §1.
-
-### 0.2 Motivation
-
-Multi-LLM systems must trade **quality** against **inference cost**. Recent routers (RouteLLM, HybridLLM, GraphRouter, RouterBench, …) **learn** routing from human preferences, win/loss labels, or reward scores. That leaves a prior question open:
-
-> *What routing-relevant information exists in signals computed **without** routing supervision at extraction time?*
-
-Uncertainty and calibration work studies whether models ``know what they know,'' but routing papers rarely run **parallel layer tests** (model-independent, model-dependent, cross-model) against a single **appropriate-model oracle** \(r(q)\), nor separate **informativeness** from **deployable routing quality**.
-
-**Setting:** A fixed **model pool** \(\mathcal{M}=\{M_1,\ldots,M_K\}\) whose members have **distinct, documented capabilities** (not interchangeable). For each query \(q\), the router **selects one pool member** to answer; cost scales with the chosen model. In v1, \(|\mathcal{P}|=2\) (3B, 8B) — **binary model selection**.
 
 ### 0.3 Primary question and sub-questions
 
 **Primary question (PQ):**
 
-> Can unsupervised signals **guide routing decisions** in a fixed capability-differentiated pool, and does learned weighting on calib beat simple rules on the **same** frozen features?
+> Can routing-relevant information be obtained from signals that are extracted without routing supervision, and can these validated signals support effective model selection in a fixed LLM pool?
 
 **Sub-questions (advisor formulation):**
 
-| ID | Question | Maps to |
-| -- | -------- | ------- |
-| **SQ1** | What query-derived, model-response, and cross-model comparative signals can we estimate without routing labels at extraction? | RQ1 · §5 · Stage **5** |
-| **SQ2** | How should those signals be combined into a score \(s(q)\)? | nomenclature §2.1 · §8 · Stage **8** |
-| **SQ3** | Do resulting policies **guide** model choice vs baselines on accuracy–cost? | §9 · H4 · Stage **9** |
+| ID      | Question                                                                    | Maps to                              |
+| ------- | --------------------------------------------------------------------------- | ------------------------------------ |
+| **SQ1** | What routing-relevant signals can be extracted without routing supervision? | RQ1 · §5 · Stage **5**               |
+| **SQ2** | Which signal families are informative of oracle routing need? | RQ2 · H1–H3 · Part II Stage **6** |
+| **SQ3** | How can validated signals be combined into a routing score and policy? | Part II Stages **7–8** · H4 |
+| **SQ4** | Does the resulting policy improve the accuracy–cost trade-off compared with simple routing baselines? | RQ3 · H5 · Part IV (Stage **9**) |
 
 **Research questions (paper-facing):**
 
-| ID | Question | Hypotheses |
-| -- | -------- | ---------- |
-| **RQ1** | What unsupervised signal types can we measure at layer 1? | — (descriptive; Stage **5**) |
-| **RQ2** | Which signals predict oracle \(r(q)\) (appropriate model choice) on calib? | **H1–H3** (Stage **6**) |
-| **RQ3** | After freezing \(x(q)\), do learned weights outperform hand-designed rules? | **H4** (Stage **9**) |
-
-**Critical separation:** RQ2 (informativeness) and RQ3 (routing) are **independent** scientific claims. Either may succeed or fail without implying the other (§0.12).
-
-### 0.4 Contrast with prior work
-
-**Headline contrast:** **Supervised vs unsupervised at signal extraction** — not agent orchestration, not pre- vs post-inference timing as the headline.
-
-| | Typical supervised router | This work |
-| - | ------------------------- | --------- |
-| Router input | Classifier on query (+ history), trained on prefs/outcomes | Pre-specified **unsupervised signals** → \(x(q)\) |
-| Where labels enter | **Define** the router end-to-end | **Calib only:** analysis (§6) + \((\lambda,\tau)\) fit (§8) |
-| Signal source | Learned representations from routing data | Query-derived, model-response, cross-model comparative (§5) |
-| Evaluation | Often accuracy or win-rate alone | **Pareto** \((\mathrm{Acc}, \mathrm{Cost})\) on test |
-
-We cite supervised systems as field context; **reproducing** them is out of scope (§14).
+| ID                              | Question                                                                                                               | Hypotheses                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **RQ1 : Signal Definition**     | What model-independent, model-dependent, and cross-model routing signals can be extracted without routing supervision? | — (descriptive; Stage **5**) |
+| **RQ2: Signal Informativeness** | Which unsupervised routing signals are associated with oracle routing need?                                            | **H1–H3** (Stage **6**)      |
+| **RQ3: Combination**            | Does combining validated families yield a more informative routing representation than any single family?             | **H4** (Stage **8**)         |
+| **RQ4: Routing**                | Does the calibrated policy improve accuracy–cost vs baselines on held-out test?                                        | **H5** (Stage **9**)         |
 
 ### 0.5 Supervision model (three layers)
 
 **Unsupervised** describes **how signals are obtained** (layer 1), not “zero labels in the entire paper.”
 
-| Layer | Program § | Uses \(r(q)\) or routing prefs? | Unsupervised? |
-| ----- | ---------- | ------------------------------- | ------------- |
-| **1 — Signal extraction** | §5 | **No** | **Yes** — \(x_i(q)\) from query / model only |
-| **2 — Signal analysis** | §6 | **Yes, calib only** | Analysis supervised; **signal definitions** not |
-| **3 — Policy fit** | §8 | **Yes, calib only** | Combination supervised; **signal definitions** not |
+| Layer                     | Purpose                               | Uses oracle labels?            | Supervised?     |
+| ------------------------- | ------------------------------------- | ------------------------------ | --------------- |
+| **1. Signal extraction**  | Compute routing signals               | No                             | **No**          |
+| **2. Signal validation**  | Measure association with routing need | Yes (offline calibration only) | Evaluation only |
+| **3. Policy calibration** | Construct a routing policy            | Yes (offline calibration only) | Yes             |
 
-**Paper label:** *Routing from unsupervised signals* — layers 2–3 use offline \(r(q)\) on calib to **evaluate** and **combine**, not to invent features.
+Signal definitions do not depend on routing labels. Oracle labels are introduced only after signal extraction to evaluate signal informativeness and, optionally, calibrate a routing policy.
 
-**What we do not mean:** (i) “no labels anywhere”; (ii) classical unsupervised routing with no calib oracle; (iii) that model-response signals avoid inference — “unsupervised” means **routing supervision**, not compute.
-
-Full definition and contrast table: §2.
+> **Labels evaluate predefined signals; they do not create new signals.**
 
 ### 0.6 Problem formulation
 
 **Per-model correctness:** \(y(q,M)\in\{0,1\}\) under frozen protocol.
 
-**Primary routing pair (v1):** Stage 3 designates two pool members with ordered capability: **\(M_{\mathrm{lo}}\)** (lower capability, lower cost) and **\(M_{\mathrm{hi}}\)** (higher capability, higher cost), with \(\mathrm{cap}(M_{\mathrm{lo}}) < \mathrm{cap}(M_{\mathrm{hi}})\). Write \(y_{\mathrm{lo}}=y(q,M_{\mathrm{lo}})\), \(y_{\mathrm{hi}}=y(q,M_{\mathrm{hi}})\). The threshold policy and \(r(q)\) are defined on this pair; the full pool \(\mathcal{M}\) may contain additional members for comparative signals and future extensions.
+**Primary routing pair (v1):** Stage 3 designates two pool members with ordered capability: **\(M\_{\mathrm{lo}}\)** (lower capability, lower cost) and **\(M\_{\mathrm{hi}}\)** (higher capability, higher cost), with \(\mathrm{cap}(M*{\mathrm{lo}}) < \mathrm{cap}(M*{\mathrm{hi}})\). Write \(y*{\mathrm{lo}}=y(q,M*{\mathrm{lo}})\), \(y*{\mathrm{hi}}=y(q,M*{\mathrm{hi}})\). The threshold policy and \(r(q)\) are defined on this pair; the full pool \(\mathcal{M}\) may contain additional members for comparative signals and future extensions.
 
-**Binary LLM routing (deployable):** For each query, compute signals \(x(q)\), score \(s(q)=\lambda^\top x(q)\), and **select** \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) via threshold policy \(\pi(q)\) (nomenclature §2.1). This is **model selection**, not a cascade contribution.
+**Binary LLM routing (deployable):** For each query, compute signals \(x(q)\), score \(s(q)=\lambda^\top x(q)\), and **select** \(M*{\mathrm{lo}}\) or \(M*{\mathrm{hi}}\) via threshold policy \(\pi(q)\) (nomenclature §2.1). This is **model selection**, not a cascade contribution.
 
 **Routing need \(r(q)\) (oracle label only):**
 
 \[
-r(q) = \mathbb{1}\big[\, y_{\mathrm{lo}} = 0 \;\wedge\; y_{\mathrm{hi}} = 1 \,\big], \qquad \Delta(q) = y_{\mathrm{hi}} - y_{\mathrm{lo}}
+r(q) = \mathbb{1}\big[\, y_{\mathrm{lo}} = 0 \;\wedge\; y_{\mathrm{hi}} = 1 \,\big], \qquad \Delta(q) = y*{\mathrm{hi}} - y*{\mathrm{lo}}
 \]
 
-**Definition (locked):** \(r(q)=1\) iff **\(M_{\mathrm{hi}}\) was the appropriate pool member ex post** — \(M_{\mathrm{lo}}\) failed and \(M_{\mathrm{hi}}\) would succeed. Also called **escalation utility** (technical name). Not generic difficulty.
+**Definition (locked):** \(r(q)=1\) iff **\(M\_{\mathrm{hi}}\) was the appropriate pool member ex post** — \(M*{\mathrm{lo}}\) failed and \(M*{\mathrm{hi}}\) would succeed. Also called **escalation utility** (technical name). Not generic difficulty.
 
-| Bucket | \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) | \(r(q)\) | Appropriate model (oracle) |
-| ------ | ----------------------- | -------- | ---------------------------- |
-| easy | \((1,1)\) | 0 | \(M_{\mathrm{lo}}\) |
-| **opportunity** | \((0,1)\) | **1** | **\(M_{\mathrm{hi}}\)** |
-| lo\_only | \((1,0)\) | 0 | \(M_{\mathrm{lo}}\) |
-| too\_hard | \((0,0)\) | 0 | \(M_{\mathrm{lo}}\) |
+| Bucket          | \((y*{\mathrm{lo}}, y*{\mathrm{hi}})\) | \(r(q)\) | Appropriate model (oracle) |
+| --------------- | -------------------------------------- | -------- | -------------------------- |
+| easy            | \((1,1)\)                              | 0        | \(M\_{\mathrm{lo}}\)       |
+| **opportunity** | \((0,1)\)                              | **1**    | **\(M\_{\mathrm{hi}}\)**   |
+| lo_only         | \((1,0)\)                              | 0        | \(M\_{\mathrm{lo}}\)       |
+| too_hard        | \((0,0)\)                              | 0        | \(M\_{\mathrm{lo}}\)       |
 
-**\(r(q)\) is an oracle label, not \(\pi(q)\).** Computed offline from both models. The **deployable router** \(\pi(q)\) uses \(x(q)\) only and **selects** the pool member; it never observes \(r(q)\), \(y_{\mathrm{lo}}\), or \(y_{\mathrm{hi}}\) online.
+**\(r(q)\) is an oracle label, not \(\pi(q)\).** Computed offline from both models. The **deployable router** \(\pi(q)\) uses \(x(q)\) only and **selects** the pool member; it never observes \(r(q)\), \(y*{\mathrm{lo}}\), or \(y*{\mathrm{hi}}\) online.
 
-**Oracle** \(\pi^*(q)\) (eval upper bound only): route to the **cheapest correct** pool member — for the primary pair: \(M_{\mathrm{lo}}\) if \(y_{\mathrm{lo}}=1\); else \(M_{\mathrm{hi}}\) if \(y_{\mathrm{hi}}=1\); else \(M_{\mathrm{lo}}\).
+**Oracle** \(\pi^\*(q)\) (eval upper bound only): route to the **cheapest correct** pool member — for the primary pair: \(M*{\mathrm{lo}}\) if \(y*{\mathrm{lo}}=1\); else \(M*{\mathrm{hi}}\) if \(y*{\mathrm{hi}}=1\); else \(M\_{\mathrm{lo}}\).
 
 **Invariant:** \(r(q)\) is computed offline for layers 2–3; it is **never** an input to signal extraction (§5). Detail: §3.
 
 **Important:** \(r(q)\), bucket rates, and signal behaviour emerge from the coupled Experimental Setting \(\mathcal{S}\) (§0.7). Stages **1–3** select \(\mathcal{S}\) in a reproducible order; Stage **3** freezes it before oracle runs.
 
-### 0.7 Experimental Setting selection (Stages 1–3) — **FROZEN**
+# 3 Problem Formulation
 
-> **Architecture frozen (2026-06-25).** M1–M4 structure is locked. Further changes must improve **scientific validity**, not organization. Next design effort: **signal definitions (§5)**, oracle protocol (§3), feature vector (§7), routing policy (§8).
+## 3.1 Experimental Setting
 
-Pool, benchmark, protocol, entropy, and \(\kappa\) are **not independent**. An **Experimental Setting** is everything needed to run the routing study under one frozen protocol.
+We consider routing within a **fixed pool of language models**
 
-**Core notation (paper-facing):**
+$$
+\mathcal{P} = \{M_1, \ldots, M_K\},
+$$
 
-\[
-\mathcal{S} = (\mathcal{D},\; \mathcal{P},\; \Pi)
-\]
+whose members differ in capability and inference cost. The model pool is fixed before any routing experiments are performed.
 
-| Symbol | Meaning |
-| ------ | ------- |
-| \(\mathcal{D}\) | Benchmark / task (e.g. ARC-Challenge) |
-| \(\mathcal{P}\) | Model pool with primary pair \((M_{\mathrm{lo}}, M_{\mathrm{hi}})\), capability spec, cost \(\kappa\) |
-| \(\Pi\) | Protocol: prompt, template, decoding, grading |
+For the present study, routing is formulated as binary model selection between a designated primary pair,
 
-Everything else — evaluation corpus \(C\), splits \((H, R_c, R_t)\), concrete features — is **derived from** \(\mathcal{S}\) via M1–M3 configuration. The expanded registry form (for YAML) is:
+$$
+(M_{\mathrm{lo}}, M_{\mathrm{hi}}),
+$$
 
-\[
-\mathcal{S} \equiv \big(\,\mathcal{D},\; \mathcal{P},\; \Pi,\; C,\; \text{partition policy}\,\big)
-\]
+where
 
-**Reproducible design process** — two phases, four modules, one **Experimental Setting** object (§0.7.1):
+$$
+\mathrm{cap}(M_{\mathrm{lo}}) < \mathrm{cap}(M_{\mathrm{hi}})
+$$
+
+and
+
+$$
+\kappa(M_{\mathrm{lo}}) < \kappa(M_{\mathrm{hi}}).
+$$
+
+The remaining models, if any, are not part of the routing decision in this version of the framework but may be used for comparative analyses or future extensions.
+
+---
+
+## 3.2 Routing Objective
+
+For every query $q$, the routing policy
+
+$$
+\pi(q)
+$$
+
+selects exactly one model from the primary pair,
+
+$$
+\pi(q) \in \{M_{\mathrm{lo}}, M_{\mathrm{hi}}\}.
+$$
+
+The routing decision is made from a routing feature vector
+
+$$
+x(q),
+$$
+
+constructed from the predefined signal families introduced in Section 5.
+
+A routing score
+
+$$
+s(q) = f(x(q))
+$$
+
+is computed, where $f(\cdot)$ denotes the routing policy.
+
+In the present work we instantiate
+
+$$
+f(x) = \lambda^\top x,
+$$
+
+yielding the threshold policy
+
+$$
+\pi(q) =
+\begin{cases}
+M_{\mathrm{hi}}, & s(q) > \tau, \\
+M_{\mathrm{lo}}, & \text{otherwise}.
+\end{cases}
+$$
+
+The linear score is one implementation of the routing policy rather than a defining component of the framework.
+
+---
+
+## 3.3 Oracle Correctness
+
+Under the frozen experimental protocol, model correctness is defined as
+
+$$
+y(q, M) \in \{0, 1\},
+$$
+
+where
+
+$$
+y(q, M) = 1
+$$
+
+indicates that model $M$ answers query $q$ correctly.
+
+For the primary routing pair we write
+
+$$
+y_{\mathrm{lo}} = y(q, M_{\mathrm{lo}}), \qquad y_{\mathrm{hi}} = y(q, M_{\mathrm{hi}}).
+$$
+
+---
+
+## 3.4 Oracle Routing Need
+
+To evaluate routing signals, we define the oracle routing label
+
+$$
+r(q) = \mathbf{1}\left[y_{\mathrm{lo}} = 0 \land y_{\mathrm{hi}} = 1\right].
+$$
+
+This label identifies queries for which the higher-capability model is the **appropriate** choice because the lower-capability model fails while the higher-capability model succeeds.
+
+Equivalently,
+
+$$
+r(q) = 1
+$$
+
+if and only if routing to $M_{\mathrm{hi}}$ would improve correctness over $M_{\mathrm{lo}}$.
+
+The correctness difference
+
+$$
+\Delta(q) = y_{\mathrm{hi}} - y_{\mathrm{lo}}
+$$
+
+is reported for analysis only.
+
+Importantly, $r(q)$ is **not** a measure of generic task difficulty. It is a routing-specific oracle label defined only with respect to the selected model pair.
+
+---
+
+## 3.5 Oracle Buckets
+
+Each query belongs to one of four mutually exclusive oracle buckets.
+
+| Bucket      | $(y_{\mathrm{lo}}, y_{\mathrm{hi}})$ | $r(q)$ | Appropriate model        |
+| ----------- | -----------------------------------: | -----: | ------------------------ |
+| easy        |                              $(1,1)$ |      0 | $M_{\mathrm{lo}}$        |
+| opportunity |                              $(0,1)$ |      1 | $M_{\mathrm{hi}}$        |
+| lo_only     |                              $(1,0)$ |      0 | $M_{\mathrm{lo}}$        |
+| too_hard    |                              $(0,0)$ |      0 | none in the primary pair |
+
+> **Note on the "too_hard" bucket.** Neither model is correct, so writing "$M_{\mathrm{lo}}$" as the appropriate model would incorrectly imply the oracle prefers it. The correct label is **"none in the primary pair"** (or **"no correct model"**). A deployment policy may still default to $M_{\mathrm{lo}}$ for cost reasons, but that is a **policy decision**, not an oracle fact.
+
+---
+
+## 3.6 Oracle vs Routing Policy
+
+The oracle routing label $r(q)$ is computed **offline** from the correctness of both models. It is used exclusively for signal analysis and policy calibration.
+
+The deployment policy $\pi(q)$ never observes
+
+$$
+r(q), \quad y_{\mathrm{lo}}, \quad y_{\mathrm{hi}}.
+$$
+
+Instead, it operates solely on the routing feature vector $x(q)$, computed from the predefined signal extraction pipeline.
+
+---
+
+## 3.7 Oracle Policy (Evaluation Upper Bound)
+
+For evaluation we define the oracle routing policy $\pi^\star(q)$, which always selects the cheapest correct model.
+
+For the primary pair,
+
+$$
+\pi^\star(q) =
+\begin{cases}
+M_{\mathrm{lo}}, & y_{\mathrm{lo}} = 1, \\
+M_{\mathrm{hi}}, & y_{\mathrm{lo}} = 0,\ y_{\mathrm{hi}} = 1, \\
+M_{\mathrm{lo}}, & y_{\mathrm{lo}} = 0,\ y_{\mathrm{hi}} = 0.
+\end{cases}
+$$
+
+This oracle policy is used only as an evaluation reference and is never available during deployment.
+
+---
+
+# Experimental Setting
+
+## Definition
+
+An **Experimental Setting** is the tuple
+
+$$
+\mathcal{S} = (\mathcal{D}, \mathcal{P}, \Pi),
+$$
+
+where
+
+- $\mathcal{D}$ denotes the benchmark,
+- $\mathcal{P}$ the fixed model pool,
+- $\Pi$ the evaluation protocol.
+
+All remaining components, including the evaluation corpus, calibration/test partition, and routing feature specification, are deterministically derived from $\mathcal{S}$.
+
+### Design process
+
+**Part I** selects and freezes one experimental setting. **Part II–IV** conduct the routing study on that locked setting.
 
 ```text
-PHASE A — Experimental setting selection (not hypothesis testing)
-  M1  Experimental Setting Specification     → candidate grid + corpus partition + spec YAML
-  M2  Setting Feasibility Assessment         → selection holdout pilot; bucket scorecard
-  M3  Experimental Setting Lock              → winner → freeze IDs → setup table
-
-PHASE B — Routing study (H1–H4)
-  M4  Routing Evaluation Pipeline            → Stages 4–9 (oracle → … → evaluation)
+Part I    M1 → M2 → M3     (Experimental Design)
+Part II   Stages 4–8        (Development → Freeze Router)
+Part III  deploy            (Online Deployment)
+Part IV   evaluate on R_t   (Test Evaluation, H4)
 ```
-
-> **Phase A exists solely to establish a valid experimental environment. It is not part of the hypothesis-testing pipeline.**
-
-Execution stages 1–3 map to M1–M3; stages 4–9 map to M4. No main oracle until M3 completes.
-
-**Selection principle (locked):** Phase A evaluates **experimental suitability**, not **expected routing performance**. It establishes that routing *can* be studied in this Experimental Setting — it must **not** pre-test whether proposed signals (entropy, disagreement, etc.) already look informative. Signal informativeness belongs in Stages **5–6** (H1–H3), after M3 lock.
-
-Stages 1–3 (M1–M3) are **documented and pre-specified** before the pilot runs. M3 **commits** one primary \(\mathcal{S}^*\); M4 **only reads** the frozen Experimental Setting.
-
-**Experimental Setting validity:** An Experimental Setting is **valid** if it satisfies the requirements necessary to evaluate routing policies under a fixed protocol (Gates A–E on selection holdout). Validity concerns the **experimental environment only** — it does **not** imply that the proposed routing signals will be effective. Signal effectiveness is tested in Phase B (H1–H4).
 
 #### 0.7.1 Experimental Setting object (single config, all modules)
 
 Every module consumes the same structure. M1 **writes** the spec; M2 **evaluates** candidates; M3 **freezes** one instance; M4 **reads** it read-only.
 
 ```yaml
-# Template: experiments/setting.schema.yaml (M1 draft → M3 frozen)
+# Template: experiments/defaults.yaml (M1 shared) → runs/<id>/setting.yaml (M3 frozen)
 setting:
   dataset:
     name: ARC-Challenge
     repo: allenai/ai2_arc
     config: ARC-Challenge
 
-  evaluation_corpus:          # C — labeled queries for this study (M1)
-    splits: [validation, test]   # HF loading detail; see §13 fact sheet
-    exclude_splits: [train]      # few-shot / train only
+  evaluation_corpus: # C — labeled queries for this study (M1)
+    splits: [validation, test] # HF loading detail; see §13 fact sheet
+    exclude_splits: [train] # few-shot / train only
 
-  partition:                    # fixed counts — same pilot cost across benchmarks (not %)
-    method: random_split
+  partition: # fixed counts — same pilot cost across benchmarks (not %)
+    method: split_dataset
     seed: 42
-    selection_holdout_n: 150      # M1/M2 holdout |H|
-    test_n: 150                   # M3 test |R_t| (winning benchmark only)
+    selection_holdout_n: 150 # M1/M2 holdout |H|
+    test_n: 150 # M3 test |R_t| (winning benchmark only)
     # |R_c| = |C| - selection_holdout_n - test_n  (remainder, M3)
 
-  pool:                         # FROZEN in M1 before dataset pilot
-    deployment_scenario: homogeneous_pool    # homogeneous_pool | heterogeneous_pool | api_router | edge_cloud
+  pool: # FROZEN in M1 before dataset pilot
+    deployment_scenario: model_pool # model_pool | heterogeneous_pool | api_router | edge_cloud
     vendor: meta-llama
     M_lo: meta-llama/Llama-3.2-3B-Instruct
     M_hi: meta-llama/Llama-3.1-8B-Instruct
-    kappa: null                   # relative cost M_hi / M_lo — document at M3
+    kappa: null # relative cost M_hi / M_lo — document at M3
 
   protocol:
     system_prompt: ...
@@ -217,1013 +450,269 @@ setting:
     decoding: ...
     grading: objective_mcq
 
-  splits:                       # populated at M3 freeze (query IDs)
-    selection_holdout: []       # filled after M2
+  splits: # populated at M3 freeze (query IDs)
+    selection_holdout: [] # filled after M2
     calib: []
     test: []
 ```
 
-**Evaluation corpus \(C\):** The set of labeled queries used for this study. **Methodology is defined entirely in terms of \(C\)** — not Hugging Face split names. M1 declares which queries compose \(C\) (HF splits are one loading mechanism; see §13 fact sheet).
-
-```text
-C                          (evaluation corpus — locked in M1)
- ↓
-H ⊂ C                      (selection holdout — M2 pilot only; |H| = selection_holdout_n)
- ↓
-R_c , R_t ⊂ C \ H          (calib + test — sizes locked in M1; IDs at M3)
-```
-
-| Split | Symbol | Role |
-| ----- | ------ | ---- |
-| Evaluation corpus | \(C\) | All labeled queries for Phase A partition + Phase B study |
-| Selection holdout | \(H\) | M2 feasibility only; never reused in M4 |
-| Calib | \(R_c\) | H1–H3, policy fit (Stages 6–8) |
-| Test | \(R_t\) | H4 only (Stage 9) |
-
-**Invariant:** \(H\), \(R_c\), and \(R_t\) are **disjoint**. No query appears in more than one split. **\(H\) is never reused** after M2 — not in oracle, signals, analysis, policy fit, or H4.
-
-#### 0.7.2 Corpus partition policy (Option 1 — default)
-
-**Default (recommended):** Treat publicly labeled evaluation data as one corpus \(C\), then partition **once** with a fixed seed:
-
-\[
-C \;\xrightarrow{\text{random split}}\; H \;\|\; R_c \;\|\; R_t
-\]
-
-| Option | Policy | When to use |
-| ------ | ------ | ----------- |
-| **1 (default)** | \(C\) = native validation + test (exclude train/dev); random split into \(H, R_c, R_t\) | Routing methodology paper — larger \(R_c\), consistent across benchmarks |
-| **2 (conservative)** | Native validation → \(H \cup R_c\); native test → \(R_t\) only | Only if claiming official leaderboard scores on native test |
-| **3 (forbidden)** | Reuse pilot queries in \(R_c\) or \(R_t\); or run pilot on \(R_t\) | **Never** — invalidates hypothesis testing |
-
-This paper studies **unsupervised routing signals**, not benchmark leaderboard submission → **Option 1**.
-
-**Paper sentence (locked):** *We treat the publicly labeled evaluation portion of each benchmark as an evaluation corpus \(C\). Before experimentation, we partition \(C\) into three disjoint subsets: a selection holdout \(H\) for experimental-setting selection only, a calibration split \(R_c\) for signal analysis and policy fitting, and a test split \(R_t\) for final routing evaluation. No example is reused across these stages.*
-
-**Example (ARC-Challenge, Option 1 — policy pre-specified in M1; instance sizes at M3 on winner):**
-
-| Native (excluded from \(C\)) | Evaluation corpus \(C\) | After partition (winner) |
-| ---------------------------- | ----------------------- | ------------------------ |
-| train (1,119) — few-shot only | validation + test = **1,471** | \(H\)=150 · \(R_t\)=264 · \(R_c\)=1,057 |
-
-**Partition policy (locked in M1):**
-
-| Split | Symbol | Role | Size rule |
-| ----- | ------ | ---- | --------- |
-| Selection holdout | \(H\) | M2 benchmark selection only | `selection_holdout_n` = **150** (fixed, all benchmarks) |
-| Test | \(R_t\) | H4 one-shot evaluation | \(\mathrm{clamp}(\mathrm{round}(0.20 \times \lvert C \setminus H \rvert),\, 150,\, 1000)\) |
-| Calib | \(R_c\) | φ(q), novelty, H1–H3, \((\lambda,\tau)\) fit | **remainder** — maximize development data |
-
-**Timing:** M1/M2 materialize **\(H\) only** per candidate. M3 on the **winning** benchmark assigns \(R_c, R_t\) from the same shuffle (fixed `seed`); resolved `test_n` is written into the frozen setting for reproducibility.
-
-**Development vs test (locked):** Everything on \(R_c\) — feature engineering, novelty statistics, z-scores, threshold tuning, H1–H3. **No parameter changes** after freeze. \(R_t\) is used **once** for H4 (accuracy, cost, Pareto, CIs).
-
-Native HF split names do not appear in the partition rule — only in M1 config for loading \(C\). Under Option 1, \(H\), \(R_c\), and \(R_t\) are a **single random partition** of \(C\) (fixed seed); do not assign splits by native HF split name unless using Option 2.
-
-**Deployment scenarios (pools):** The pool is **part of the problem statement** — a **fixed** weak/strong pair, not an optimization variable in Phase A. M1 commits **one primary scenario** for ACL v1 before any dataset pilot.
-
-| Scenario | Definition | ACL v1 | Example pair |
-| -------- | ---------- | ------ | ------------ |
-| **`homogeneous_pool`** | Same vendor, architecture line, and tokenizer; minimizes confounds unrelated to capability. | **Primary** | Llama-3.2-3B-Instruct → Llama-3.1-8B-Instruct |
-| **`heterogeneous_pool`** | Cross-family pool (different vendors, tokenizers, alignment). | **Out of scope v1** | Llama + Qwen |
-
-**Pool selection criteria (M1 — before dataset pilot):** Choose the primary pair by **experimental validity**, not same-release purity.
-
-| Criterion | Importance | Why |
-| --------- | ---------- | --- |
-| Same tokenizer / chat format | High | Avoid prompt confounds |
-| Similar architecture (same vendor line) | High | Signals reflect capability, not family shift |
-| Clear capability gap | **Very high** | Otherwise \(P(r(q)=1)\) is too rare (Gate D) |
-| Affordable oracle (both models on every \(q\)) | **Very high** | Oracle dominates compute |
-| Common in literature | Medium | Easier to justify |
-
-**ACL v1 primary pair (frozen in M1):** `meta-llama/Llama-3.2-3B-Instruct` → `meta-llama/Llama-3.1-8B-Instruct`. Cross-release within Meta Llama is intentional — the paper tests routing between **different capabilities**, not Llama generations. Canonical YAML: `experiments/m1/pool.frozen.yaml`.
-
-**Gap-size robustness (post-primary only — not Phase A grid):**
-
-| Role | Pair | When |
-| ---- | ---- | ---- |
-| Small-gap ablation | 1B → 3B (both 3.2) | Optional — behavior when opportunity is scarce |
-| Wide-gap robustness | 8B → 70B (3.1) | Optional §5.5 — if compute permits |
-
-If the frozen homogeneous pool fails Gates A–E on **every** dataset candidate, **redesign the scenario** (document rationale) and restart Phase A — do not silently search additional pools in the main study.
-
-**Paper sentence (pool):** *We select a fixed pool of two instruction-tuned Llama models with a clear capability difference while maintaining a common architecture and tokenizer, minimizing confounds unrelated to model capability.*
-
-#### Phase A sequence (locked)
-
-```text
-Step 1  Choose deployment scenario          → homogeneous_pool (ACL v1)
-Step 2  Instantiate concrete model pair     → 3B → 8B (HF ids in M1 YAML)
-Step 3  FREEZE pool + shared protocol       → experiments/m1/pool.frozen.yaml
-Step 4  M2 dataset pilot (H only)           → ≤4 datasets; pool identical every cell
-Step 5  M3 freeze winning dataset           → one S* = (D*, P, Pi); split IDs
-Phase B Routing study (M4)
-```
-
-**What varies in Phase A:** dataset \(\mathcal{D}\) only. **What is fixed:** \(\mathcal{P}\), \(\Pi\), partition policy, gates, tie-break.
-
-#### What couples to what
-
-| Component | What it determines downstream |
-| --------- | ----------------------------- |
-| **Benchmark** \(\mathcal{D}\) | Task difficulty; \(P(r(q)=1)\); bucket mix; query complexity |
-| **Pool** \(\mathcal{M}\) | Capability spread; which members enter comparative signals; cost structure |
-| **Primary pair** \((M_{\mathrm{lo}}, M_{\mathrm{hi}})\) | Capacity gap; entropy scale; rescue rate; relative cost \(\kappa\) |
-| **Prompt + format** | Confidence, entropy, gradability, \(y(q,M)\) |
-| **Decoding** | Output length, \(y(q,M)\), signal variance |
-| **Grading rule** | Definition of \(r(q)\) and oracle buckets |
-| **\(\kappa\)** | Pareto cost axis; relative cost of selecting \(M_{\mathrm{hi}}\) |
-
-##### M1 — Experimental Setting Specification (Stage 1)
-
-**Goal:** Lock **pool + protocol + partition policy** and list **dataset candidates** before any inference. Pool is frozen **before** the dataset pilot — not co-selected with benchmarks.
-
-```text
-Pool (frozen):     homogeneous_pool — Llama-3.2-3B → Llama-3.1-8B
-Protocol:          system prompt + dataset templates + shared decoding/grading
-Dataset candidates:{ARC-Challenge, MMLU, TruthfulQA-MC, HellaSwag?}
-Corpus + partition per candidate:  evaluation corpus C + holdout/calib/test sizes
-Gates A–E, tie-break, selection_holdout_n
-Output:            pool.frozen.yaml + one YAML per dataset candidate
-```
-
-**Deliverable:** `experiments/m1/pool.frozen.yaml` + dataset candidate YAMLs (`experiments/candidates/*.yaml`) — schema: `experiments/setting.schema.yaml`.
-
-##### M2 — Setting Feasibility Assessment (Stage 2)
-
-**Goal:** Run dataset-only pilot on **selection holdout** \(H \subset C\); bucket scorecard; Gates A–E per candidate \(\mathcal{S} = (\mathcal{D}, \mathcal{P}, \Pi)\) with **fixed** \(\mathcal{P}, \Pi\).
-
-Sample holdout from \(C\) only (sizes from M1). **No signal statistics.** Recommend winning dataset for M3.
-
-**Deliverable:** bucket scorecard + pass/fail per dataset (pool column omitted — pool is constant).
-
-##### M3 — Experimental Setting Lock (Stage 3)
-
-**Goal:** Administrative freeze only — feasibility was M2.
-
-1. **Winner** — one primary \(\mathcal{S}^* = (\mathcal{D}^*, \mathcal{P}, \Pi)\) with \(\mathcal{P}, \Pi\) unchanged since M1 (pre-specified tie-break).
-2. **Freeze IDs** — instantiate `splits.selection_holdout`, `splits.calib`, `splits.test` from M1 partition rule applied to \(C\).
-3. **Setup table** — `paper/tables/T1_setup.tex` + frozen Experimental Setting YAML.
-
-**Not in M3:** split policy design (M1), feasibility checks (M2), second pilot, pool re-selection.
-
-**Deliverable:** frozen Experimental Setting file + setup table. **Gate to M4.**
-
-##### M4 — Routing Evaluation Pipeline (Stages 4–9)
-
-Read-only frozen Experimental Setting. Oracle → signals → H1–H3 (calib) → policy fit (calib) → H4 (test).
+One source of confusion in LLM routing is mixing **experimental design**, **offline development**, **deployment**, and **evaluation** into a single linear pipeline. They are four distinct systems with different purposes and different access to oracle labels.
 
 ---
 
-#### Benchmark selection (Phase A detail)
+## 0.7 Methodology — four parts
 
-Benchmark selection answers one question: **Is this a scientifically valid environment to test our hypotheses?** — not *which benchmark makes our signals look best*.
-
-**Not a contribution:** Benchmark selection is **not** part of the scientific contribution. It is a **reproducibility protocol** designed to prevent ad hoc benchmark and model selection before hypothesis testing.
-
-**Why \(\mathcal{S} = (\mathcal{D}, \mathcal{P}, \Pi)\)?** Routing feasibility depends jointly on task, pool, and protocol. M2 selects **\(\mathcal{D}\)** only; \(\mathcal{P}\) and \(\Pi\) are frozen in M1.
-
-**M2 grid:** ≤ 4 **datasets** × **1 frozen pool** = ≤ 4 candidate cells. Pilot cost = **150 queries × 2 models** per dataset (fixed in M1).
-
-**Selection-bias guard:** no pool search; no entropy/disagreement thresholds; no AUROC vs \(r(q)\); no post-hoc numeric cutoffs.
-
-**Protocol layers (Gate B):** system prompt · dataset templates · shared decoding/grading — all locked in M1 with the pool.
-
-**Selection holdout:** Sample \(H \subset C\) (evaluation corpus) only. \(H\) is never reused in M4. Partition \(C \setminus H\) into calib + test per M1 policy (§0.7.1).
-
-##### Feasibility gates (M2)
-
-| Gate | Question | Pass |
-| ---- | -------- | ---- |
-| **A** | Objective MCQ grading? | Yes |
-| **B** | Frozen protocol layers? | Yes |
-| **C** | Meaningful capability gap? \(\mathrm{Acc}(M_{\mathrm{hi}}) - \mathrm{Acc}(M_{\mathrm{lo}}) \ge\) `min_accuracy_gap` | Yes |
-| **D** | Routing feasible? opportunity rate ≥ `opportunity_min`; too_hard rate < `too_hard_max` | Yes (rationale below) |
-| **E** | Full M4 oracle affordable on \(R_c \cup R_t\)? | Yes |
-
-**Tie-break (pre-specified in M1):** among gate passers, prefer larger `acc_gap`, then higher `opportunity_rate`, then literature preference (`ARC-Challenge` → `MMLU` → `TruthfulQA-MC` → `HellaSwag`).
-
-**Gate C rationale (locked — for reviewers):** *The minimum accuracy gap excludes settings where the designated strong model is only marginally better than the weak model on the holdout — differences that are often sampling noise at pilot size and do not justify a weak→strong routing study.* Concrete value (`min_accuracy_gap` = 0.03) is pre-specified in `experiments/defaults.yaml` before any pilot runs.
-
-**Gate D rationale (locked — for reviewers):** *Thresholds exclude degenerate routing settings — too few routing opportunities to study, or too many queries where even the strong model fails — rather than optimize routing performance.* Concrete values (`opportunity_min` = 0.05, `too_hard_max` = 0.70) are pre-specified in `experiments/defaults.yaml` before any pilot runs. There is no upper bound on opportunity rate: a high opportunity share means the weak model fails often while the strong model rescues, which is a valid (if aggressive-gap) routing scenario when `too_hard` remains low.
-
-##### M2 bucket scorecard
-
-Pool fixed: Llama-3.2-3B → Llama-3.1-8B (`homogeneous_pool`).
-
-| \(\mathcal{D}\) | easy | opportunity | lo\_only | too\_hard | Acc gap | Cost | Pass? |
-| --------------- | ---- | ----------- | -------- | --------- | ------- | ---- | ----- |
-
-#### What Stage 0 locks vs what M3 locks
-
-| Locked in §0 (method) | Locked in M1 | Locked in M3 (instance) |
-| --------------------- | ------------ | ------------------------- |
-| Definition of \(r(q)\), \(\pi^*\) | \(\mathcal{P}\), \(\Pi\), partition **rule**, dataset **candidates** | Which \(\mathcal{D}^*\) |
-| Signal **assumptions** + three **types** (§5) | Primary pair \(M_{\mathrm{lo}}, M_{\mathrm{hi}}\) | Concrete features for this \(\mathcal{S}\) |
-| H1–H4 structure | Gates, tie-break, `selection_holdout_n` | Frozen Experimental Setting YAML + split IDs |
-| Pareto eval | — | \(\kappa\), prompt text (measured/documented) |
-
-### 0.8 Signal assumptions
-
-Each signal type rests on a **routing-relevant assumption** — *why* it might predict \(r(q)=1\). These motivate H1–H3; the hypotheses **test** the assumptions empirically. A rejected hypothesis means the assumption failed for this Setting — not that the study failed.
-
-| Layer | Type | Assumption | Link to oracle \(r(q)\) | Hypothesis |
-| ----- | ---- | ---------- | ----------------------- | ---------- |
-| **Model-independent** | **Query-derived** | More complex or ambiguous queries are more likely to exceed \(M_{\mathrm{lo}}\) capacity while remaining within \(M_{\mathrm{hi}}\) capacity. | Higher query complexity → higher \(P(r(q)=1)\) | **H1** |
-| **Model-dependent** | **Model-response** | Higher model uncertainty reflects higher probability of error on that query. | Higher uncertainty on \(M_{\mathrm{lo}}\) → higher \(P(y_{\mathrm{lo}}=0)\); when \(y_{\mathrm{hi}}=1\), \(M_{\mathrm{hi}}\) appropriate | **H2** |
-| **Cross-model** | **Cross-model comparative** | Differences between pool members on the same query reveal where \(M_{\mathrm{hi}}\) is the right choice. | Larger capability-gap signals → higher \(P(r(q)=1)\) | **H3** |
-
-**Literature grounding:** query complexity and task difficulty (Hybrid LLM, FrugalGPT); uncertainty and error (calibration literature); model disagreement and complementary strengths (RouterBench).
-
-Full detail and examples: **§5**. Do not restate assumptions in §6 or §10 — cross-ref §5.
-
-### 0.9 Signal taxonomy (conceptual)
-
-Three **signal layers** — ordered by pool dependence; **H1–H3 test each layer in parallel** (not nested “beats previous layer”):
+The complete methodology has **four parts**. Parts I and IV are about the **experiment**; Part II builds the router **once offline**; Part III applies the frozen router **at inference time**.
 
 ```text
-Model-independent  →  query-derived           (H1)
+Part I    Experimental Design          M1 → M2 → M3
+          (nothing learned; nothing deployed)
+
+Part II   Development                  Stage 4 → 5 → 6 → 7 → 8 → Freeze Router
+          (offline; uses r(q) on R_c)
+
+Part III  Deployment                   new query → signals → x(q) → score → π → model
+          (no labels; no learning)
+
+Part IV   Evaluation                   frozen π on R_t → accuracy, cost, Pareto
+          (offline test; not deployment)
+```
+
+| Part | Name | Purpose | Uses \(r(q)\)? | When |
+| ---- | ---- | ------- | -------------- | ---- |
+| **I** | Experimental Design | Establish a valid Experimental Setting \(\mathcal{S}\) | No (gates only) | Once per benchmark screen |
+| **II** | Development | Build and freeze the deployable router | Yes, on \(R_c\) only | Once per locked \(\mathcal{S}\) |
+| **III** | Deployment | Route live queries with frozen artifacts | **Never** | Every new query |
+| **IV** | Evaluation | Measure accuracy–cost trade-off of frozen \(\pi\) | Yes, on \(R_t\) (grading only) | Once after freeze |
+
+**Terminology (locked):** use **Offline Development** (Part II) and **Online Deployment** (Part III). Avoid vague “offline/online” without naming which part.
+
+---
+
+### Part I — Experimental Design (M1–M3)
+
+**Purpose:** select and freeze one Experimental Setting \(\mathcal{S} = (\mathcal{D}, \mathcal{P}, \Pi)\). No hypotheses are tested. No router is built.
+
+```text
+Original dataset D
         ↓
-Model-dependent    →  model-response          (H2)
+M1a  Dataset preparation (large D only)
+     • normalize labels / text
+     • drop invalid examples
+     • stratified subsample if |C_raw| > threshold (e.g. 5000 → 2000)
         ↓
-Cross-model        →  cross-model comparative (H3)
+M1b  Selection holdout H  (fixed |H|, e.g. 150)
+        ↓
+M2   Feasibility on H
+        ↓
+M3   Split C \ H → R_c , R_t  (e.g. 80/20 of remainder)
 ```
 
-| Layer | Type | Input needed | Hypothesis test |
-| ----- | ---- | ------------ | --------------- |
-| **Model-independent** | **Query-derived** | Query text only (no pool forward pass) | H1 — \(\phi(q)\) vs \(r(q)\) |
-| **Model-dependent** | **Model-response** | One pool member × query (logits, entropy, confidence, …) | H2 — \(\psi(q,M_{\mathrm{lo}})\) vs \(r(q)\) |
-| **Cross-model** | **Cross-model comparative** | Both pool members (Δ entropy, disagreement, …) | H3 — \(\chi(q)\) vs \(r(q)\) |
-
-**Information available at decision time (exposition — maps to routing surveys):** locked layer names above; this table is for reviewers.
-
-| Layer (locked) | Information used | Routing pool forward pass? |
-| -------------- | ---------------- | -------------------------- |
-| **Model-independent** (φ) | Query text only (+ fixed encoder **not** in \(\mathcal{P}\)) | **No** — no \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) inference at extraction |
-| **Model-dependent** (ψ) | One pool member's output on \(q\) (e.g. logits, uncertainty) | **One** — typically \(M_{\mathrm{lo}}\) |
-| **Cross-model** (χ) | Compare pool members on the same \(q\) | **Two+** — e.g. \(M_{\mathrm{lo}}\) and \(M_{\mathrm{hi}}\) |
-
-**Reviewer note:** *model-independent* means independent of the **routing pool** at extraction, not “no neural computation.” A frozen sentence encoder for φ is allowed; it is not a member of \(\mathcal{P}\).
-
-**Method vs instantiation (universality):**
-
-| Universal (methodology) | Setting-specific (ARC v1 instance) |
-| ----------------------- | ------------------------------------ |
-| \(r(q)\) oracle (appropriate model); \(\pi(q)\) binary selection | Letter-answer MCQ grading |
-| φ / ψ / χ layers by information availability | Load, ambiguity, choice entropy, disagreement, … |
-| Parallel H1–H3; freeze \(x(q)\); Pareto H4 | \(\mathcal{S}\) = ARC + Llama 3B→8B + `mcq_letter_v1` |
-| Protocol-dependent ψ, χ **extractors** | Choice-letter softmax for ψ; letter gaps for χ |
-
-Empirical claims are **conditional on** the locked Experimental Setting \(\mathcal{S}\); the framework transfers to other tasks by swapping extractors, not by assuming ARC features generalize.
-
-**Routing literature alignment (when / what / how):**
-
-| Survey axis | This work |
-| ----------- | --------- |
-| **When** | φ pre-inference; ψ at/at-after weak-model answer token; χ from both models' outputs |
-| **What information** | Three layers above — query-only → weak-model → multi-model |
-| **How** | Pre-specified signals + threshold policy; \((\lambda,\tau)\) fit on calib only (H4) |
-
-Concrete feature list is chosen at Stage **3** lock and documented in `paper/tables/T1_setup.tex`. Conceptual examples and assumptions: §5.
-
-### 0.10 Scientific pipeline
-
-Two threads run through five pipeline steps (§4):
+Example (MMLU-Pro): ~12k raw → ~2000 prepared → 150 holdout → ~1480 remainder → ~296 test, ~1184 calib (at 20% test fraction).
 
 ```text
-Thread A — Signal understanding          Thread B — Routing performance
-  H1–H3 on calib                           H4 on test
-       ↓                                        ↓
-Signals → Analysis → Selection ────────→ Policy → Evaluation
-  §5        §6         §7                  §8        §9
- layer 1   layer 2    layer 1–2           layer 3    test only
+M1  Experimental Setting Specification
+↓
+M2  Feasibility Assessment
+↓
+M3  Experimental Setting Lock
 ```
 
-| Step | Layer | Split | Output |
-| ---- | ----- | ----- | ------ |
-| Signals | 1 | no \(r(q)\) | Raw inventory (Stage **5**) |
-| Signal analysis | 2 | **calib** | Informativeness; H1–H3 (Stage **6**) |
-| Signal selection | 1–2 | calib | Frozen \(x(q)\) (Stage **7**) |
-| Routing policy | 3 | **calib** fit; **test** eval | Locked \(\pi(q)\) (Stage **8**) |
-| Evaluation | — | **test only** | Pareto; H4 (Stage **9**) |
+| Step | Objective | CLI / artifact |
+| ---- | --------- | -------------- |
+| **M1** | Load \(C\), **prepare** corpus if large, sample holdout \(H\) | `prepare` → `corpus/` (+ `corpus_preparation` in manifest), `setting.yaml` |
+| **M2** | Pilot oracle on \(H\); scorecard gates A–D; pick winning benchmark | `oracle` (split=`selection_holdout`) → `scorecard.json`; `selection-report` |
+| **M3** | Lock \(R_c\) and \(R_t\) on winner only; freeze query IDs in `setting.yaml` | `eval` → `corpus/partition.json` |
 
-**Lock rules (design-level):**
+**Outputs:** frozen `setting.yaml`, `corpus/partition.json` with \(H\), \(R_c\), \(R_t\).
 
-1. After **Stage 7:** do not refit or expand \(x(q)\) using test labels.
-2. After **Stage 8:** do not tune \((\lambda,\tau)\) on test.
-3. Signal extraction must not use \(r(q)\) as input.
-4. After **Stage 3:** do not change benchmark, pool, or protocol without restarting from Stage 1.
-
-### 0.11 Hypotheses and tests
-
-Motivated by **signal assumptions** (§0.8, §5).
-
-| ID | Hypothesis | Layer | Exec. stage | Split | Test statistic / criterion |
-| -- | ---------- | ----- | ----------- | ----- | -------------------------- |
-| **H1** | Query-derived signals predict appropriate-model oracle \(r(q)\). | model-independent | **6** | calib | AUROC / AUPRC vs \(r(q)\); \(\phi(q)\) only |
-| **H2** | Model-response signals predict appropriate-model oracle \(r(q)\). | model-dependent | **6** | calib | AUROC / AUPRC vs \(r(q)\); \(\psi(q,M_{\mathrm{lo}})\) only |
-| **H3** | Cross-model comparative signals predict appropriate-model oracle \(r(q)\). | cross-model | **6** | calib | AUROC / AUPRC vs \(r(q)\); \(\chi(q)\) only |
-| **H4** | Learned weighting outperforms manual rules on same \(x(q)\). | (policy) | **9** | test | 4b **Pareto-dominates** best 4a |
-
-**Not H2 / not H3 (common misreadings):**
-
-| Misreading | Correct |
-| ---------- | ------- |
-| H2 = “φ + ψ beats φ” | **H2** tests \(\psi(q,M_{\mathrm{lo}})\) **alone** vs \(r(q)\) |
-| H3 = “combining φ and ψ improves prediction” | **H3** tests \(\chi(q)\) **alone** vs \(r(q)\) (cross-model comparative) |
-| Nested ΔAUROC H1→H2→H3 | **Parallel** layer tests — each block on its own |
-
-Incremental \(\Delta\)AUROC of \(\phi{+}\psi\) over \(\phi\), or \(\phi{+}\psi{+}\chi\) over subsets, is **combination analysis** (Stage **6** optional, Stage **7** selection) for building frozen \(x(q)\) — **not** the definition of H2 or H3.
-
-**H4 tracks (policy fit on calib, eval on test):**
-
-| Track | \(\lambda\) | \(\tau\) |
-| ----- | ----------- | -------- |
-| **4a Rule** | Hand-specified (e.g. single-feature weights) | Sweep on calib; lock |
-| **4b Learned** | Fit on calib (e.g. logistic regression on \(r(q)\)) | Tune on calib; lock |
-
-Score and policy: nomenclature §2.1 — \(s(q)=\lambda^\top x(q)\), threshold \(\pi(q)\). Detail: §8.
-
-**Negative results:** Any hypothesis may fail; report H1–H3 and H4 **separately** (§0.12, §14).
-
-### 0.12 Evaluation design
-
-**Primary metrics (test only):**
-
-\[
-\mathrm{Acc}(\pi) = \frac{1}{|\mathcal{Q}_{\text{test}}|} \sum_{q} y\big(q, \pi(q)\big), \qquad
-\mathrm{Cost}(\pi) = \frac{1}{|\mathcal{Q}_{\text{test}}|} \sum_{q} c\big(\pi(q)\big)
-\]
-
-with \(c(M_{\mathrm{lo}})=1\), \(c(M_{\mathrm{hi}})=\kappa>1\) fixed from the locked pool.
-
-**Primary comparison:** **Pareto** curves over \((\mathrm{Acc}, \mathrm{Cost})\). Report **dominance** vs baselines and **oracle gap** vs \(\pi^*\).
-
-**Baselines:** always-\(M_{\mathrm{lo}}\) · always-\(M_{\mathrm{hi}}\) · oracle \(\pi^*\) · best 4a · 4b.
-
-**Optional (calib only):** scalar \(J_\alpha(\pi)=\mathrm{Acc}(\pi)-\alpha\,\mathrm{Cost}(\pi)\) for tuning — reported numbers always from test.
-
-**Splits (project):**
-
-| Split | Role | Labels used for |
-| ----- | ---- | ---------------- |
-| **selection holdout** | M2 feasibility pilot only | Buckets, gates A–E |
-| **calib** | H1–H3, policy fit (Stages 6–8) | \(r(q)\), \(y(q,M)\) |
-| **test** | H4 only (Stage 9) | \(y(q,M)\) for metrics — no tuning |
-
-**Evaluation corpus partition (locked in M1):** For each benchmark, declare corpus \(C\) (which HF splits compose it). Apply one rule: \(C \to H\) (holdout) \(\to R_c\) (calib) + \(R_t\) (test). Methodology does not depend on HF split names — only M1 corpus config does. Detail: §0.7.1, §13.
-
-**Joint feasibility gate (M2):** Gates A–E on selection holdout before M3.
-
-Full metrics and baselines: §9.
-
-### 0.13 Contributions (paper claims)
-
-1. **Formulation** — \(r(q)\), signal assumptions + taxonomy, supervised vs unsupervised contrast (§2–§3, §5).
-2. **Signal analysis** — parallel H1–H3 layer tests on calib (§6).
-3. **Signal selection** — frozen \(x(q)\) before routing claims (§7).
-4. **Routing policies** — 4a rule + 4b learned via §2.1 (§8).
-5. **Pareto evaluation** — accuracy and cost jointly on test (§9).
-
-Paper drafts: `paper/sections/01_introduction.tex`, `03_problem_definition.tex`.
-
-### 0.14 Scope, assumptions, and exclusions
-
-**In scope:** §0 design · signal assumptions (§5) · three-layer unsupervised definition · reproducible Stages 1–3 · honest negative results.
-
-**Out of scope:** claiming “no labels ever”; supervised router reproduction; benchmark chasing; agent/task decomposition; reusing retired configs as defaults; **tuning prompt or pool on test** to rescue a failed setting.
-
-**Method-level assumptions (not setting-specific):**
-
-- Fixed **model pool** with distinct capabilities **once Stage 3 locks Setting**; primary pair \((M_{\mathrm{lo}}, M_{\mathrm{hi}})\) designated.
-- Objective, automated task grading for \(y(q,M)\) **under the locked protocol**.
-- Same frozen protocol for oracle labeling, signal extraction, and routing evaluation.
-
-**Setting-level assumptions (validated in M2):** non-degenerate \(P(r(q)=1)\); \(\mathrm{Acc}(M_{\mathrm{lo}}) < \mathrm{Acc}(M_{\mathrm{hi}})\); \(\kappa>1\) documented. Signal informativeness is **not** assumed at selection — tested in H1–H3.
-
-**Success criterion:** Answer §10 / §0.11 honestly — report §6 and §9 as separate result sections regardless of outcome.
-
-Detail: §14. Advisor alignment: §15.
-
-### 0.15 Stage 0 deliverables and gate to Stage 1
-
-| Deliverable | Location | Status |
-| ----------- | -------- | ------ |
-| Research design (this section) | program §0 | ✓ locked |
-| Signal assumptions | §0.8 · §5 | ✓ |
-| Problem + RQs | program §1 · paper §3 | ✓ |
-| Supervision definition | program §2 · paper §3 | ✓ |
-| Routing need + oracle | program §3 | ✓ |
-| Pipeline + hypotheses | program §4, §10 | ✓ |
-| Eval plan | program §9 · paper §5 | ✓ |
-| Scope | program §14 | ✓ |
-| Paper skeleton | `paper/main.tex` | ✓ (results TBD) |
-
-**Gate to M1:** §0 method + Experimental Setting architecture are complete. **Recommended order from here:**
-
-1. **Signal definitions (§5)** — operationalize query complexity, entropy, paraphrase stability, cross-model comparison *(scientific contribution)*
-2. **Oracle protocol (§3)** — full labeling procedure on \(R_c \cup R_t\)
-3. **Feature vector (§7)** — schema for \(x(q)\)
-4. **Routing policy (§8)** — 4a/4b tracks
-5. **M1 → M2 → M3** — fill candidate YAMLs, run feasibility pilot, lock \(\mathcal{S}^*\)
-6. **M4** — implement routing study (read-only frozen Experimental Setting)
-
-Do **not** begin M4 until M3 completes. Do **not** redesign M1–M4 structure.
-
-### 0.16 Paper voice (locked)
-
-Use **enable** / **guide routing decisions**. Avoid *support routing*, *solve routing*, Family 1/2/3. See nomenclature §1.
-
-### 0.17 Tuning policy (frozen)
-
-> **Tune only the routing policy. Everything else is frozen.**
-
-| Component | Tuned? | When locked | Notes |
-| --------- | ------ | ----------- | ----- |
-| Benchmark, pool, protocol | **No** | M3 | Selected in Phase A; not optimized on routing metrics |
-| Prompt, decoding, grading | **No** | M1 / M3 | Fixed \(\Pi\); changing decoding would confound entropy signals |
-| Signal definitions | **No** | M3 / §7 | Research contribution — pre-specified, not fit to \(r(q)\) |
-| Signal extraction \(x(q)\) | **No** | Stage 5 | Computed from query/model; no thresholds tuned on calib |
-| Signal thresholds (e.g. length > 30) | **No** | M1 / §5 | Use raw features or literature-fixed cutoffs only |
-| Routing weights \(\lambda\) | **Yes** | Stage 8 | Fit on \(R_c\) only (4b); 4a uses hand-specified \(\lambda\) |
-| Routing threshold \(\tau\) | **Yes** | Stage 8 | Tuned on \(R_c\) only; locked before \(R_t\) |
-| Final evaluation on \(R_t\) | **No** | Stage 9 | One-shot; no refit of \(x(q)\), \(\lambda\), or \(\tau\) |
-| Phase A pilot (M2) | **No** | — | Suitability gates only; no prompt/temperature/signal tuning |
-
-**Learned parameters:** \(\lambda\) and \(\tau\) only — both on **calib** \(R_c\). Detail: §8, nomenclature §2.1.
-
-**Optional:** scalar \(J_\alpha\) for calib-only operating-point selection — reported numbers always from \(R_t\) (§9).
+**Invariant:** M1–M3 never fit routing weights, never validate signals, never deploy.
 
 ---
 
-## 1. Problem
+### Part II — Development (Stages 4–8 + Freeze Router)
 
-> **Full research design:** §0 (Stage 0, locked). This section is the concise problem statement for cross-reference.
-
-Many systems route each query to one LLM from a pool to save **cost** and **latency**. Recent work (**RouteLLM**, **GraphRouter**, **RouterBench**, …) trains **supervised routers** on preferences, outcomes, or labels.
-
-**Our question:** Given a query and a fixed pool, can **unsupervised signals** **enable routing decisions** — and does **learning weights** on calib improve over simple rules? **Unsupervised** is defined precisely in **§2** (not “no labels anywhere”).
-
-**Sub-questions (advisor meeting):**
-
-1. What **query-derived**, **model-response**, and **cross-model comparative** signals can we estimate?
-2. How should those signals be combined into a score?
-3. Do those scores **guide** model choice vs baselines?
-
-**One sentence (Intro):** We study whether unsupervised signals — query-derived, model-response, and cross-model comparative — can **enable routing decisions** between LLMs in a fixed pool, and whether **learned combination weights** on calib improve over hand-written rules — vs **supervised** routers in prior work.
-
-**Paper voice:** **Enable** / **guide routing decisions** — not *support* (advisor-cautious) or *solve routing*.
-
-**Not the problem:** agent orchestration, task decomposition, “pre-inference routing” as the headline (contrast is **supervised vs unsupervised**, §2).
-
-### Contributions
-
-See §0.13 for the full list. Two threads: **signal understanding** (H1–H3, §6) and **routing** (H4, §8–§9).
-
----
-
-## 2. What “unsupervised” means
-
-**Defined once here.** Other sections refer back; do not re-define.
-
-### In prior routing work (literature)
-
-| Approach | What is “supervised” | Examples |
-| -------- | -------------------- | -------- |
-| **Supervised routing** | Router trained on **routing labels** — human preferences, win/loss between models, reward-model scores, task-type labels | RouteLLM (Chatbot Arena prefs); Hybrid LLM (DeBERTa + BARTScore labels); GraphRouter (task nodes); Zooter (reward-model labels) |
-| **Other “unsupervised” uses** | No **preference** labels for the router; may still use clustering, similarity, or **multiple generations** | Prompt embedding k-means (UniRoute: clustering step); semantic entropy (Kuhn: sample then cluster); similarity routing in surveys |
-
-**Field gap we target:** Most LLM routers are **supervised** in the table’s first row. We ask whether **routing-relevant information** exists in signals computed **without** that kind of routing training data.
-
-### Advisor notes (summary)
-
-Prior work **learns** routing from labels; we **propose and measure** fixed signals, then combine them with calib labels. Main contrast: **supervised vs unsupervised at signal extraction** — not pre- vs post-inference timing. Full quotes: §15.
-
-### Our definition (three supervision layers)
-
-**Unsupervised** describes **how signals are obtained**, not “the entire system never sees a label.”
-
-| Layer | Program § | Uses \(r(q)\) or routing prefs? | Unsupervised? |
-| ----- | ---------- | ------------------------------- | ------------- |
-| **1 — Signal extraction** | Signals (§5) | **No** | **Yes** — \(x_i(q)\) from query / model only; no routing classifier training |
-| **2 — Signal analysis** | Analysis (§6) | **Yes, calib only** — to score informativeness | **Analysis is supervised; signals stay unsupervised** |
-| **3 — Policy fit** | Routing policy (§8) | **Yes, calib only** — fit \((\lambda,\tau)\) | **Combination is supervised; signal definitions stay unsupervised** |
-
-**Short label for the paper:** *Routing from unsupervised signals* — signals in layer 1 are unsupervised; layers 2–3 use offline \(r(q)\) on calib to **evaluate** and **combine**, not to invent features.
-
-### What we do **not** mean
-
-- **Not** “zero labels in the whole paper” — we use \(r(q)\) on calib (§3, §6, §8).
-- **Not** classical unsupervised learning (e.g. k-means router with no oracle) as the method.
-- **Not** that **model-response** signals avoid model inference — they require running \(M_i\) on \(q\); “unsupervised” refers to **routing supervision**, not compute.
-- **Not** the same as every paper that says “unsupervised” (e.g. RAG retriever routing with synthetic judge scores).
-
-### Contrast table (Intro / Related Work)
-
-| | Typical supervised router | This work |
-| - | ------------------------- | --------- |
-| Router input | Classifier on query (+ history), trained on prefs/outcomes | **Unsupervised signals** → \(x(q)\) |
-| Where labels enter | **Define** the router end-to-end | **Only** calib: analysis (§6) + \((\lambda,\tau)\) fit (§8) |
-| Signal source | Learned representations from routing data | Query-derived, model-response, cross-model comparative (§5) |
-
----
-
-## 3. Routing need (oracle) and binary model selection
-
-**Deployable routing:** \(\pi(q)\) **selects** \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) from signals \(x(q)\) — **binary LLM routing** (nomenclature §2.1). Not a cascade contribution.
-
-**Setup:** Model pool \(\mathcal{M}=\{M_1,\ldots,M_K\}\) with distinct capabilities; query \(q\); full inference under frozen protocol. Stage 3 designates primary pair \(M_{\mathrm{lo}}\), \(M_{\mathrm{hi}}\) with \(\mathrm{cap}(M_{\mathrm{lo}}) < \mathrm{cap}(M_{\mathrm{hi}})\).
-
-\[
-y(q, M) \in \{0, 1\}, \quad y_{\mathrm{lo}} = y(q, M_{\mathrm{lo}}),\; y_{\mathrm{hi}} = y(q, M_{\mathrm{hi}})
-\]
-
-\[
-r(q) = \mathbb{1}\big[\, y_{\mathrm{lo}} = 0 \;\wedge\; y_{\mathrm{hi}} = 1 \,\big], \qquad \Delta(q) = y_{\mathrm{hi}} - y_{\mathrm{lo}}
-\]
-
-**Oracle \(r(q)\):** \(r(q)=1\) iff **\(M_{\mathrm{hi}}\) was the appropriate choice ex post** (also **escalation utility** / routing need). Not generic difficulty.
-
-| Bucket | \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) | \(r(q)\) | Appropriate model (oracle) |
-| ------ | ----------------------- | -------- | -------------------------- |
-| easy | \((1,1)\) | 0 | \(M_{\mathrm{lo}}\) |
-| opportunity | \((0,1)\) | **1** | \(M_{\mathrm{hi}}\) |
-| lo\_only | \((1,0)\) | 0 | \(M_{\mathrm{lo}}\) |
-| too\_hard | \((0,0)\) | 0 | \(M_{\mathrm{lo}}\) |
-
-**Oracle** \(\pi^*(q)\) (eval upper bound): **select** the cheapest correct pool member — \(M_{\mathrm{lo}}\) if \(y_{\mathrm{lo}}=1\); else \(M_{\mathrm{hi}}\) if \(y_{\mathrm{hi}}=1\); else \(M_{\mathrm{lo}}\). Evaluation only (§9).
-
-**Oracle vs \(\pi(q)\):** \(r(q)\) is offline supervision only. \(\pi(q)\) selects from \(x(q)\); never observes \(r(q)\) online (§0.6).
-
-\(r(q)\) is offline (layer 2–3 in §2) — never an input to signal extraction (§5). Pipeline: §4.
-
-## 4. Pipeline
-
-Signal work and routing work are **separate**. **Calib** \(R_c\) for analysis and policy fit; **test** \(R_t\) for H4 only. Corpus partition locked in M1; IDs frozen in M3 (§0.7.1).
+**Purpose:** construct the deployable router **once**, offline, on the locked setting. Oracle labels \(r(q)\) are available on \(R_c\) for validation and calibration only.
 
 ```text
-Signals  →  Signal analysis  →  Signal selection  →  Routing policy  →  Evaluation
-  §5              §6                  §7                  §8              §9
+Stage 4   Oracle
+↓
+Stage 5   Signal Extraction          (unsupervised — no r(q))
+↓
+Stage 6   Signal Validation          (H1–H3; research evidence only)
+↓
+Stage 7   Representation freeze      (freeze x(q))
+↓
+Stage 8   Policy calibration           (learn s(q), τ; H4)
+↓
+Frozen policy                          (research output)
+──
+Export policy artifact                 (engineering → routing/policy.json)
 ```
 
-| Step | Layer (§2) | Output |
-| ----- | ---------- | ------ |
-| Signals | 1 | Raw signal inventory |
-| Signal analysis | 2 | Informativeness tables (§6) |
-| Signal selection | 1–2 | Frozen \(x(q)\) schema (§7) |
-| Routing policy | 3 | Locked \(\pi(q)\) (§8) |
-| Evaluation | — | \((\mathrm{Acc}, \mathrm{Cost})\) Pareto (§9) |
+| Stage | Name | Objective | Uses \(r(q)\)? | CLI |
+| ----- | ---- | --------- | -------------- | --- |
+| **4** | Oracle | Run \(M_{\mathrm{lo}}\), \(M_{\mathrm{hi}}\); construct \(y_{\mathrm{lo}}, y_{\mathrm{hi}}, r(q)\) | Defines \(r\) | `oracle` (calib/test) |
+| **5** | Signal Extraction | Compute φ(q), ψ(q), χ(q) — predefined, label-free at extraction | **No** | `model-independent`, `model-dependent`, `cross-model` |
+| **6** | Signal Validation | Do predefined signals contain routing information? (H1–H3) | Yes (\(R_c\) only) | `signal-validation` |
+| **7** | Representation freeze | Select columns for deployable \(x(q)\) from Stage 6 evidence | Uses rankings | *(planned)* |
+| **8** | Policy calibration | Learn routing score \(s(q)\) and \(\tau\) on \(R_c\) (H4) | Yes | `deploy/train` *(interim)* |
+| **—** | Export | Serialize frozen policy | No | `routing/policy.json` |
 
-Hypotheses **H1–H4**: §10 only. **Execution order:** §11 (Stages 0–9).
+### Stage 6 — Signal validation (locked)
 
----
+**Scientific question:** Do these predefined signals contain routing information?
 
-## 5. Signals
+**Inputs only:** signals φ, ψ, χ (Stage 5) and oracle label \(r(q)\) (Stage 4). Nothing else.
 
-### Signal assumptions
+**Outputs (research only — no deployable artifact):**
 
-Each signal type rests on a **routing-relevant assumption** — why it might predict \(r(q)=1\). H1–H3 **test** these assumptions; they are not axioms.
+| Artifact | Level | Content |
+| -------- | ----- | ------- |
+| `analysis_table_calib.csv` | join | \(R_c\) only — labels + all signal columns |
+| `analysis_table_test.csv` | join | \(R_t\) only — for Stage 9; **not** used in Stage 6 validation |
+| `validation_meta.json` | meta | `purpose`, split, n_queries, positive_rate, primary_metric |
+| `univariates.json` | L1 | AUROC, AUPRC, Spearman, direction, mean_positive/negative |
+| `family_summary.json` | L2 | mean/median/std/IQR/quartiles of AUROC per block |
+| `linear_representation_probes.json` | L3 | CV linear probe AUROC + AUPRC (secondary, diagnostic) |
 
-| Type | Assumption | Predicted link to \(r(q)\) | Hypothesis |
-| ---- | ---------- | -------------------------- | ---------- |
-| **Query-derived** (model-independent) | More complex or ambiguous queries are more likely to require a higher-capability pool member. | Higher query complexity → higher \(P(r(q)=1)\) | **H1** |
-| **Model-response** (model-dependent) | Higher uncertainty on a model reflects higher probability of error on that query. | Higher \(H(q\mid M_{\mathrm{lo}})\) or lower confidence → higher \(P(y_{\mathrm{lo}}=0)\); when \(y_{\mathrm{hi}}=1\), \(M_{\mathrm{hi}}\) appropriate | **H2** |
-| **Cross-model comparative** (cross-model) | Differences between pool members on the same query reveal routing opportunities. | Larger confidence/entropy gap or disagreement → higher \(P(r(q)=1)\) | **H3** |
+**Code structure:** `validate_signals()` → univariates + family summaries; `probe_linear_representations()` → Level 3 only; `stage_signal_validation()` orchestrates both on **`analysis_table_calib.csv` only**.
 
-**If an assumption fails** (e.g.\ complexity uncorrelated with \(r(q)\)), rejecting H1 is a valid, publishable outcome for this Setting.
+**Level 1 — individual signals:** for each feature, association with \(r(q)\). No ranking, no top-k, no feature selection.
 
-Canonical summary: §0.8. Do not duplicate in §6 or §10.
+**Level 2 — signal families:** median/mean/min/max AUROC over predefined blocks (φ structural / ambiguity / geometry / all; ψ_lo; ψ_hi; χ all). Answers whether a *family* carries routing information.
 
-### Signal types
+**Level 3 — linear representation probes (secondary):** stratified CV logistic readout per block — how much routing information is *linearly readable*? Not primary evidence; not the routing method.
 
-Concept only --- concrete signal list is chosen at **Stage 3** lock (§13); not fixed in this program.
+**Primary validation metric:** AUROC. Secondary: AUPRC. Exploratory: correlation.
 
-| Layer | Signal type | Needs | Examples |
-| ----- | ----------- | ----- | -------- |
-| **Model-independent** | **Query-derived** | Query text only | Complexity, length, lexical/syntactic cues, ambiguity |
-| **Model-dependent** | **Model-response** | One pool member × query | Entropy Q\|Mᵢ, confidence, log-prob, paraphrase stability |
-| **Cross-model** | **Cross-model comparative** | Compare pool members on same query | ΔH, confidence gap, disagreement |
+**Invariant:** Stage 6 never fits \(\lambda\), never freezes \(x(q)\), never exports policy.
 
-**Cross-model comparative** is a separate layer from model-response: between-model signals vs within-model model-response signals.
+**Stage 5 is unsupervised.** φ, ψ, and χ are computed without routing labels. χ is **privileged offline analysis** (requires both model traces); it is validated in Stage 6 but excluded from the default runtime policy.
 
-**Protocol-dependent extractors (locked principle):** the φ / ψ / χ **layers** are universal; concrete features are **implementations** tied to frozen protocol \(\Pi\). Example: on `mcq_letter_v1`, ψ uses choice-letter logits (entropy, MSP, margin); on open-ended \(\Pi\), ψ would use sequence log-probability or sample-based uncertainty instead — same layer, different extractor.
-
-Why three layers: **model-independent** (query-derived, no pool inference at extraction) → **model-dependent** (one model's response) → **cross-model** (gaps between pool members). The **pool** is fixed for the study (homogeneous MCQ pair); do not describe H1 features as *pool-independent*.
-
-**Pipeline output:** candidate features (layer 1, §2). Selection: §7 after §6.
-
-### Query-derived pipeline (Stage 5 — architecture frozen)
-
-Query-derived signals are a **deterministic preprocessing map** \(q \mapsto \phi(q)\) organized around **four routing hypotheses**, not ad-hoc feature families. Detail: [`research/query_derived_spec.md`](query_derived_spec.md); manifest: `experiments/query_derived_defaults.yaml` (draft until M3 lock).
-
-\[
-\phi(q) = \big[\,\phi_{\text{load}},\; \phi_{\text{ambiguity}},\; \phi_{\text{semantic}},\; \phi_{\text{novelty}}\,\big]
-\]
-
-| Property | Hypothesis | Source |
-| -------- | ---------- | ------ |
-| **Load** | How much must the model process? | Prompt statistics + lexical density |
-| **Ambiguity** | How distinguishable are the options? | MCQ overlap / length spread |
-| **Semantic** | Where does the query lie in semantic space? | Frozen sentence encoder \(u(q)\) |
-| **Novelty** | How unusual vs the calibration corpus? | PCA, centroid, kNN, LOF, retrieval density (fit on \(R_c\) only) |
+**Target freeze artifact** (`router_package/`):
 
 ```text
-Canonical prompt
-        │
-        ▼
-Load + Ambiguity descriptors     (extraction — per query)
-        │
-        ▼
-Frozen semantic embedding u(q)   (extraction — saved to disk)
-        │
-        ▼
-Calibration-only engineering   (fit on R_c only)
-        │
-        ▼
-Novelty descriptors              (apply to calib + test)
-        │
-        ▼
-φ(q)  (+ optional z-score in implementation)
+router_package/
+  feature_spec.yaml    # frozen column names and signal-layer scope
+  preprocessing.pkl    # scaler (mean, scale) fit on R_c
+  weights.npy          # λ (and intercept)
+  threshold.json       # τ
+  metadata.json        # pool ids, schema version, training provenance
 ```
 
-| Phase | Uses \(R_c\)? | Uses \(r(q)\)? |
-| ----- | ------------- | --------------- |
-| **Extraction** | No | No |
-| **Engineering** | Fit only | No |
-| **Scaling** (impl.) | \(\mu,\sigma\) only | No |
+**Current code:** Stage 8 writes `routing/policy.json` (combines the above fields). A standalone `router_package/` export is planned.
 
-**Stage 6 block ablation:** test each property alone (load / ambiguity / semantic / novelty), then combinations — see `query_derived_spec.md`. CLI: `python run.py query-derived --run …`.
+**Invariant:** Part II runs on the research run directory. It is **never** executed during Part III deployment.
 
 ---
 
-## 6. Signal analysis
+### Part III — Deployment (Online)
 
-**Purpose:** Which unsupervised signals predict \(r(q)\)? — layer 2; does not redefine signals.
-
-**Split:** calib only; \(r(q)\) from §3.
-
-| Analysis | Statistics |
-| -------- | ---------- |
-| Univariate | Spearman \(\rho\), AUROC / AUPRC per feature |
-| Layer-wise tests | AUROC / AUPRC per layer vs \(r(q)\) — **§10 H1–H3** (each layer tested on its own block) |
-| Combination models (Stage 6 optional / Stage 7) | \(\phi\), \(\phi{+}\psi\), \(\phi{+}\psi{+}\chi\) jointly for selecting frozen \(x(q)\) — **not** H2 or H3 |
-| Bucket view (optional) | Stratified plots over \((y_{\mathrm{lo}}, y_{\mathrm{hi}})\) |
-
-No \(\pi(q)\) claims. **Deliverable:** analysis table.
-
----
-
-## 7. Signal selection
-
-**Input:** §6 on calib. **Output:** frozen feature specification and \(x(q)\).
-
-| Rule | Action |
-| ---- | ------ |
-| Redundant | Drop (high correlation, no ΔAUROC) |
-| Non-informative | Drop unless needed for §10 ablation narrative |
-| Final | Compact \(x(q) \in \mathbb{R}^d\) for §8–§9 |
-
-**Deliverable:** keep / drop / merge table.
-
----
-
-## 8. Routing policy
-
-Uses frozen \(x(q)\) from §7. Layer 3 (§2). **Score and router:** [`nomenclature.md`](nomenclature.md) **§2.1** (not repeated here).
-
-**Only learned parameters:** \(\lambda\) and \(\tau\) — fit on calib \(R_c\) only; lock before test \(R_t\). Nothing else is tuned (§0.17).
-
-| Track | \((\lambda, \tau)\) |
-| ----- | ------------------- |
-| **4a Rule** | Hand-specified \(\lambda\); sweep \(\tau\) on calib |
-| **4b Learned** | Fit \(\lambda\) on calib (e.g. logistic on \(r(q)\)); tune \(\tau\); lock for test |
-
-**H4:** §10. Quality: §9.
-
----
-
-## 9. Evaluation
-
-**Split:** project **test** \(R_t\) only (subset of evaluation corpus \(C\); partition locked in M1, IDs in M3 — §0.7.1, §13). Separate from §6.
-
-### Metrics
-
-\(c(M_{\mathrm{lo}})=1\), \(c(M_{\mathrm{hi}})=\kappa>1\).
-
-\[
-\mathrm{Acc}(\pi) = \frac{1}{|\mathcal{Q}_{\text{test}}|} \sum_{q} y\big(q, \pi(q)\big), \qquad
-\mathrm{Cost}(\pi) = \frac{1}{|\mathcal{Q}_{\text{test}}|} \sum_{q} c\big(\pi(q)\big)
-\]
-
-**Optional calib only:** \(J_\alpha(\pi) = \mathrm{Acc}(\pi) - \alpha \cdot \mathrm{Cost}(\pi)\).
-
-### Baselines and comparison
-
-**Baselines:** always-\(M_{\mathrm{lo}}\) · always-\(M_{\mathrm{hi}}\) · \(\pi^*\) (§3) · 4a and 4b from §8.
-
-**Primary:** Pareto \((\mathrm{Acc}, \mathrm{Cost})\). Report **dominance** vs baselines and **oracle gap** vs \(\pi^*\).
-
-Do not tune on test.
-
----
-
-## 10. Hypotheses
-
-Motivated by **signal assumptions** (§5). Each hypothesis tests one assumption on the locked Setting.
-
-| ID | Hypothesis | Layer | Assumption | Program § | Exec. stage | Test |
-| -- | ---------- | ----- | ---------- | --------- | ----------- | ---- |
-| **H1** | Query-derived signals predict oracle \(r(q)\) (appropriate model). | model-independent | Query complexity → \(r(q)\) | §6 | **6** | AUROC / AUPRC vs \(r(q)\); \(\phi(q)\) only |
-| **H2** | Model-response signals predict oracle \(r(q)\). | model-dependent | Uncertainty → error | §6 | **6** | AUROC / AUPRC vs \(r(q)\); \(\psi(q,M_{\mathrm{lo}})\) only |
-| **H3** | Cross-model comparative signals predict oracle \(r(q)\). | cross-model | Disagreement → opportunity | §6 | **6** | AUROC / AUPRC vs \(r(q)\); \(\chi(q)\) only |
-| **H4** | Learned weighting outperforms manual rules. | (policy) | (policy; not signal assumption) | §8–§9 | **9** | 4b Pareto-dominates best 4a on test |
-
-H1–H3: **informativeness** (layer 2). H4: **routing** (layer 3). Either may fail (§14).
-
-**Not H3:** combining φ and ψ to beat either alone is combination analysis (§6–§7), not the cross-model hypothesis. **H3** = \(\chi(q)\) alone.
-
----
-
-## 11. Execution workflow (Stages 0–9)
-
-**Two views:** §4 is the **scientific pipeline** (what the paper claims). This section is the **execution workflow** (what you run, in order). Use **Stage** here for execution only.
+**Purpose:** for every **new query**, select \(M_{\mathrm{lo}}\) or \(M_{\mathrm{hi}}\) using only frozen signal definitions and frozen policy. No oracle, no validation, no retraining.
 
 ```text
-Stage 0   Research design
-    ↓
-PHASE A — Experimental setting selection
-  M1 / Stage 1   Experimental Setting Specification
-  M2 / Stage 2   Setting Feasibility Assessment      [selection holdout]
-  M3 / Stage 3   Experimental Setting Lock           [freeze IDs → setup table]
-    ↓
-PHASE B — Routing study
-  M4 / Stage 4   Oracle labeling
-  M4 / Stage 5   Signal extraction
-  M4 / Stage 6   Signal analysis                     [calib — H1–H3]
-  M4 / Stage 7   Signal selection
-  M4 / Stage 8   Routing policy fit                  [calib]
-  M4 / Stage 9   Routing evaluation                  [test — H4]
+New query
+↓
+Signal computation        φ(q) [optional]  +  ψ(q) after M_lo pass
+↓
+Feature vector            x(q)  — frozen subset from Stage 7
+↓
+Preprocessing             z(q) = scale(x(q))
+↓
+Score                     s(q) = λᵀ z(q)  (+ intercept)
+↓
+Policy                    if s(q) > τ → M_hi  else  M_lo
+↓
+Chosen model              return answer from selected pool member
 ```
 
-**Design principle:** Phase A establishes a valid Setting; Phase B answers H1–H4. M4 consumes the frozen Setting only.
+| At deploy time | Allowed | Forbidden |
+| -------------- | ------- | --------- |
+| Signals | φ, ψ per frozen `feature_spec` | χ (default), new feature selection |
+| Labels | — | \(r(q)\), \(y_{\mathrm{lo}}\), \(y_{\mathrm{hi}}\) |
+| Learning | — | AUROC, CV, refit λ or τ |
 
-### Stage map
+**Code:** `llm_routing/runtime/` (`extract.py`, `router.py`, `policy.py`); CLI `route-demo` replays from a run dir.
 
-| Stage | Name | Program § | Split | Output / gate |
-| ----- | ---- | --------- | ----- | ------------- |
-| **0** | **Research design** | **§0**, §1–§3, §5, §10, §14 | — | RQs, assumptions, H1–H4, eval plan (**method locked**) |
-| **1** | **M1 — Experimental Setting Specification** | §0.7 | — | Setting spec + candidate YAMLs |
-| **2** | **M2 — Setting Feasibility Assessment** | §0.7 | selection **holdout** | Bucket scorecard; gates A–E |
-| **3** | **M3 — Experimental Setting Lock** | §0.7 | — | **Frozen Setting** YAML + setup table |
-| **4** | **Oracle labeling** | §3 | calib + test | \(y(q,M)\), \(r(q)\), \(\pi^*(q)\) |
-| **5** | **Signal extraction** | §5 | no \(r(q)\) | Raw signal inventory (three signal layers) |
-| **6** | **Signal analysis** | §6 | **calib** | Informativeness; **H1–H3** |
-| **7** | **Signal selection** | §7 | calib | Frozen \(x(q)\) and feature specification |
-| **8** | **Routing policy fit** | §8 | **calib** | Locked \(\pi(q)\); 4a + 4b |
-| **9** | **Routing evaluation** | §9 | **test only** | Pareto; **H4** |
-
-### Terminology (locked)
-
-| Use | Avoid |
-| --- | ----- |
-| **M1 / M2 / M3** module names | “Pick dataset” without Setting spec |
-| **Evaluation corpus** + **partition** | Hard-coded “HF validation → calib” in methodology |
-| **Deployment scenario** | Arbitrary Pool A / Pool B |
-| **Selection holdout** | Reusing holdout in calib/test |
-| **Oracle labeling** | “Oracle generation” (labeling preferred) |
-| **Routing policy fit** | *Routing policy learning* |
-| **Signal analysis** | *Analysis & paper* (conflicts with Stage 6) |
-
-**Lock rules:** After Stage **3**, no benchmark/pool/protocol changes without restarting Stages 1–3. After Stage **7**, no refit \(x(q)\) on test. After Stage **8**, no tune \((\lambda,\tau)\) on test.
-
-### Mapping §4 ↔ Stages 5–9
-
-| §4 pipeline step | Execution stage |
-| ---------------- | --------------- |
-| Signals (§5) | **5** Signal extraction |
-| Signal analysis (§6) | **6** Signal analysis |
-| Signal selection (§7) | **7** Signal selection |
-| Routing policy (§8) | **8** Routing policy fit |
-| Evaluation (§9) | **9** Routing evaluation |
-
-Stages 0–3: design + **reproducible setting selection**. Stages 4–9: main study.
-
-### Paper map
-
-Intro · Related Work · Problem · Method (Stages 5–8) · Setup (Stages 1–4) · Results H1–H3 (Stage 6) · Results H4 (Stage 9) · Discussion.
-
-**Checklist:** §0 ✓ · Stages 1–3 (not started) · Stages 4–9 (not started) · paper skeleton ✓.
+**ψ-primary note:** ψ requires one \(M_{\mathrm{lo}}\) inference pass before the routing decision; this is cascade **semantics**, not the paper contribution.
 
 ---
 
-## 12. Artifacts
+### Part IV — Evaluation (held-out test)
 
-| Stage | Output location |
-| ----- | ---------------- |
-| **1** | M1 Setting spec + candidate YAMLs |
-| **2** | M2 feasibility scorecard |
-| **3** | M3 frozen Setting YAML + setup table |
-| **4–9** | Oracle labels, signals, analysis, policies, evaluation results |
+**Purpose:** measure how the **frozen** router from Part II performs on \(R_t\). This is **not** deployment — it is a one-time offline benchmark of accuracy, cost, and Pareto position (H4).
 
-Store under `experiments/` by stage. Implementation mapping (future): [`../scripts/README.md`](../scripts/README.md).
+```text
+Run frozen router π on R_t
+↓
+Accuracy                  task correctness under π vs baselines
+↓
+Cost                      inference cost (κ-weighted pool usage)
+↓
+Pareto                    accuracy–cost frontier vs always-M_lo, always-M_hi, π*
+```
 
-**Status:** research design ✓ · workflow ✓ · paper skeleton ✓ · **Stages 1–9 not started**.
+| Compared to Part III | Part III (deploy) | Part IV (eval) |
+| -------------------- | ----------------- | -------------- |
+| Queries | Live, unseen | Fixed held-out \(R_t\) |
+| Grading | None | Uses frozen protocol labels |
+| Output | Model choice + answer | Metrics, tables, H4 |
 
----
-
-## 13. Experimental setting (TBD — Stages 1–3)
-
-**Nothing locked.** Benchmark, pool, and protocol are selected via **Phase A (M1–M3)** (§0.7) — joint pilot on selection holdout, then frozen together. Retired choices under `old_llm_routing/` are not design authority. [`literature_record.md`](literature_record.md) is a **candidate catalog** only.
-
-**Selection principle:** Benchmark selection evaluates **experimental suitability**, not **expected routing performance** (§0.7).
-
-### Fresh-start status (Stages 0–9)
-
-| Stage | Name | Status |
-| ----- | ---- | ------ |
-| **0** | Research design | **§0 method locked** · signal assumptions ✓ |
-| **1** | M1 — Experimental Setting Specification | **Not started** |
-| **2** | M2 — Setting Feasibility Assessment | **Not started** |
-| **3** | M3 — Experimental Setting Lock | **Not started** |
-| **4** | Oracle labeling | **Not started** |
-| **5** | Signal extraction | **Not started** |
-| **6** | Signal analysis (H1–H3) | **Not started** |
-| **7** | Signal selection | **Not started** |
-| **8** | Routing policy fit | **Not started** |
-| **9** | Routing evaluation (H4) | **Not started** |
-
-**No** locked IDs or `experiments/` artifacts yet.
-
-### M1 — Experimental Setting Specification (Stage 1)
-
-See §0.7 M1 checklist + `experiments/setting.schema.yaml`. **Deliverable:** Setting spec record (§12).
-
-#### Phase 1 candidates — dataset fact sheet (2026-06-25)
-
-**Status:** factual inventory for Stage 1; **not locked**. Counts from official Hugging Face dataset cards unless noted. Three split layers must not be conflated:
-
-| Layer | Meaning |
-| ----- | ------- |
-| **Native splits** | What dataset authors publish (train / validation / test / dev) |
-| **Standard eval split** | What leaderboard tools score on ([lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) task YAMLs) |
-| **Project splits (`calib` / `test`)** | Partition of **evaluation corpus** \(C\) — policy locked in M1; IDs in M3 |
-
-**Phase 1 scope (advisor direction, not locked):** shared MCQ protocol — ARC-Challenge (likely primary), MMLU selected subjects (secondary), TruthfulQA MCQ (secondary), HellaSwag (optional pilot).
-
-##### Summary
-
-| Dataset | HF repo | Native splits | Total (config) | Standard eval split | Eval *N* |
-| ------- | ------- | --------------- | -------------- | ------------------- | -------- |
-| **ARC-Challenge** | [allenai/ai2_arc](https://huggingface.co/datasets/allenai/ai2_arc) | train / val / test | 2,590 | **test** | **1,172** |
-| **MMLU** | [cais/mmlu](https://huggingface.co/datasets/cais/mmlu) (`all`, 57 subjects) | dev / val / test (+ `auxiliary_train`) | 14,042 (test) | **test** | **14,042** |
-| **TruthfulQA MCQ** | [truthfulqa/truthful_qa](https://huggingface.co/datasets/truthfulqa/truthful_qa) | **validation only** | 817 | **validation** | **817** |
-| **TruthfulQA-MC (alt.)** | [EleutherAI/truthful_qa_mc](https://huggingface.co/datasets/EleutherAI/truthful_qa_mc) | **validation only** | 684 | **validation** | **684** |
-| **HellaSwag** | [Rowan/hellaswag](https://huggingface.co/datasets/Rowan/hellaswag) | train / val / test | 59,950 | **validation** | **10,042** |
-
-Combined standard-eval pool (all four at full size, official TruthfulQA): **26,073** queries. With EleutherAI TruthfulQA-MC: **25,940**.
-
-##### Per-dataset detail
-
-**ARC-Challenge** — Clark et al., 2018 ([arXiv:1803.05457](https://arxiv.org/abs/1803.05457))
-
-| Split | *N* |
-| ----- | --- |
-| train | 1,119 |
-| validation | 299 |
-| test | 1,172 |
-
-- MCQ: 4 choices (A–D), gold `answerKey`.
-- lm-eval (`arc_challenge`): scores **test**; few-shot from **train** (Open LLM Leaderboard: 25-shot).
-- Separate config `ARC-Easy` exists (5,197 total) — not in Phase 1 shortlist.
-
-**MMLU** — Hendrycks et al., 2021 ([ICLR 2021](https://openreview.net/forum?id=d7KBjmI3GmQ))
-
-| Split | *N* | Role (HF card) |
-| ----- | --- | -------------- |
-| test | 14,042 | Main held-out eval (≥100 per subject) |
-| validation | 1,531 | Hyperparameter / model selection |
-| dev | 285 | 5 per subject — **few-shot demos only** |
-| auxiliary_train | 99,842 | Extra MCQ from ARC, OBQA, RACE, etc. — **not** standard MMLU eval |
-
-- MCQ: 4 choices (A–D); 57 subject configs.
-- **No split named `train`** in config `all` (do not confuse with `auxiliary_train`).
-- lm-eval (`mmlu`): scores **test**; few-shot from **dev** (5-shot). **validation** not scored by default.
-
-**TruthfulQA MCQ** — Lin et al., 2021 ([arXiv:2109.07958](https://arxiv.org/abs/2109.07958))
-
-| Repo | Split | *N* | Notes |
-| ---- | ----- | --- | ----- |
-| truthfulqa/truthful_qa | validation | 817 | `multiple_choice` config; same 817 questions as `generation` |
-| EleutherAI/truthful_qa_mc | validation | 684 | Drops questions with &lt;4 choices; fixed 4 options |
-
-- **No train / test split** in either HF repo.
-- lm-eval (`truthfulqa_mc1`, `truthfulqa_mc2`): scores **validation**; 0-shot; uses official repo, config `multiple_choice`. MC1 = single correct; MC2 = multi-label correct.
-
-**HellaSwag** — Zellers et al., 2019 ([ACL 2019](https://rowanzellers.com/hellaswag/))
-
-| Split | *N* |
-| ----- | --- |
-| train | 39,905 |
-| validation | 10,042 |
-| test | 10,003 |
-
-- MCQ-style: 4 endings, one correct (`label` 0–3); sentence completion.
-- lm-eval (`hellaswag`): scores **validation** (`test_split: null`); few-shot from **train** (10-shot on Open LLM Leaderboard).
-- [Homepage](https://rowanzellers.com/hellaswag/): test leaderboard closed Nov 2024; community has long reported on **validation**.
-
-##### Routing literature note (RouterBench)
-
-[RouterBench](https://arxiv.org/abs/2403.12031) (Hu et al., 2024) includes ARC-Challenge, HellaSwag, and MMLU. For predictive-router experiments it **randomly partitions each task 70% train / 30% eval** — not the native splits above. MT-Bench excluded from that partition due to size.
-
-##### Evaluation corpus — per-benchmark M1 config (§13 fact sheet)
-
-M1 declares which native splits compose \(C\) (implementation only). The **partition rule** is uniform Option 1 (§0.7.2): random split of \(C\) into \(H, R_c, R_t\).
-
-| Benchmark | \(C\) (`evaluation_corpus.hf_splits`) | Exclude from \(C\) |
-| --------- | ------------------------------------- | ------------------ |
-| **ARC-Challenge** | validation + test (1,471) | train (few-shot) |
-| **MMLU** | validation + test | dev (few-shot), auxiliary_train |
-| **TruthfulQA MCQ** | validation only (817) | — |
-| **HellaSwag** | validation only (10,042) | train |
-
-**Example partition (policy in `experiments/defaults.yaml`; IDs at M3 on winner):**
-
-| Split | Symbol | Role | Size |
-| ----- | ------ | ---- | ---- |
-| Selection holdout | \(H\) | M2 pilot only | **150** (fixed, all benchmarks) |
-| Test | \(R_t\) | H4 only | \(\mathrm{clamp}(0.20 \times \lvert C \setminus H \rvert,\, 150,\, 1000)\) |
-| Calib | \(R_c\) | H1–H3, \((\lambda,\tau)\) fit, φ / novelty | \(\lvert C \rvert - \lvert H \rvert - \lvert R_t \rvert\) |
-
-| Benchmark | \(\lvert C \rvert\) | \(\lvert H \rvert\) | \(\lvert R_t \rvert\) | \(\lvert R_c \rvert\) |
-| --------- | ----- | ----- | ------- | ------- |
-| ARC | 1,471 | 150 | 264 | 1,057 |
-| TruthfulQA | 817 | 150 | 150 | 517 |
-| HellaSwag | 10,042 | 150 | 1,000 | 8,892 |
-| MMLU (val+test) | ~15,573 | 150 | 1,000 | ~14,423 |
-
-M2 oracle cost = **150 × 2 models** per benchmark — independent of \(R_t\) rule.
-
-All three drawn from \(C\) via one random partition (fixed `seed`). **No query in \(H\) may appear in \(R_c\) or \(R_t\).**
-
-Sizes and `seed` are fixed in M1 before M2. M3 assigns query IDs; M4 reads frozen lists.
-
-**Do not use without pre-specification:**
-
-- MMLU `dev` (reserved for few-shot prompts)
-- MMLU `auxiliary_train` (different data mixture)
-- ARC / HellaSwag **train** (unless an explicit supervised baseline — out of scope for unsupervised routing claims)
-
-**Compute note:** MMLU full test × pool oracle is expensive; benchmark selection specification should pre-define subject subset or cost cap before pilot.
-
-**M2 sampling note:** Holdout \(H\) is sampled from \(C\) per M1. M3 assigns \(R_c, R_t\) from \(C \setminus H\); M4 uses frozen ID lists only.
-
-**Sources:** HF dataset cards linked above; lm-eval task YAMLs ([arc](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/arc/arc_easy.yaml), [mmlu](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/mmlu/default/_default_template_yaml), [truthfulqa_mc1](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/truthfulqa/truthfulqa_mc1.yaml), [hellaswag](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hellaswag/hellaswag.yaml)); RouterBench [arXiv:2403.12031](https://arxiv.org/abs/2403.12031).
-
-### M2 — Setting Feasibility Assessment (Stage 2)
-
-Factorial pilot on selection holdout; bucket scorecard (§0.7). **Deliverable:** scorecard (§12).
-
-### M3 — Experimental Setting Lock (Stage 3)
-
-Winner → freeze split IDs → setup table. **Deliverable:** frozen Setting YAML + `T1_setup.tex`. **Gate to M4.**
-
-### After lock (Stages 4–9 — M4)
-
-- Stage 4: full oracle on calib + test.
-- Stage 5: layer-1 signals (no \(r(q)\) input).
-- Stages 6–9: analysis → selection → policy → evaluation.
-
-**Paper:** update experimental setup section when Stage 3 completes.
+**Stage mapping:** Part IV = **Stage 9** (test evaluation, H5). CLI: `evaluate`.
 
 ---
 
-## 14. Scope & assumptions
+### Supervision model (cross-cutting)
 
-| In scope | Out of scope |
-| -------- | ------------ |
-| §2 three-layer unsupervised definition | Claiming “no labels ever” |
-| §5 signal assumptions and types | Supervised router reproduction |
-| §8 rule + learned policies | Benchmark suite for its own sake |
-| Honest negative results | Chasing SOTA |
-| Requirements-first Stages 1–3 (§0.7) | Reusing retired experiment configs as locked defaults |
+**Unsupervised** refers to **Stage 5 (signal extraction) only**, not the entire methodology.
 
-**Assumptions (method-level):** fixed model pool with distinct capabilities **after Setting lock**; primary pair \((M_{\mathrm{lo}}, M_{\mathrm{hi}})\) designated; objective task metric **under locked protocol**; \(\kappa\) documented.
+| Layer | Part / Stage | Purpose | Uses routing labels? |
+| ----- | ------------ | ------- | -------------------- |
+| Signal extraction | Part II · Stage 5 | Compute φ, ψ, χ | **No** |
+| Signal validation | Part II · Stage 6 | Measure association with routing need | Yes (\(R_c\)) |
+| Feature engineering | Part II · Stage 7 | Freeze \(x(q)\) for deploy | Uses Stage 6 evidence |
+| Policy calibration | Part II · Stage 8 | Fit \(\lambda\), \(\tau\) | Yes (\(R_c\)) |
+| Deployment | Part III | Apply frozen \(\pi\) | **No** |
+| Evaluation | Part IV | Grade \(\pi\) on \(R_t\) | Yes (grading only) |
 
-**Assumptions (validated in M2):** non-degenerate routing mix; \(\mathrm{Acc}(M_{\mathrm{lo}}) < \mathrm{Acc}(M_{\mathrm{hi}})\) on selection holdout.
-
-**Success:** answer §10 honestly — report §6 and §9 separately.
+**Paper claim (locked):** *routing using unsupervised signals* — not *unsupervised routing*. Supervised routing methods learn the entire mapping from labels; we separate **label-free signal construction** from **offline calibration** on \(R_c\).
 
 ---
 
-## 15. Advisor notes
+## 0.8 Deployment architecture (Part III detail)
 
-| Topic | Common drift | Advisor guidance |
-| ----- | ------------- | ---------------- |
-| Main contrast | Pre- vs post-inference | **Supervised vs unsupervised** (§2) |
-| “Unsupervised” | No labels anywhere | **No prior routing signal**; weight fit uses calib labels |
-| Signal source | Learned routing representations | Query text and model outputs — not a routing classifier’s hidden state |
-| Combining signals | Same as discovering signals | **Combining** with calib labels ≠ supervised **signal discovery** |
-| Scope | Agent orchestration | **LLM pool routing first** |
+The deployed router consists only of frozen components from Part II.
 
-*“If this one and two you can do, then this itself is publishable.”*
+```text
+Incoming query q
+↓
+Compute signals           φ(q) [if in policy]  +  ψ(q) from M_lo trace
+↓
+Construct x(q)            frozen columns from Stage 7
+↓
+Preprocess & score        s(q) = f(x(q); λ, τ)
+↓
+Select                    M_lo  or  M_hi
+↓
+Return answer
+```
+
+Neither oracle labels nor the calibration set \(R_c\) are required at inference time.
+
+**Not at runtime (default):** χ(q), \(r(q)\), AUROC, logistic refit, feature re-ranking.
+
+---
+
+## 0.9 Scientific Contributions
+
+This work makes four contributions (see §0.1).
+
+1. A taxonomy of unsupervised routing signals (φ, ψ, χ).
+2. A three-level validation protocol measuring association with \(r(q)\) on \(R_c\) (Stage 6).
+3. Policy calibration: routing score \(s(q)\) and \(\tau\) from validated signals (Stage 8).
+4. Held-out routing evaluation vs baselines (Stage 9).
+
+---
+
+I would also recommend one important terminology change throughout the document. Instead of saying "Offline" and "Online", use **"Offline Development"** and **"Online Deployment"**. This makes it immediately clear to reviewers that the offline phase is the research and calibration workflow, while the online phase is the actual deployed inference pipeline. That distinction is standard in machine learning systems and avoids the confusion you've been encountering.

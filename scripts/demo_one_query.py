@@ -98,7 +98,7 @@ SETTING = {
         "M_hi": "meta-llama/Llama-3.1-8B-Instruct",
     },
     "protocol": {
-        "protocol_version": "mcq_letter_v1",
+        "protocol_version": "mcq_letter",
         "system_prompt": "You answer multiple-choice questions.\n",
         "user_template": "{question}\n\n{choices}\n\nAnswer:\n",
         "decoding": {"temperature": 0.0, "max_tokens": 16},
@@ -140,14 +140,14 @@ torch_stub.inference_mode = _inference_mode
 torch_stub.cuda = types.SimpleNamespace(is_available=lambda: False)
 sys.modules["torch"] = torch_stub
 
-from llm_routing.cross_model.stage import extract_cross_model_signals  # noqa: E402
-from llm_routing.model_response import (  # noqa: E402
+from llm_routing.signals.chi.stage import extract_cross_model_signals  # noqa: E402
+from llm_routing.signals.psi import (  # noqa: E402
     extract_model_response_signals,
     mock_protocol_trace,
 )
-from llm_routing.model_response.protocol import McqLetterProtocolExtractor  # noqa: E402
+from llm_routing.signals.psi.protocol import McqLetterProtocolExtractor  # noqa: E402
 from llm_routing.oracle import run_oracle_inference_mock  # noqa: E402
-from llm_routing.query_derived.core import (  # noqa: E402
+from llm_routing.signals.phi.core import (  # noqa: E402
     QueryDerivedRecord,
     TokenCounter,
     canonical_user,
@@ -205,7 +205,6 @@ def main() -> None:
         "pc2": -0.05,
         "pc3": 0.03,
         "centroid_distance": 0.18,
-        "knn_distance": 0.22,
         "mean_knn_similarity": 0.78,
         "lof_score": -0.4,
     }
@@ -270,7 +269,7 @@ def main() -> None:
             **McqLetterProtocolExtractor().compute_metrics(trace),
             "_note": {
                 "entropy": "spread over A/B/C/D (high = uncertain)",
-                "msp": "max choice probability",
+                "msp": "max choice probability — routing signal, not calibrated P(correct)",
                 "margin": "top1 - top2 probability",
                 "mean_logprob": "logprob of predicted letter",
             },

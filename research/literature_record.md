@@ -619,7 +619,7 @@ Choose the primary pair by **experimental validity**, not same-release purity. T
 
 **Paper wording (pool justification):** *We select a fixed pool of two instruction-tuned Llama models with a clear capability difference while maintaining a common architecture and tokenizer, minimizing confounds unrelated to model capability.*
 
-**Terminology note:** **`homogeneous_pool`** (same vendor, architecture, tokenizer) vs **`heterogeneous_pool`** (cross-family). Gap size (3B→8B vs 8B→70B) is a **robustness axis**, not pool homogeneity. Canonical spec: [`program.md`](program.md) §0.7, [`experiments/m1/pool.frozen.yaml`](../experiments/m1/pool.frozen.yaml).
+**Terminology note:** **`model_pool`** (same vendor, architecture, tokenizer) vs **`heterogeneous_pool`** (cross-family). Gap size (3B→8B vs 8B→70B) is a **robustness axis**, not pool homogeneity. Canonical spec: [`program.md`](program.md) §0.7, [`experiments/m1/pool.frozen.yaml`](../experiments/m1/pool.frozen.yaml).
 
 #### Candidate pairs by role
 

@@ -50,7 +50,7 @@ pip install -r requirements/dev.txt  # full + pytest
 ```bash
 python run.py new --setting experiments/candidates/arc.yaml --name arc-pilot
 python run.py prepare --run experiments/runs/<run_id>
-python run.py query-derived --run experiments/runs/<run_id> --mock-embed  # Stage 5: model-independent / H1
+python run.py model-independent --run experiments/runs/<run_id> --mock-embed  # Stage 5A: model-independent / H1
 ```
 
 Partition IDs are frozen into the run's `setting.yaml` automatically.
