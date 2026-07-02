@@ -13,6 +13,7 @@ from llm_routing.signals.psi.protocol import (
     build_protocol_artifact,
     capture_protocol_trace,
     inference_capture_metadata,
+    trace_generated_text,
 )
 
 _LETTER = re.compile(r"^([A-Za-z])\s*$")
@@ -143,8 +144,9 @@ def run_oracle_inference(
             protocol,
             prompt=prompt,
             n_choices=len(query.choices),
+            model=model,
         )
-        generated_text = trace["generated_text"]
+        generated_text = trace_generated_text(trace)
         results.append(
             QueryResult(
                 query_id=query.query_id,

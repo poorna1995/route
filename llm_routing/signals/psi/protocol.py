@@ -1,13 +1,17 @@
 """Protocol traces (GPU capture) and ψ metrics (CPU) for model_response artifacts.
 
-Immutable trace (never discard — GPU is expensive, storage is cheap):
-  generated_text, generated_token, finish_reason
-  generated_token_ids, generated_token_logprobs, generated_logits (sparse top-k per step)
-  candidate_token_logprobs, predicted_letter, n_choices  (mcq_letter)
+Three-artifact contract:
+  1. Oracle trace (Stage 4, immutable): canonical candidate scores + generation provenance.
+     Probabilities and uncertainty features are derived later — never stored here.
+  2. SignalRecord (Stage 5): slim ψ metrics + prediction for ML stages.
+  3. Analysis table (Stage 6): flat φ/ψ/χ + labels for router training.
 
-Immutable artifact envelope (artifact_version + extractor_version + feature_version + metrics_version):
-  model_id, tokenizer_id, prompt_sha256, model_revision,
-  transformers_version, torch_version, dtype, capture_time, trace
+Oracle trace (mcq_letter) stores:
+  protocol, generation{generated_text, generated_token, finish_reason, ...},
+  candidates{labels, scores, ranking, option_count, scoring}, predicted_letter, n_choices
+
+Artifact envelope: artifact_version, extractor_version, model_id, prompt_sha256,
+  tokenizer_id, model_revision, transformers_version, torch_version, dtype, capture_time
 """
 
 from __future__ import annotations
@@ -104,7 +108,117 @@ def _choice_letter_labels(n_choices: int) -> list[str]:
     return [chr(ord("A") + i) for i in range(n_choices)]
 
 
-def aggregate_choice_logprobs(trace: dict[str, Any]) -> dict[str, float]:
+def _rank_labels(choice_scores: dict[str, float]) -> list[str]:
+    return [
+        label
+        for label, _ in sorted(choice_scores.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+
+def _resolve_scoring_method(protocol: dict[str, Any]) -> str:
+    scoring = protocol.get("scoring") or {}
+    return str(scoring.get("method", "first_token_letter"))
+
+
+def _first_token_letter_scores(
+    generation_scores: tuple[Any, ...],
+    tokenizer: Any,
+    n_choices: int,
+) -> dict[str, float]:
+    import torch
+
+    if not generation_scores:
+        raise ValueError("generation_scores is empty")
+    first_token_scores = generation_scores[0][0]
+    token_logprobs = torch.log_softmax(first_token_scores, dim=-1)
+    variant_logprobs: dict[str, float] = {}
+    for letter in _choice_letter_labels(n_choices):
+        for variant in _letter_token_variants(letter):
+            logprob = _single_token_logprob(tokenizer, token_logprobs, variant)
+            if logprob is not None:
+                variant_logprobs[variant] = logprob
+    return aggregate_choice_scores(
+        {"candidate_token_logprobs": variant_logprobs, "n_choices": n_choices},
+    )
+
+
+def _teacher_forced_letter_scores(
+    *,
+    model: Any,
+    tokenizer: Any,
+    prompt: str,
+    n_choices: int,
+    protocol: dict[str, Any],
+) -> dict[str, float]:
+    """ψ₂: score full candidate continuations P(answer | prompt).
+
+    Not implemented yet — requires a teacher-forced forward pass per option.
+    Produces the same canonical candidates.scores block as first_token_letter.
+    """
+    raise NotImplementedError(
+        "scoring.method=teacher_forced is not implemented yet. "
+        "Use first_token_letter for the L1 baseline, or implement teacher-forced "
+        "scoring in protocol.py without changing Stage 5/6."
+    )
+
+
+_SCORING_BACKENDS: dict[str, int] = {
+    "first_token_letter": 1,
+    "teacher_forced": 1,
+}
+
+
+def capture_candidate_scores(
+    method: str,
+    *,
+    tokenizer: Any,
+    n_choices: int,
+    generation_scores: tuple[Any, ...] | None = None,
+    protocol: dict[str, Any] | None = None,
+    prompt: str = "",
+    model: Any | None = None,
+) -> dict[str, Any]:
+    """Score MCQ options — the single extension point for ψ signal quality.
+
+    Returns the canonical candidates block: labels, scores, ranking, option_count, scoring.
+    Stage 5+ only reads this block; swap backends without touching downstream stages.
+    """
+    if method not in _SCORING_BACKENDS:
+        raise ValueError(f"unknown scoring.method={method!r}; expected one of {sorted(_SCORING_BACKENDS)}")
+    if method == "first_token_letter":
+        if generation_scores is None:
+            raise ValueError("first_token_letter scoring requires generation_scores")
+        choice_scores = _first_token_letter_scores(generation_scores, tokenizer, n_choices)
+    elif method == "teacher_forced":
+        if model is None or not prompt:
+            raise ValueError("teacher_forced scoring requires model and prompt")
+        choice_scores = _teacher_forced_letter_scores(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=prompt,
+            n_choices=n_choices,
+            protocol=protocol or {},
+        )
+    else:
+        raise ValueError(f"scoring backend not wired: {method!r}")
+    labels = sorted(choice_scores)
+    scores = [choice_scores[label] for label in labels]
+    ranking = _rank_labels(choice_scores)
+    return {
+        "labels": labels,
+        "scores": scores,
+        "ranking": ranking,
+        "option_count": n_choices,
+        "scoring": {
+            "method": method,
+            "version": _SCORING_BACKENDS[method],
+            "temperature": float((protocol or {}).get("decoding", {}).get("temperature", 1.0)),
+        },
+    }
+
+
+def aggregate_choice_scores(trace: dict[str, Any]) -> dict[str, float]:
+    """Canonical per-option log-probabilities (aggregated over token variants)."""
     candidates = trace.get("candidates")
     if isinstance(candidates, dict):
         labels = candidates.get("labels")
@@ -113,7 +227,9 @@ def aggregate_choice_logprobs(trace: dict[str, Any]) -> dict[str, float]:
             return {str(label): float(score) for label, score in zip(labels, scores)}
     if "choice_logprobs" in trace:
         return dict(trace["choice_logprobs"])
-    candidate_logprobs = trace["candidate_token_logprobs"]
+    candidate_logprobs = trace.get("candidate_token_logprobs")
+    if not candidate_logprobs:
+        raise KeyError("trace missing candidates.scores and legacy choice fields")
     per_letter: dict[str, float] = {}
     for letter in _choice_letter_labels(trace["n_choices"]):
         best_logprob = float("-inf")
@@ -122,6 +238,26 @@ def aggregate_choice_logprobs(trace: dict[str, Any]) -> dict[str, float]:
                 best_logprob = max(best_logprob, candidate_logprobs[variant])
         per_letter[letter] = best_logprob
     return per_letter
+
+
+# Backward-compatible alias — scores are log-probabilities.
+aggregate_choice_logprobs = aggregate_choice_scores
+
+
+def choice_probabilities(
+    trace: dict[str, Any],
+    *,
+    temperature: float = 1.0,
+) -> dict[str, float]:
+    """Derive softmax probabilities from canonical candidate scores."""
+    choice_scores = aggregate_choice_scores(trace)
+    letters = sorted(choice_scores)
+    logits = [choice_scores[letter] for letter in letters]
+    if temperature != 1.0:
+        scale = 1.0 / temperature
+        logits = [value * scale for value in logits]
+    probs = _softmax_probabilities(logits)
+    return {letter: prob for letter, prob in zip(letters, probs)}
 
 
 def _softmax_probabilities(scores: list[float]) -> list[float]:
@@ -133,19 +269,19 @@ def _softmax_probabilities(scores: list[float]) -> list[float]:
 
 def validate_protocol_trace(trace: dict[str, Any]) -> None:
     n_choices = trace["n_choices"]
-    choice_logprobs = aggregate_choice_logprobs(trace)
-    if len(choice_logprobs) != n_choices:
-        raise ValueError(f"trace n_choices={n_choices} but got {len(choice_logprobs)} choice letters")
+    choice_scores = aggregate_choice_scores(trace)
+    if len(choice_scores) != n_choices:
+        raise ValueError(f"trace n_choices={n_choices} but got {len(choice_scores)} choice letters")
     predicted_letter = trace["predicted_letter"]
-    if predicted_letter not in choice_logprobs:
-        raise ValueError(f"predicted_letter {predicted_letter!r} not in choice logprobs")
+    if predicted_letter not in choice_scores:
+        raise ValueError(f"predicted_letter {predicted_letter!r} not in choice scores")
 
 
 @dataclass(frozen=True)
 class McqLetterProtocolExtractor:
     protocol_version: str = PROTOCOL_MCQ_LETTER
     name: str = "choice_letter_v1"
-    version: int = 2
+    version: int = 4
 
     def capture_trace(
         self,
@@ -156,9 +292,8 @@ class McqLetterProtocolExtractor:
         *,
         prompt: str,
         n_choices: int,
+        model: Any | None = None,
     ) -> dict[str, Any]:
-        import torch
-
         generation_scores = _generation_scores(outputs)
         if not generation_scores:
             raise ValueError("generation_scores is empty")
@@ -173,77 +308,74 @@ class McqLetterProtocolExtractor:
         finish_reason = infer_finish_reason(
             generated_token_ids, tokenizer, max_new_tokens=max_new_tokens,
         )
-        first_token_scores = generation_scores[0][0]
-        token_logprobs = torch.log_softmax(first_token_scores, dim=-1)
-        candidate_token_logprobs: dict[str, float] = {}
-        for letter in _choice_letter_labels(n_choices):
-            for variant in _letter_token_variants(letter):
-                logprob = _single_token_logprob(tokenizer, token_logprobs, variant)
-                if logprob is not None:
-                    candidate_token_logprobs[variant] = logprob
-        choice_logprobs = aggregate_choice_logprobs(
-            {"candidate_token_logprobs": candidate_token_logprobs, "n_choices": n_choices},
+        scoring_method = _resolve_scoring_method(protocol)
+        candidates = capture_candidate_scores(
+            scoring_method,
+            tokenizer=tokenizer,
+            n_choices=n_choices,
+            generation_scores=generation_scores,
+            protocol=protocol,
+            prompt=prompt,
+            model=model,
         )
-        labels = sorted(choice_logprobs)
-        scores = [choice_logprobs[label] for label in labels]
-        probs = _softmax_probabilities(scores)
-        predicted_letter = max(choice_logprobs, key=choice_logprobs.get)
+        predicted_letter = candidates["ranking"][0]
         return {
             "extractor_version": self.version,
             "feature_version": FEATURE_VERSION,
             "protocol": {
                 "protocol_version": self.protocol_version,
             },
-            "generated_text": generated_text,
-            "generated_token": generated_token,
-            "finish_reason": finish_reason,
+            "generation": {
+                "generated_text": generated_text,
+                "generated_token": generated_token,
+                "finish_reason": finish_reason,
+                **generation,
+            },
             "n_choices": n_choices,
             "predicted_letter": predicted_letter,
-            "choice_logprobs": choice_logprobs,
-            "candidate_token_logprobs": candidate_token_logprobs,
-            "candidates": {
-                "labels": labels,
-                "scores": scores,
-                "probabilities": probs,
-                "option_count": n_choices,
-                "scoring": {
-                    "method": "first_token_letter",
-                    "version": 1,
-                    "temperature": 1.0,
-                },
-                "scoring_method": "first_token_letter_variants_v1",
-            },
-            **generation,
+            "candidates": candidates,
         }
 
     def has_protocol_trace(self, trace: dict[str, Any]) -> bool:
-        has_mcq = bool(trace.get("candidate_token_logprobs") or trace.get("choice_logprobs"))
-        has_generation = bool(trace.get("generated_token_ids") and trace.get("generated_token_logprobs"))
-        return has_mcq or has_generation
+        candidates = trace.get("candidates")
+        has_scores = (
+            isinstance(candidates, dict)
+            and isinstance(candidates.get("scores"), list)
+            and bool(candidates["scores"])
+        )
+        has_legacy_mcq = bool(trace.get("candidate_token_logprobs") or trace.get("choice_logprobs"))
+        generation = trace.get("generation") if isinstance(trace.get("generation"), dict) else trace
+        has_generation = bool(
+            generation.get("generated_token_ids") and generation.get("generated_token_logprobs")
+        )
+        return has_scores or has_legacy_mcq or has_generation
 
     def validate(self, trace: dict[str, Any]) -> None:
         validate_protocol_trace(trace)
 
     def compute_metrics(self, trace: dict[str, Any], *, temperature: float = 1.0) -> dict[str, float]:
         self.validate(trace)
-        choice_logprobs = aggregate_choice_logprobs(trace)
-        letters = sorted(choice_logprobs)
-        logits = [choice_logprobs[letter] for letter in letters]
-        if temperature != 1.0:
-            scale = 1.0 / temperature
-            logits = [value * scale for value in logits]
-        choice_probs = _softmax_probabilities(logits)
+        choice_scores = aggregate_choice_scores(trace)
+        choice_probs_map = choice_probabilities(trace, temperature=temperature)
+        choice_probs = [choice_probs_map[letter] for letter in sorted(choice_probs_map)]
         entropy = -sum(prob * math.log(prob) for prob in choice_probs if prob > 0.0)
         sorted_probs = sorted(choice_probs, reverse=True)
         predicted_letter = trace["predicted_letter"]
         option_count = len(choice_probs)
-        predicted_logprob = choice_logprobs[predicted_letter]
+        predicted_logprob = choice_scores[predicted_letter]
+        top2 = sorted_probs[1] if len(sorted_probs) > 1 else 0.0
+        if top2 > 1e-12:
+            top_probability_ratio = sorted_probs[0] / top2
+        else:
+            top_probability_ratio = 1e6  # JSON-safe cap when top-2 collapses
         return {
             "entropy": entropy,
             "normalized_entropy": entropy / math.log(option_count) if option_count > 1 else 0.0,
             "msp": sorted_probs[0],
-            "margin": sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else sorted_probs[0],
-            "top2_gap": sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else sorted_probs[0],
+            "margin": sorted_probs[0] - top2 if len(sorted_probs) > 1 else sorted_probs[0],
+            "top2_gap": sorted_probs[0] - top2 if len(sorted_probs) > 1 else sorted_probs[0],
+            "top_probability_ratio": top_probability_ratio,
+            "effective_support": math.exp(entropy),
             "predicted_logprob": predicted_logprob,
             # Backward-compatible alias used by existing chi / scripts.
             "mean_logprob": predicted_logprob,
@@ -300,7 +432,7 @@ ARTIFACT_VERSION = 3
 # - feature_version: feature definitions exposed by this protocol family.
 # - metrics_version: formulas/transformations used in compute_metrics().
 FEATURE_VERSION = "v1"
-METRICS_VERSION = "v3"
+METRICS_VERSION = "v4"
 
 MODEL_RESPONSE_METRIC_KEYS = frozenset({
     "entropy",
@@ -308,10 +440,19 @@ MODEL_RESPONSE_METRIC_KEYS = frozenset({
     "msp",
     "margin",
     "top2_gap",
+    "top_probability_ratio",
+    "effective_support",
     "predicted_logprob",
     "mean_logprob",
     "option_count",
 })
+
+
+def trace_generated_text(trace: dict[str, Any]) -> str:
+    generation = trace.get("generation")
+    if isinstance(generation, dict) and "generated_text" in generation:
+        return str(generation["generated_text"])
+    return str(trace["generated_text"])
 
 
 def model_response_prediction(trace: dict[str, Any], metrics: dict[str, float]) -> dict[str, Any]:

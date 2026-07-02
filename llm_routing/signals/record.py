@@ -13,8 +13,8 @@ Methodology (signal artifacts only; CPU unless noted):
     5B  model-response    ψ(q) → signals/model_response_{M_lo,M_hi}.jsonl
   5C  cross-model       χ(q) → signals/cross_model_comparative.jsonl (join only)
 
-Each row is self-describing via signal_type. Labels (correct, parsed_answer) stay in oracle.
-Metrics live in metrics{}; Stage 5B also stores prediction{parsed_answer, confidence} and raw{query, answer}.
+Each row is self-describing via signal_type. Oracle traces (canonical scores) stay in oracle/*.jsonl.
+Stage 5 stores derived ψ metrics + prediction only — not the full option distribution.
 
 Depends on:
   - corpus.read_jsonl / write_jsonl — file I/O

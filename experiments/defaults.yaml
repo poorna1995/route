@@ -39,6 +39,8 @@ protocol:
   decoding:
     temperature: 0.0
     max_tokens: 16
+  scoring:
+    method: first_token_letter
   grading:
     method: mcq
 

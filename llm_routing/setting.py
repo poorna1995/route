@@ -152,6 +152,7 @@ def get_protocol(setting: dict[str, Any]) -> dict[str, Any]:
         "user_template": template.rstrip("\n"),
         "decoding": block.get("decoding", {}),
         "grading": block.get("grading", {}),
+        "scoring": block.get("scoring", {}),
     }
 
 

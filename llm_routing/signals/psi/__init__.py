@@ -4,12 +4,16 @@ from llm_routing.signals.psi.protocol import (
     MODEL_RESPONSE_METRIC_KEYS,
     McqLetterProtocolExtractor,
     aggregate_choice_logprobs,
+    aggregate_choice_scores,
     build_protocol_artifact,
+    capture_candidate_scores,
     capture_protocol_trace,
+    choice_probabilities,
     get_protocol_extractor,
     has_protocol_trace,
     pack_generation_trace,
     prompt_sha256,
+    trace_generated_text,
 )
 
 __all__ = [
@@ -18,13 +22,17 @@ __all__ = [
     "MODEL_RESPONSE_METRIC_KEYS",
     "McqLetterProtocolExtractor",
     "aggregate_choice_logprobs",
+    "aggregate_choice_scores",
     "build_protocol_artifact",
+    "capture_candidate_scores",
     "capture_protocol_trace",
+    "choice_probabilities",
     "extract_model_response_signals",
     "get_protocol_extractor",
     "has_protocol_trace",
     "pack_generation_trace",
     "prompt_sha256",
+    "trace_generated_text",
 ]
 
 
