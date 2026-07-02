@@ -140,7 +140,7 @@ def get_protocol(setting: dict[str, Any]) -> dict[str, Any]:
           "protocol_version": "mcq_letter",
           "system_prompt": "You answer multiple-choice questions...",
           "user_template": "{question}\\n\\n{choices}\\n\\nAnswer:",
-          "decoding": {"temperature": 0.0, "max_tokens": 16},
+          "decoding": {"do_sample": false, "temperature": 0.0, "max_tokens": 16},
           "grading": {"method": "mcq"},
         }
     """

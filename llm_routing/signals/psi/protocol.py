@@ -7,8 +7,14 @@ Three-artifact contract:
   3. Analysis table (Stage 6): flat φ/ψ/χ + labels for router training.
 
 Oracle trace (mcq_letter) stores:
-  protocol, generation{generated_text, generated_token, finish_reason, ...},
-  candidates{labels, scores, ranking, option_count, scoring}, predicted_letter, n_choices
+  protocol, generation{decoding, generated_text, ...},
+  candidates{labels, scores, ranking, option_count, scoring{method, version}}
+  predicted_letter, n_choices
+
+Temperature contract (three independent concepts):
+  - generation.decoding.temperature — how model.generate was configured
+  - candidates.scores — raw log-probs; no analysis temperature applied
+  - Stage 5 analysis_temperature — softmax scaling when deriving ψ metrics
 
 Artifact envelope: artifact_version, extractor_version, model_id, prompt_sha256,
   tokenizer_id, model_revision, transformers_version, torch_version, dtype, capture_time
@@ -168,6 +174,16 @@ _SCORING_BACKENDS: dict[str, int] = {
 }
 
 
+def _generation_decoding_config(protocol: dict[str, Any]) -> dict[str, Any]:
+    """Record how the oracle answer was generated (not Stage 5 analysis temperature)."""
+    decoding = protocol.get("decoding") or {}
+    return {
+        "do_sample": bool(decoding.get("do_sample", False)),
+        "temperature": float(decoding.get("temperature", 0.0)),
+        "max_new_tokens": int(decoding.get("max_tokens", 16)),
+    }
+
+
 def capture_candidate_scores(
     method: str,
     *,
@@ -212,7 +228,6 @@ def capture_candidate_scores(
         "scoring": {
             "method": method,
             "version": _SCORING_BACKENDS[method],
-            "temperature": float((protocol or {}).get("decoding", {}).get("temperature", 1.0)),
         },
     }
 
@@ -247,14 +262,17 @@ aggregate_choice_logprobs = aggregate_choice_scores
 def choice_probabilities(
     trace: dict[str, Any],
     *,
-    temperature: float = 1.0,
+    analysis_temperature: float = 1.0,
 ) -> dict[str, float]:
-    """Derive softmax probabilities from canonical candidate scores."""
+    """Derive softmax probabilities from canonical candidate scores.
+
+    analysis_temperature scales logits before softmax in Stage 5 only; scores are unchanged.
+    """
     choice_scores = aggregate_choice_scores(trace)
     letters = sorted(choice_scores)
     logits = [choice_scores[letter] for letter in letters]
-    if temperature != 1.0:
-        scale = 1.0 / temperature
+    if analysis_temperature != 1.0:
+        scale = 1.0 / analysis_temperature
         logits = [value * scale for value in logits]
     probs = _softmax_probabilities(logits)
     return {letter: prob for letter, prob in zip(letters, probs)}
@@ -281,7 +299,7 @@ def validate_protocol_trace(trace: dict[str, Any]) -> None:
 class McqLetterProtocolExtractor:
     protocol_version: str = PROTOCOL_MCQ_LETTER
     name: str = "choice_letter_v1"
-    version: int = 4
+    version: int = 5
 
     def capture_trace(
         self,
@@ -326,6 +344,7 @@ class McqLetterProtocolExtractor:
                 "protocol_version": self.protocol_version,
             },
             "generation": {
+                "decoding": _generation_decoding_config(protocol),
                 "generated_text": generated_text,
                 "generated_token": generated_token,
                 "finish_reason": finish_reason,
@@ -353,10 +372,15 @@ class McqLetterProtocolExtractor:
     def validate(self, trace: dict[str, Any]) -> None:
         validate_protocol_trace(trace)
 
-    def compute_metrics(self, trace: dict[str, Any], *, temperature: float = 1.0) -> dict[str, float]:
+    def compute_metrics(
+        self,
+        trace: dict[str, Any],
+        *,
+        analysis_temperature: float = 1.0,
+    ) -> dict[str, float]:
         self.validate(trace)
         choice_scores = aggregate_choice_scores(trace)
-        choice_probs_map = choice_probabilities(trace, temperature=temperature)
+        choice_probs_map = choice_probabilities(trace, analysis_temperature=analysis_temperature)
         choice_probs = [choice_probs_map[letter] for letter in sorted(choice_probs_map)]
         entropy = -sum(prob * math.log(prob) for prob in choice_probs if prob > 0.0)
         sorted_probs = sorted(choice_probs, reverse=True)
@@ -403,7 +427,9 @@ class ProtocolExtractor(Protocol):
 
     def validate(self, trace: dict) -> None: ...
 
-    def compute_metrics(self, trace: dict, *, temperature: float = 1.0) -> dict[str, float]: ...
+    def compute_metrics(
+        self, trace: dict, *, analysis_temperature: float = 1.0,
+    ) -> dict[str, float]: ...
 
 
 _MCQ_LETTER_EXTRACTOR = McqLetterProtocolExtractor()

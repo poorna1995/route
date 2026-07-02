@@ -21,7 +21,7 @@ def extract_model_response_signals(
     run_root: Path,
     *,
     pool_role: str = "M_lo",
-    temperature: float = 1.0,
+    analysis_temperature: float = 1.0,
     metrics_version: str = METRICS_VERSION,
 ) -> Path:
     run_root = Path(run_root)
@@ -60,7 +60,7 @@ def extract_model_response_signals(
         ].get("extractor_version")
         extractor.validate(protocol_artifact["trace"])
         trace = protocol_artifact["trace"]
-        metric_values = extractor.compute_metrics(trace, temperature=temperature)
+        metric_values = extractor.compute_metrics(trace, analysis_temperature=analysis_temperature)
         query = queries_by_id.get(oracle_row.query_id)
         raw = model_response_raw(query) if query is not None else None
         signal_records.append(
@@ -91,7 +91,10 @@ def extract_model_response_signals(
         "pool_role": pool_role,
         "source": str(oracle_path.relative_to(run_root)),
         "n_queries": len(signal_records),
-        "temperature": temperature,
+        "analysis_temperature": analysis_temperature,
+        "probability_normalization": {
+            "softmax_temperature": analysis_temperature,
+        },
         "metric_keys": metric_keys,
         "prediction": {"parsed_answer": "str", "confidence": "float"},
         "raw": {"query": "str", "answer": "str"},

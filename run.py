@@ -125,13 +125,13 @@ def main() -> int:
     )
     s.add_argument("--run", type=Path, required=True)
     s.add_argument("--role", default="M_lo", choices=("M_lo", "M_hi"))
-    s.add_argument("--temperature", type=float, default=1.0)
+    s.add_argument("--analysis-temperature", type=float, default=1.0)
     s.set_defaults(
         func=lambda a: (
             stage_model_dependent(
                 Run.open(a.run),
                 role=a.role,
-                temperature=a.temperature,
+                analysis_temperature=a.analysis_temperature,
             ),
             0,
         )[1]

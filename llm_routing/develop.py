@@ -157,7 +157,7 @@ def stage_signal_extraction_dependent(
     run: Run,
     *,
     role: str = "M_lo",
-    temperature: float = 1.0,
+    analysis_temperature: float = 1.0,
     metrics_version: str | None = None,
 ) -> Path:
     """Stage 5B: model-dependent ψ(q) from immutable oracle trace."""
@@ -165,11 +165,14 @@ def stage_signal_extraction_dependent(
     from llm_routing.signals.psi.protocol import METRICS_VERSION
 
     metrics_version = metrics_version or METRICS_VERSION
-    print(f"[II/5B] role={role}  temperature={temperature}  metrics={metrics_version}")
+    print(
+        f"[II/5B] role={role}  analysis_temperature={analysis_temperature}  "
+        f"metrics={metrics_version}"
+    )
     out = extract_model_response_signals(
         run.root,
         pool_role=role,
-        temperature=temperature,
+        analysis_temperature=analysis_temperature,
         metrics_version=metrics_version,
     )
     run.stage_done(
@@ -177,7 +180,7 @@ def stage_signal_extraction_dependent(
         part="II",
         step="5B",
         role=role,
-        temperature=temperature,
+        analysis_temperature=analysis_temperature,
         metrics_version=metrics_version,
         output=str(out.relative_to(run.root)),
     )
