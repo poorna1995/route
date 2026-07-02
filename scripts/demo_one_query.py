@@ -271,7 +271,8 @@ def main() -> None:
                 "entropy": "spread over A/B/C/D (high = uncertain)",
                 "msp": "max choice probability — routing signal, not calibrated P(correct)",
                 "margin": "top1 - top2 probability",
-                "mean_logprob": "logprob of predicted letter",
+                "predicted_logprob": "logprob of predicted letter",
+                "mean_logprob": "deprecated alias for predicted_logprob",
             },
         },
     )

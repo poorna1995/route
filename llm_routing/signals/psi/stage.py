@@ -47,10 +47,12 @@ def extract_model_response_signals(
     signal_records: list[SignalRecord] = []
     extractor_name: str | None = None
     protocol_version: str | None = None
+    feature_version: str | None = None
     for oracle_row in oracle_rows:
         assert oracle_row.model_response is not None
         protocol_artifact = oracle_row.model_response
         protocol_version = protocol_artifact["protocol_version"]
+        feature_version = protocol_artifact.get("feature_version")
         extractor = get_protocol_extractor(protocol_version)
         extractor_name = protocol_artifact["extractor"]
         extractor_version = protocol_artifact.get("extractor_version") or protocol_artifact[
@@ -83,6 +85,7 @@ def extract_model_response_signals(
         "signal_type": SIGNAL_TYPE_MODEL_RESPONSE,
         "metrics_version": metrics_version,
         "protocol_version": protocol_version,
+        "feature_version": feature_version,
         "extractor": extractor_name,
         "extractor_version": signal_records[0].extractor_version if signal_records else None,
         "pool_role": pool_role,

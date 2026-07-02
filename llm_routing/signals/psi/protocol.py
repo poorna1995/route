@@ -5,7 +5,7 @@ Immutable trace (never discard — GPU is expensive, storage is cheap):
   generated_token_ids, generated_token_logprobs, generated_logits (sparse top-k per step)
   candidate_token_logprobs, predicted_letter, n_choices  (mcq_letter)
 
-Immutable artifact envelope (artifact_version + extractor_version + metrics_version):
+Immutable artifact envelope (artifact_version + extractor_version + feature_version + metrics_version):
   model_id, tokenizer_id, prompt_sha256, model_revision,
   transformers_version, torch_version, dtype, capture_time, trace
 """
@@ -119,6 +119,12 @@ def _choice_letter_labels(n_choices: int) -> list[str]:
 
 
 def aggregate_choice_logprobs(trace: dict[str, Any]) -> dict[str, float]:
+    candidates = trace.get("candidates")
+    if isinstance(candidates, dict):
+        labels = candidates.get("labels")
+        scores = candidates.get("scores")
+        if isinstance(labels, list) and isinstance(scores, list) and len(labels) == len(scores):
+            return {str(label): float(score) for label, score in zip(labels, scores)}
     if "choice_logprobs" in trace:
         return dict(trace["choice_logprobs"])
     candidate_logprobs = trace["candidate_token_logprobs"]
@@ -130,6 +136,13 @@ def aggregate_choice_logprobs(trace: dict[str, Any]) -> dict[str, float]:
                 best_logprob = max(best_logprob, candidate_logprobs[variant])
         per_letter[letter] = best_logprob
     return per_letter
+
+
+def _softmax_probabilities(scores: list[float]) -> list[float]:
+    logit_peak = max(scores)
+    exp_logits = [math.exp(value - logit_peak) for value in scores]
+    probability_sum = sum(exp_logits)
+    return [value / probability_sum for value in exp_logits]
 
 
 def validate_protocol_trace(trace: dict[str, Any]) -> None:
@@ -185,15 +198,35 @@ class McqLetterProtocolExtractor:
         choice_logprobs = aggregate_choice_logprobs(
             {"candidate_token_logprobs": candidate_token_logprobs, "n_choices": n_choices},
         )
+        labels = sorted(choice_logprobs)
+        scores = [choice_logprobs[label] for label in labels]
+        probs = _softmax_probabilities(scores)
         predicted_letter = max(choice_logprobs, key=choice_logprobs.get)
         return {
             "extractor_version": self.version,
+            "feature_version": FEATURE_VERSION,
+            "protocol": {
+                "protocol_version": self.protocol_version,
+            },
             "generated_text": generated_text,
             "generated_token": generated_token,
             "finish_reason": finish_reason,
             "n_choices": n_choices,
             "predicted_letter": predicted_letter,
+            "choice_logprobs": choice_logprobs,
             "candidate_token_logprobs": candidate_token_logprobs,
+            "candidates": {
+                "labels": labels,
+                "scores": scores,
+                "probabilities": probs,
+                "option_count": n_choices,
+                "scoring": {
+                    "method": "first_token_letter",
+                    "version": 1,
+                    "temperature": 1.0,
+                },
+                "scoring_method": "first_token_letter_variants_v1",
+            },
             **generation,
         }
 
@@ -215,14 +248,37 @@ class McqLetterProtocolExtractor:
                     0.01 if variant.startswith(" ") else 0.0
                 )
         n_steps = max(1, len(text.split()))
+        choice_logprobs = aggregate_choice_logprobs(
+            {"candidate_token_logprobs": candidate_token_logprobs, "n_choices": n_choices},
+        )
+        labels = sorted(choice_logprobs)
+        scores = [choice_logprobs[label] for label in labels]
+        probs = _softmax_probabilities(scores)
         return {
             "extractor_version": self.version,
+            "feature_version": FEATURE_VERSION,
+            "protocol": {
+                "protocol_version": self.protocol_version,
+            },
             "generated_text": text,
             "generated_token": text.splitlines()[0].strip()[:8] or predicted_letter,
             "finish_reason": "mock",
             "n_choices": n_choices,
             "predicted_letter": predicted_letter,
+            "choice_logprobs": choice_logprobs,
             "candidate_token_logprobs": candidate_token_logprobs,
+            "candidates": {
+                "labels": labels,
+                "scores": scores,
+                "probabilities": probs,
+                "option_count": n_choices,
+                "scoring": {
+                    "method": "first_token_letter",
+                    "version": 1,
+                    "temperature": 1.0,
+                },
+                "scoring_method": "first_token_letter_variants_v1",
+            },
             **_mock_generation_trace(n_steps=n_steps),
         }
 
@@ -242,18 +298,22 @@ class McqLetterProtocolExtractor:
         if temperature != 1.0:
             scale = 1.0 / temperature
             logits = [value * scale for value in logits]
-        logit_peak = max(logits)
-        exp_logits = [math.exp(value - logit_peak) for value in logits]
-        probability_sum = sum(exp_logits)
-        choice_probs = [value / probability_sum for value in exp_logits]
+        choice_probs = _softmax_probabilities(logits)
         entropy = -sum(prob * math.log(prob) for prob in choice_probs if prob > 0.0)
         sorted_probs = sorted(choice_probs, reverse=True)
         predicted_letter = trace["predicted_letter"]
+        option_count = len(choice_probs)
+        predicted_logprob = choice_logprobs[predicted_letter]
         return {
             "entropy": entropy,
+            "normalized_entropy": entropy / math.log(option_count) if option_count > 1 else 0.0,
             "msp": sorted_probs[0],
             "margin": sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else sorted_probs[0],
-            "mean_logprob": choice_logprobs[predicted_letter],
+            "top2_gap": sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else sorted_probs[0],
+            "predicted_logprob": predicted_logprob,
+            # Backward-compatible alias used by existing chi / scripts.
+            "mean_logprob": predicted_logprob,
+            "option_count": float(option_count),
         }
 
 
@@ -302,13 +362,23 @@ def get_protocol_extractor(protocol_version: str) -> ProtocolExtractor:
 
 
 ARTIFACT_VERSION = 3
-METRICS_VERSION = "v2"
+# Versioning contract:
+# - artifact_version: top-level JSON envelope schema.
+# - extractor_version: trace extraction implementation for a protocol extractor.
+# - feature_version: feature definitions exposed by this protocol family.
+# - metrics_version: formulas/transformations used in compute_metrics().
+FEATURE_VERSION = "v1"
+METRICS_VERSION = "v3"
 
 MODEL_RESPONSE_METRIC_KEYS = frozenset({
     "entropy",
+    "normalized_entropy",
     "msp",
     "margin",
+    "top2_gap",
+    "predicted_logprob",
     "mean_logprob",
+    "option_count",
 })
 
 
@@ -422,6 +492,7 @@ def build_protocol_artifact(
     extractor = get_protocol_extractor(protocol_version)
     artifact: dict[str, Any] = {
         "artifact_version": ARTIFACT_VERSION,
+        "feature_version": FEATURE_VERSION,
         "protocol_version": protocol_version,
         "extractor": extractor.name,
         "extractor_version": extractor.version,
