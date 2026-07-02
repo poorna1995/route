@@ -76,20 +76,6 @@ def pack_generation_trace(
     }
 
 
-def _mock_generation_trace(*, n_steps: int = 1) -> dict[str, Any]:
-    token_ids = [100 + step for step in range(max(1, n_steps))]
-    chosen_logprobs = [-0.1 - 0.05 * step for step in range(len(token_ids))]
-    step_logits = [
-        {str(token_ids[step]): chosen_logprobs[step], str(token_ids[step] + 1): chosen_logprobs[step] - 2.0}
-        for step in range(len(token_ids))
-    ]
-    return {
-        "generated_token_ids": token_ids,
-        "generated_token_logprobs": chosen_logprobs,
-        "generated_logits": step_logits,
-    }
-
-
 def _generation_scores(outputs: Any) -> tuple[Any, ...]:
     scores = getattr(outputs, "scores", None)
     if scores is None:
@@ -230,58 +216,6 @@ class McqLetterProtocolExtractor:
             **generation,
         }
 
-    def mock_trace(
-        self,
-        n_choices: int,
-        peak_choice_index: int,
-        *,
-        generated_text: str | None = None,
-    ) -> dict[str, Any]:
-        predicted_letter = chr(ord("A") + peak_choice_index)
-        text = generated_text if generated_text is not None else predicted_letter
-        candidate_token_logprobs: dict[str, float] = {}
-        for choice_index in range(n_choices):
-            letter = chr(ord("A") + choice_index)
-            base_logprob = -0.1 if choice_index == peak_choice_index else -2.5 - 0.1 * choice_index
-            for variant in _letter_token_variants(letter):
-                candidate_token_logprobs[variant] = base_logprob - (
-                    0.01 if variant.startswith(" ") else 0.0
-                )
-        n_steps = max(1, len(text.split()))
-        choice_logprobs = aggregate_choice_logprobs(
-            {"candidate_token_logprobs": candidate_token_logprobs, "n_choices": n_choices},
-        )
-        labels = sorted(choice_logprobs)
-        scores = [choice_logprobs[label] for label in labels]
-        probs = _softmax_probabilities(scores)
-        return {
-            "extractor_version": self.version,
-            "feature_version": FEATURE_VERSION,
-            "protocol": {
-                "protocol_version": self.protocol_version,
-            },
-            "generated_text": text,
-            "generated_token": text.splitlines()[0].strip()[:8] or predicted_letter,
-            "finish_reason": "mock",
-            "n_choices": n_choices,
-            "predicted_letter": predicted_letter,
-            "choice_logprobs": choice_logprobs,
-            "candidate_token_logprobs": candidate_token_logprobs,
-            "candidates": {
-                "labels": labels,
-                "scores": scores,
-                "probabilities": probs,
-                "option_count": n_choices,
-                "scoring": {
-                    "method": "first_token_letter",
-                    "version": 1,
-                    "temperature": 1.0,
-                },
-                "scoring_method": "first_token_letter_variants_v1",
-            },
-            **_mock_generation_trace(n_steps=n_steps),
-        }
-
     def has_protocol_trace(self, trace: dict[str, Any]) -> bool:
         has_mcq = bool(trace.get("candidate_token_logprobs") or trace.get("choice_logprobs"))
         has_generation = bool(trace.get("generated_token_ids") and trace.get("generated_token_logprobs"))
@@ -332,8 +266,6 @@ class ProtocolExtractor(Protocol):
         prompt: str,
         **kwargs: Any,
     ) -> dict: ...
-
-    def mock_trace(self, n_choices: int, peak_choice_index: int, /) -> dict: ...
 
     def has_protocol_trace(self, trace: dict) -> bool: ...
 
@@ -420,19 +352,6 @@ def capture_protocol_trace(
         prompt=prompt,
         **extractor_kwargs,
     )
-
-
-def mock_protocol_trace(
-    protocol_version: str,
-    n_choices: int,
-    peak_choice_index: int,
-    *,
-    generated_text: str | None = None,
-) -> dict[str, Any]:
-    extractor = get_protocol_extractor(protocol_version)
-    if _normalize_protocol_version(protocol_version) == PROTOCOL_MCQ_LETTER:
-        return extractor.mock_trace(n_choices, peak_choice_index, generated_text=generated_text)
-    return extractor.mock_trace(n_choices, peak_choice_index)
 
 
 def inference_capture_metadata(

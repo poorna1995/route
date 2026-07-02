@@ -27,31 +27,6 @@ from llm_routing.run import (
     stage_signal_validation,
 )
 
-
-def _route_demo(args: argparse.Namespace) -> int:
-    from llm_routing.deploy.policy import load_policy, resolve_policy_path
-    from llm_routing.deploy.router import route_query
-
-    run = Run.open(args.run)
-    policy_path = resolve_policy_path(run.root, args.policy)
-    policy = load_policy(policy_path)
-    decision = route_query(policy, run.root, args.query_id)
-    print(
-        json.dumps(
-            {
-                "query_id": decision.query_id,
-                "score": decision.score,
-                "route_hi": decision.route_hi,
-                "model": decision.model,
-                "threshold": policy.threshold,
-                "policy_path": str(policy_path.relative_to(run.root)),
-            },
-            indent=2,
-        )
-    )
-    return 0
-
-
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -74,7 +49,6 @@ def main() -> int:
     s.add_argument("--split", default="selection_holdout", choices=list(("selection_holdout", "calib", "test")))
     s.add_argument("--smoke", action="store_true")
     s.add_argument("--limit", type=int)
-    s.add_argument("--mock", action="store_true", help="fake oracle outputs (no GPU/HF weights)")
     s.add_argument("--backfill", action="store_true", help="only infer rows missing model_response.trace")
     s.add_argument("--force", action="store_true", help="re-infer all queries in split (ignore existing trace)")
     s.add_argument("--role", choices=("M_lo", "M_hi", "both"), default="both")
@@ -84,7 +58,6 @@ def main() -> int:
                 Run.open(a.run),
                 split=a.split,
                 limit=a.limit if a.limit is not None else (20 if a.smoke else None),
-                mock=a.mock,
                 backfill=a.backfill,
                 force=a.force,
                 roles=("M_lo", "M_hi") if a.role == "both" else (a.role,),
@@ -112,7 +85,6 @@ def main() -> int:
     s.add_argument("--run", type=Path, required=True)
     s.add_argument("--smoke", action="store_true")
     s.add_argument("--limit", type=int)
-    s.add_argument("--mock-embed", action="store_true", help="deterministic mock embeddings (no sentence-transformers)")
     s.add_argument(
         "--allow-full-corpus",
         action="store_true",
@@ -122,7 +94,6 @@ def main() -> int:
         func=lambda a: (
             stage_model_independent(
                 Run.open(a.run),
-                mock_embed=True if a.mock_embed or a.smoke else False,
                 limit=a.limit if a.limit is not None else (5 if a.smoke else None),
                 allow_full_corpus=a.allow_full_corpus or a.smoke,
             ),
@@ -136,12 +107,10 @@ def main() -> int:
     )
     s.add_argument("--smoke", action="store_true")
     s.add_argument("--limit", type=int)
-    s.add_argument("--mock-embed", action="store_true")
     s.add_argument("--force-partition", action="store_true")
     s.set_defaults(
         func=lambda a: (
             stage_model_independent_all(
-                mock_embed=True if a.mock_embed or a.smoke else False,
                 limit=a.limit if a.limit is not None else (5 if a.smoke else None),
                 force_partition=a.force_partition,
                 smoke=a.smoke,
@@ -223,8 +192,6 @@ def main() -> int:
         help="Part II — run Stages 4→5 (+ optional χ) on an M3-locked run",
     )
     s.add_argument("--run", type=Path, required=True)
-    s.add_argument("--mock-oracle", action="store_true")
-    s.add_argument("--mock-embed", action="store_true")
     s.add_argument("--oracle-limit", type=int, default=None)
     s.add_argument("--signal-limit", type=int, default=None)
     s.add_argument("--skip-cross-model", action="store_true")
@@ -233,8 +200,6 @@ def main() -> int:
             print(
                 run_development(
                     Run.open(a.run),
-                    mock_oracle=a.mock_oracle,
-                    mock_embed=a.mock_embed,
                     oracle_limit=a.oracle_limit,
                     signal_limit=a.signal_limit,
                     skip_cross_model=a.skip_cross_model,
@@ -244,20 +209,6 @@ def main() -> int:
         )[1]
     )
 
-    s = sub.add_parser(
-        "route-demo",
-        help="Part III — replay frozen policy for one query (loads signals from run dir)",
-    )
-    s.add_argument("--run", type=Path, required=True)
-    s.add_argument("--query-id", type=str, required=True)
-    s.add_argument(
-        "--policy",
-        type=Path,
-        default=None,
-        help="policy.json path (default: routing/policy.json)",
-    )
-    s.set_defaults(func=_route_demo)
-
     s = sub.add_parser("all", help="new + prepare + oracle + scorecard")
     add_setting(s)
     s.add_argument("--name", default="pilot")
@@ -265,7 +216,6 @@ def main() -> int:
     s.add_argument("--smoke", action="store_true")
     s.add_argument("--limit", type=int)
     s.add_argument("--force-partition", action="store_true")
-    s.add_argument("--mock", action="store_true", help="fake oracle outputs (local dry-run)")
     s.set_defaults(
         func=lambda a: (
             print(
@@ -276,7 +226,6 @@ def main() -> int:
                     limit=a.limit,
                     split=a.split,
                     force_partition=a.force_partition,
-                    mock=a.mock,
                 ).root
             ),
             0,
@@ -310,7 +259,6 @@ def _resume(args: argparse.Namespace) -> int:
             run,
             split=cfg.get("split", "selection_holdout"),
             limit=cfg.get("limit"),
-            mock=cfg.get("mock", False),
         )
     if "scorecard" not in stages:
         stage_scorecard(run)

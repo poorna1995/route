@@ -13,7 +13,6 @@ from llm_routing.signals.psi.protocol import (
     build_protocol_artifact,
     capture_protocol_trace,
     inference_capture_metadata,
-    mock_protocol_trace,
 )
 
 _LETTER = re.compile(r"^([A-Za-z])\s*$")
@@ -88,59 +87,6 @@ def _huggingface_load_kwargs(model_id: str) -> dict[str, Any]:
             "  3. Re-run (or: huggingface-cli login --token \"$HF_TOKEN\")"
         )
     return {"token": token} if token else {}
-
-
-def run_oracle_inference_mock(
-    model_id: str,
-    queries: list[Query],
-    protocol: dict[str, Any],
-) -> list[QueryResult]:
-    """Deterministic fake outputs for local pipeline checks (no GPU/HF weights)."""
-    protocol_version = protocol["protocol_version"]
-    is_high_pool_model = "8B" in model_id or "70B" in model_id
-    results: list[QueryResult] = []
-    for query_index, query in enumerate(queries):
-        low_model_correct = query_index % 2 == 0
-        high_model_correct = query_index % 3 != 0
-        is_correct = high_model_correct if is_high_pool_model else low_model_correct
-        predicted_index = (
-            query.answer_index
-            if is_correct
-            else (query.answer_index + 1) % len(query.choices)
-        )
-        predicted_letter = chr(ord("A") + predicted_index)
-        messages = build_messages(query, protocol)
-        prompt = f"{messages[0]['content']}\n{messages[1]['content']}"
-        trace = mock_protocol_trace(
-            protocol_version,
-            len(query.choices),
-            predicted_index,
-            generated_text=predicted_letter,
-        )
-        results.append(
-            QueryResult(
-                query_id=query.query_id,
-                model=model_id,
-                raw_output=trace["generated_text"],
-                parsed_answer=predicted_index,
-                correct=int(is_correct),
-                latency_ms=1.0,
-                token_count=len(trace.get("generated_token_ids", [])),
-                model_response=build_protocol_artifact(
-                    protocol_version,
-                    trace,
-                    model_id=model_id,
-                    prompt=prompt,
-                    prompt_token_count=len(prompt.split()),
-                    tokenizer_id=model_id,
-                    model_revision="mock",
-                    transformers_version="mock",
-                    torch_version="mock",
-                    dtype="mock",
-                ),
-            )
-        )
-    return results
 
 
 def run_oracle_inference(

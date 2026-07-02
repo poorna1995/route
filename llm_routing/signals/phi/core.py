@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import math
 import re
 import statistics
 import zlib
@@ -308,31 +306,12 @@ extract_mcq = extract_ambiguity
 # --- φ_semantic / φ_embedding_geometry / z-score engineering ---
 
 
-def _mock_embedding(text: str, dim: int) -> list[float]:
-    digest = hashlib.sha256(text.encode("utf-8")).digest()
-    out: list[float] = []
-    while len(out) < dim:
-        for i in range(0, len(digest), 4):
-            chunk = digest[i : i + 4]
-            if len(chunk) < 4:
-                break
-            out.append((int.from_bytes(chunk, "big") / 2**32) * 2.0 - 1.0)
-            if len(out) >= dim:
-                break
-        digest = hashlib.sha256(digest).digest()
-    norm = math.sqrt(sum(x * x for x in out)) or 1.0
-    return [x / norm for x in out]
-
-
 def encode_canonical_texts(
     texts: list[str],
     *,
     model_id: str,
-    mock: bool = False,
     dimension: int = 384,
 ) -> list[list[float]]:
-    if mock:
-        return [_mock_embedding(t, dimension) for t in texts]
     from sentence_transformers import SentenceTransformer
 
     model = SentenceTransformer(model_id)

@@ -231,7 +231,6 @@ def list_candidate_settings() -> list[Path]:
 
 def stage_model_independent_all(
     *,
-    mock_embed: bool = False,
     limit: int | None = None,
     force_partition: bool = False,
     smoke: bool = False,
@@ -246,7 +245,7 @@ def stage_model_independent_all(
         print(f"\n=== {dataset} ({run.run_id}) ===")
         stage_prepare(run, force_partition=force_partition)
         stage_eval(run)
-        out = stage_model_independent(run, mock_embed=mock_embed, limit=limit, allow_full_corpus=False)
+        out = stage_model_independent(run, limit=limit, allow_full_corpus=False)
         meta_path = run.signals_dir / "model_independent_meta.json"
         if not meta_path.exists():
             meta_path = run.signals_dir / "query_derived_meta.json"
@@ -263,7 +262,7 @@ def stage_model_independent_all(
                 "holdout_excluded": meta.get("holdout_excluded", True),
             }
         )
-    report = {"timestamp": utc_now(), "mock_embed": mock_embed, "limit": limit, "runs": index_runs}
+    report = {"timestamp": utc_now(), "limit": limit, "runs": index_runs}
     write_json(MODEL_INDEPENDENT_INDEX, report)
     print(f"\n[model-independent-all] {len(index_runs)} datasets → {MODEL_INDEPENDENT_INDEX}")
     return MODEL_INDEPENDENT_INDEX
@@ -277,16 +276,15 @@ def run_all(
     limit: int | None = None,
     split: str = "selection_holdout",
     force_partition: bool = False,
-    mock: bool = False,
 ) -> Run:
     cap = limit if limit is not None else (20 if smoke else None)
     run = Run.create(
         setting_src,
         name=name,
-        config={"split": split, "limit": cap, "smoke": smoke, "mock": mock},
+        config={"split": split, "limit": cap, "smoke": smoke},
     )
     print(f"Run → {run.root}")
     stage_prepare(run, force_partition=force_partition)
-    stage_oracle(run, split=split, limit=cap, mock=mock)
+    stage_oracle(run, split=split, limit=cap)
     stage_scorecard(run)
     return run

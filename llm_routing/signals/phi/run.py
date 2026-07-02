@@ -92,7 +92,6 @@ def run_model_independent(
     run_root: Path,
     *,
     query_ids: list[str] | None = None,
-    mock_embed: bool = False,
     config: dict[str, Any] | None = None,
     allow_full_corpus: bool = False,
 ) -> Path:
@@ -108,7 +107,7 @@ def run_model_independent(
     )
     queries = select_queries(corpus, query_ids)
 
-    tokenizer_id = None if mock_embed else resolve_tokenizer_id(setting, config)
+    tokenizer_id = resolve_tokenizer_id(setting, config)
     if tokenizer_id:
         try:
             import transformers  # noqa: F401
@@ -146,14 +145,12 @@ def run_model_independent(
     dim = int(ecfg.get("dimension", 384))
     try:
         vectors = encode_canonical_texts(
-            canonical_texts, model_id=model_id, mock=mock_embed, dimension=dim
+            canonical_texts, model_id=model_id, dimension=dim
         )
     except ImportError as exc:
-        if not mock_embed:
-            raise ImportError(
-                "sentence-transformers required for embeddings; install [semantic] or pass mock_embed=True"
-            ) from exc
-        raise
+        raise ImportError(
+            "sentence-transformers required for embeddings; install [semantic] extras."
+        ) from exc
 
     embeddings: dict[str, list[float]] = {}
     for query, vector in zip(queries, vectors):
@@ -172,8 +169,7 @@ def run_model_independent(
         "n_test": sum(1 for r in records if r.get("split") == "test"),
         "holdout_excluded": bool(calib_ids or test_ids),
         "calib_fit": bool(calib_ids),
-        "mock_embed": mock_embed,
-        "embedding_model": model_id if not mock_embed else "mock",
+        "embedding_model": model_id,
         "tokenizer_id": tokenizer_id,
         "representation": {
             "structural": "jsonl.structural",

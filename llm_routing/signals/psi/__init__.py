@@ -8,7 +8,6 @@ from llm_routing.signals.psi.protocol import (
     capture_protocol_trace,
     get_protocol_extractor,
     has_protocol_trace,
-    mock_protocol_trace,
     pack_generation_trace,
     prompt_sha256,
 )
@@ -24,7 +23,6 @@ __all__ = [
     "extract_model_response_signals",
     "get_protocol_extractor",
     "has_protocol_trace",
-    "mock_protocol_trace",
     "pack_generation_trace",
     "prompt_sha256",
 ]

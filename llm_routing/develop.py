@@ -48,21 +48,19 @@ def stage_oracle(
     *,
     split: str = "selection_holdout",
     limit: int | None = None,
-    mock: bool = False,
     backfill: bool = False,
     force: bool = False,
     roles: tuple[str, ...] = ("M_lo", "M_hi"),
 ) -> None:
     """Stage 4 (Part I M2 pilot on H; Part II on calib/test): construct oracle labels."""
-    from llm_routing.oracle import run_oracle_inference, run_oracle_inference_mock
+    from llm_routing.oracle import run_oracle_inference
 
     setting = run.setting()
     protocol = get_protocol(setting)
     pool = setting["pool"]
     queries = select_split(run, split, limit)
-    run_oracle = run_oracle_inference_mock if mock else run_oracle_inference
     part = "I" if split == "selection_holdout" else "II"
-    tag = " [mock]" if mock else ""
+    tag = ""
     if backfill:
         tag += " [backfill]"
     print(f"[{part}/oracle] split={split}  n={len(queries)}{tag}")
@@ -72,7 +70,6 @@ def stage_oracle(
         "split": split,
         "limit": limit,
         "n": len(queries),
-        "mock": mock,
         "backfill": backfill,
         "artifact_version": ARTIFACT_VERSION,
         "models": {},
@@ -94,7 +91,7 @@ def stage_oracle(
         ]
         skip_count = len(queries) - len(queries_to_infer)
         print(f"[{part}/oracle] {role} ← {model_id}  run={len(queries_to_infer)}  skip={skip_count}")
-        new_oracle_rows = run_oracle(model_id, queries_to_infer, protocol) if queries_to_infer else []
+        new_oracle_rows = run_oracle_inference(model_id, queries_to_infer, protocol) if queries_to_infer else []
         merged_rows = merge_oracle_rows(queries, cached_oracle_rows, new_oracle_rows)
         write_jsonl(path, merged_rows, QueryResult.to_dict)
         meta["models"][role] = model_id
@@ -107,7 +104,6 @@ def stage_oracle(
         split=split,
         n=len(queries),
         limit=limit,
-        mock=mock,
         backfill=backfill,
     )
 
@@ -115,7 +111,6 @@ def stage_oracle(
 def stage_signal_extraction_independent(
     run: Run,
     *,
-    mock_embed: bool = False,
     limit: int | None = None,
     allow_full_corpus: bool = False,
 ) -> Path:
@@ -139,13 +134,12 @@ def stage_signal_extraction_independent(
     if limit:
         query_ids = query_ids[:limit]
 
-    print(f"[II/5A] n={len(query_ids)}  mock_embed={mock_embed}")
+    print(f"[II/5A] n={len(query_ids)}")
     from llm_routing.signals.phi import run_model_independent
 
     out = run_model_independent(
         run.root,
         query_ids=query_ids,
-        mock_embed=mock_embed,
         allow_full_corpus=allow_full_corpus,
     )
     run.stage_done(
@@ -153,7 +147,6 @@ def stage_signal_extraction_independent(
         part="II",
         step="5A",
         n=len(query_ids),
-        mock_embed=mock_embed,
         output=str(out.relative_to(run.root)),
     )
     print(f"[II/5A] → {out}")
@@ -220,13 +213,13 @@ stage_cross_model = stage_signal_extraction_cross_model
 
 
 def run_development(
-    run: Run, *, mock_oracle: bool = False, mock_embed: bool = False,
+    run: Run, *,
     oracle_limit: int | None = None, signal_limit: int | None = None,
     skip_cross_model: bool = False,
 ) -> Path:
     for split in ("calib", "test"):
-        stage_oracle(run, split=split, limit=oracle_limit, mock=mock_oracle)
-    stage_signal_extraction_independent(run, mock_embed=mock_embed, limit=signal_limit)
+        stage_oracle(run, split=split, limit=oracle_limit)
+    stage_signal_extraction_independent(run, limit=signal_limit)
     stage_signal_extraction_dependent(run, role="M_lo")
     stage_signal_extraction_dependent(run, role="M_hi")
     if not skip_cross_model:

@@ -216,7 +216,12 @@ def _feature_metrics(x: list[float], y: list[int]) -> dict[str, Any]:
     return out
 
 
-def _column_values(rows: list[dict[str, str]], col: str) -> tuple[list[float], list[int]] | None:
+def _column_values(
+    rows: list[dict[str, str]],
+    col: str,
+    *,
+    target_col: str = "r",
+) -> tuple[list[float], list[int]] | None:
     xs: list[float] = []
     ys: list[int] = []
     for row in rows:
@@ -225,7 +230,7 @@ def _column_values(rows: list[dict[str, str]], col: str) -> tuple[list[float], l
             continue
         try:
             xs.append(float(raw))
-            ys.append(int(row["r"]))
+            ys.append(int(row[target_col]))
         except (TypeError, ValueError):
             continue
     if len(xs) < 5:
@@ -233,20 +238,32 @@ def _column_values(rows: list[dict[str, str]], col: str) -> tuple[list[float], l
     return xs, ys
 
 
-def compute_univariates(rows: list[dict[str, str]], features: list[str]) -> list[dict[str, Any]]:
-    """Level 1: per-feature association with r(q)."""
+def compute_univariates(
+    rows: list[dict[str, str]],
+    features: list[str],
+    *,
+    target_col: str = "r",
+) -> list[dict[str, Any]]:
+    """Level 1: per-feature association with target label."""
     out: list[dict[str, Any]] = []
     for col in features:
-        parsed = _column_values(rows, col)
+        parsed = _column_values(rows, col, target_col=target_col)
         if parsed is None:
             continue
         xs, ys = parsed
         family = col.split(".", 1)[0]
-        out.append({"feature": col, "family": family, **_feature_metrics(xs, ys)})
+        out.append(
+            {
+                "feature": col,
+                "family": family,
+                "target": target_col,
+                **_feature_metrics(xs, ys),
+            }
+        )
     return out
 
 
-def summarize_families(univariates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def summarize_families(univariates: list[dict[str, Any]], *, target_col: str = "r") -> list[dict[str, Any]]:
     """Level 2: distribution of per-feature AUROCs within each predefined block."""
     out: list[dict[str, Any]] = []
     for family, block, cols in FAMILY_BLOCKS:
@@ -269,6 +286,7 @@ def summarize_families(univariates: list[dict[str, Any]]) -> list[dict[str, Any]
             {
                 "family": family,
                 "block": block,
+                "target": target_col,
                 "n_features": len(aurocs),
                 "mean_auroc": statistics.mean(aurocs),
                 "median_auroc": median,
@@ -283,11 +301,47 @@ def summarize_families(univariates: list[dict[str, Any]]) -> list[dict[str, Any]
     return out
 
 
+def _feature_variance(rows: list[dict[str, str]], features: list[str]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for col in features:
+        values: list[float] = []
+        for row in rows:
+            raw = row.get(col)
+            if raw in (None, ""):
+                continue
+            try:
+                values.append(float(raw))
+            except (TypeError, ValueError):
+                continue
+        if len(values) < 2:
+            continue
+        out.append(
+            {
+                "feature": col,
+                "family": col.split(".", 1)[0],
+                "n": len(values),
+                "variance": statistics.pvariance(values),
+                "std": statistics.pstdev(values),
+                "min": min(values),
+                "max": max(values),
+            }
+        )
+    return out
+
+
 def validate_signals(table_path: Path) -> dict[str, Any]:
     """Univariate evidence + family summaries on one analysis table (R_c only in Stage 6)."""
     rows, features = _load_table(table_path)
-    univariates = compute_univariates(rows, features)
-    family_summary = summarize_families(univariates)
+    univariates_by_target: dict[str, list[dict[str, Any]]] = {}
+    family_summary_by_target: dict[str, list[dict[str, Any]]] = {}
+    for target_col in ("r", "y_lo", "y_hi"):
+        target_univariates = compute_univariates(rows, features, target_col=target_col)
+        univariates_by_target[target_col] = target_univariates
+        family_summary_by_target[target_col] = summarize_families(
+            target_univariates, target_col=target_col
+        )
+    psi_features = [f for f in features if f.startswith("psi.")]
+    psi_variance = _feature_variance(rows, psi_features)
     return {
         "meta": {
             "purpose": STAGE6_PURPOSE,
@@ -296,9 +350,14 @@ def validate_signals(table_path: Path) -> dict[str, Any]:
             "positive_rate": sum(int(r["r"]) for r in rows) / len(rows),
             "primary_metric": "auroc",
             "source_table": table_path.name,
+            "targets_evaluated": ["r", "y_lo", "y_hi"],
         },
-        "univariates": univariates,
-        "family_summary": family_summary,
+        # Backward-compatible aliases for existing readers.
+        "univariates": univariates_by_target["r"],
+        "family_summary": family_summary_by_target["r"],
+        "univariates_by_target": univariates_by_target,
+        "family_summary_by_target": family_summary_by_target,
+        "psi_variance": psi_variance,
     }
 
 
@@ -410,6 +469,15 @@ def stage_signal_validation(
     )
     (out_dir / "family_summary.json").write_text(
         json.dumps(report["family_summary"], indent=2) + "\n", encoding="utf-8"
+    )
+    (out_dir / "univariates_by_target.json").write_text(
+        json.dumps(report["univariates_by_target"], indent=2) + "\n", encoding="utf-8"
+    )
+    (out_dir / "family_summary_by_target.json").write_text(
+        json.dumps(report["family_summary_by_target"], indent=2) + "\n", encoding="utf-8"
+    )
+    (out_dir / "psi_variance.json").write_text(
+        json.dumps(report["psi_variance"], indent=2) + "\n", encoding="utf-8"
     )
     (out_dir / "linear_representation_probes.json").write_text(
         json.dumps(probes, indent=2) + "\n", encoding="utf-8"
